@@ -245,6 +245,41 @@ test('groupTabs is a no-op skip (not a failure) when no tabs remain', async () =
   assert.equal(undo.reverse, null);
 });
 
+// Like makeGroupChrome, but each tab reports a groupId from `membership`
+// (id -> groupId), modeling tabs already placed in groups.
+function makeGroupChromeWithMembership(groups, membership = {}) {
+  const groupCalls = [];
+  return {
+    _groupCalls: groupCalls,
+    tabs: {
+      async get(id) { return { id, windowId: 7, url: 'https://a.com', groupId: membership[id] }; },
+      async group(arg) { groupCalls.push(arg); return 555; },
+    },
+    tabGroups: {
+      async query() { return groups; },
+      async update(id, props) { this._groupUpdate = { id, props }; },
+    },
+  };
+}
+
+test('groupTabs reusing a group only moves tabs not already in it', async () => {
+  // tab 1 already in group 42; tab 2 is a newcomer.
+  const chrome = makeGroupChromeWithMembership([{ id: 42, title: 'Work' }], { 1: 42 });
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  const undo = await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, [{ tabIds: [2], groupId: 42 }]); // only the newcomer
+  assert.deepEqual(undo.reverse.tabIds, [2]);
+});
+
+test('groupTabs reusing a group is a no-op skip when every tab is already in it', async () => {
+  const chrome = makeGroupChromeWithMembership([{ id: 42, title: 'Work' }], { 1: 42, 2: 42 });
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  const undo = await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, []); // no tabs.group call at all
+  assert.equal(undo.skipped, true);
+  assert.equal(undo.reverse, null);
+});
+
 test('createBookmark builds folder path then creates the bookmark', async () => {
   const chrome = makeChrome();
   const item = { action: 'createBookmark', data: { url: 'https://b.com', title: 'B', folderPath: ['Dev', 'React'] } };

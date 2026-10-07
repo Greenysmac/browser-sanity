@@ -85,8 +85,16 @@ async function applyItemInner(item, c, deps = {}) {
         ? await c.tabGroups.query({ windowId }).then((gs) => (gs || []).find((g) => (g.title || '').trim().toLowerCase() === wanted)).catch(() => null)
         : null;
       if (existing) {
-        await c.tabs.group({ tabIds: liveIds, groupId: existing.id });
-        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: liveIds } };
+        // Only move tabs that aren't already in this group, so the order the
+        // user arranged inside it survives. If every tab is already there,
+        // there's nothing to move — skip it as a successful no-op.
+        const groupIds = await Promise.all(
+          liveIds.map((id) => c.tabs.get(id).then((t) => (t ? t.groupId : null)).catch(() => null)),
+        );
+        const newcomers = liveIds.filter((id, i) => groupIds[i] !== existing.id);
+        if (!newcomers.length) return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: null, skipped: true };
+        await c.tabs.group({ tabIds: newcomers, groupId: existing.id });
+        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: newcomers } };
       }
       const groupId = await c.tabs.group({ tabIds: liveIds });
       await c.tabGroups.update(groupId, { title: groupName, color: COLORS.has(color) ? color : 'grey' });
