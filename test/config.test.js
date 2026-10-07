@@ -74,10 +74,10 @@ test('sanitizeOptions keeps only a bounded timeoutMs and drops everything else',
 });
 
 test('sanitizeOptions clamps out-of-range or bad timeout to default', () => {
-  assert.equal(sanitizeOptions({ timeoutMs: -1 }).timeoutMs, 120000);
+  assert.equal(sanitizeOptions({ timeoutMs: -1 }).timeoutMs, 300000);
   assert.equal(sanitizeOptions({ timeoutMs: 9_999_999 }).timeoutMs, 300000);
-  assert.equal(sanitizeOptions({}).timeoutMs, 120000);
-  assert.equal(sanitizeOptions(null).timeoutMs, 120000);
+  assert.equal(sanitizeOptions({}).timeoutMs, 300000);
+  assert.equal(sanitizeOptions(null).timeoutMs, 300000);
 });
 
 test('sanitizeConfig keeps only apiKey/baseUrl/model strings, drops anything executable', () => {

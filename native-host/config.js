@@ -1,6 +1,6 @@
 import os from 'node:os';
 
-const DEFAULT_TIMEOUT = 120000;
+const DEFAULT_TIMEOUT = 300000; // 5 min: a full re-sort of 500+ tabs can take over 2 (2026-10-07)
 const MAX_TIMEOUT = 300000;
 const MIN_TIMEOUT = 1000;
 
