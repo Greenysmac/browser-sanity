@@ -104,7 +104,7 @@ test('index.md uses the documented markdown format', () => {
     { env, now: '2026-10-07T12:00:00.000Z' },
   );
   const md = readMd(dir);
-  assert.match(md, /^# Tab Sanity index\n/);
+  assert.match(md, /^# Browser Sanity index\n/);
   assert.match(md, /Updated: 2026-10-07T12:00:00\.000Z\. Open groups come first; parked groups keep the tabs they had when last seen\./);
   assert.match(md, /## Play \(open, 2 tabs\)/);
   assert.match(md, /- \[B\]\(https:\/\/b\)/);

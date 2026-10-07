@@ -219,7 +219,7 @@ async function notificationIcon() {
 
 async function notify(message) {
   try {
-    await chrome.notifications.create({ type: 'basic', iconUrl: await notificationIcon(), title: 'Browser Organizer', message });
+    await chrome.notifications.create({ type: 'basic', iconUrl: await notificationIcon(), title: 'Browser Sanity', message });
   } catch { /* notifications are best-effort */ }
 }
 

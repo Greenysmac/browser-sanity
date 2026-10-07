@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.2.0 Browser Sanity — 2026-10-07
+Jeff's fork of Browser Organizer 0.1.8, renamed Browser Sanity. Built by Kiro in three unattended runs (Mycroft's runner: revert on a failed try, three tries then stop), each reviewed by Mycroft.
+
+**Run 1 (2026-10-06)**
+- The helper reads a groups file (`groups.md` in the helper's folder) and sends it with every request, so tabs land in Jeff's need-based groups.
+- Tab data carries each tab's current group; grouping reuses existing group names; up to 15 groups when a groups file is loaded.
+- Applying a group adds tabs to an existing group of the same name instead of making a duplicate.
+- Setting: Re-sort tabs already in groups.
+
+**Fixes by Mycroft (2026-10-07)**
+- Claude backend: pass USER so the CLI finds its saved login (it said "Not logged in" from Chrome).
+- Helper time limit 5 minutes (big re-sorts ran past 2).
+
+**Run 2 (2026-10-07)**
+- Groups apply before duplicate tabs close; tabs that are gone are skipped.
+- Tabs already in the right group stay where they are, so Jeff's order inside a group survives.
+- The index: `index.md` and `index.json` in the helper's folder list every group and its tabs; Update index button; index written after every apply.
+- Suggestions from Mycroft or any agent through `proposals.json`, shown in the normal list for approval.
+- Tools and a Settings button at the top of the panel.
+
+**Run 3 (2026-10-07)**
+- Undo returns moved tabs to the group they came from.
+- Parked: the index keeps groups Jeff puts away; groups a re-sort emptied are dropped.
+- Park and Open from the index.
+- Group descriptions, read and written in the groups file the model reads.
+- Sort one group, or just the selected tabs.
+- The board: Open now and Parked sections, cards with Sort, Park, Open and a description, in the side panel and as the new-tab page.
+
+**Rename (2026-10-07):** Browser Organizer is now Browser Sanity (name, panel, new-tab page, index title).
+
 ## 0.1.8 — 2026-09-22
 UX/UI refresh, accessibility enhancements (WCAG 2.1 AA), and native host packaging for npm.
 

@@ -229,7 +229,7 @@ export function progressLabel(phase, done, total) {
 }
 
 export function toMarkdown(items) {
-  const lines = ['# Browser Organizer export', ''];
+  const lines = ['# Browser Sanity export', ''];
   for (const [action, list] of Object.entries(groupByAction(items))) {
     lines.push(`## ${actionLabel(action)}`);
     for (const it of list) {

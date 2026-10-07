@@ -69,7 +69,7 @@ function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
 // with the tabs they had when last seen, and finally the ungrouped tabs.
 function renderMarkdown(groups, ungrouped, now) {
   const lines = [];
-  lines.push('# Tab Sanity index');
+  lines.push('# Browser Sanity index');
   lines.push(`Updated: ${now}. Open groups come first; parked groups keep the tabs they had when last seen.`);
   const open = groups.filter((g) => g.status === 'open');
   const parked = groups.filter((g) => g.status !== 'open');

@@ -1,7 +1,7 @@
 {
-  "appName": { "message": "Browser Organizer", "description": "Extension name shown in the browser and store." },
+  "appName": { "message": "Browser Sanity", "description": "Extension name shown in the browser and store." },
   "appDesc": { "message": "Group tabs, close forgotten ones, and tidy bookmarks with your local AI CLI. Titles and URLs go to your own AI provider.", "description": "Extension description shown in the store (manifest description, max 132 chars)." },
-  "panelTitle": { "message": "Browser Organizer", "description": "Side-panel heading." },
+  "panelTitle": { "message": "Browser Sanity", "description": "Side-panel heading." },
   "analyzeButton": { "message": "Analyze my tabs & bookmarks", "description": "Primary action button." },
   "settingsTitle": { "message": "Settings", "description": "Settings section heading." },
   "featGroupTabs": { "message": "Group tabs", "description": "Run only tab grouping." },
