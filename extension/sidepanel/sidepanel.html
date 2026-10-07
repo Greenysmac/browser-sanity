@@ -41,6 +41,7 @@
         <button id="run" class="primary" data-i18n="analyzeButton">Analyze my tabs & bookmarks</button>
         <button id="loadProposals" aria-label="Load suggestions written by an agent">Load agent suggestions</button>
         <button id="updateIndex" aria-label="Update the saved index of tab groups">Update index</button>
+        <button id="openSettings" aria-label="Open settings">Settings</button>
         <button id="cancelRun" aria-label="Cancel the running scan" hidden>Cancel</button>
       </div>
       <p id="status" role="status" aria-live="polite">
@@ -69,6 +70,33 @@
         <button id="recheck" class="primary">Recheck connection</button>
       </div>
       <p class="hint">Then pick your AI backend in Settings below (Claude, Antigravity, Kiro, Copilot, Codex, or local Ollama).</p>
+    </section>
+
+    <section class="tools" aria-label="Tools">
+      <div class="toolsHead">Tools</div>
+
+      <details class="tool" id="commandPanel">
+        <summary data-i18n="commandLabel">Type a command</summary>
+        <form id="commandForm" class="commandForm">
+          <input type="text" id="commandInput" aria-label="Natural-language command" placeholder="e.g. close everything about travel" />
+          <button type="submit" data-i18n="runCommand">Run command</button>
+        </form>
+        <p class="hint"><kbd>Ctrl+Shift+O</kbd> to analyze · type <kbd>org &lt;instruction&gt;</kbd> in the address bar.</p>
+      </details>
+
+      <details id="tabsPanel">
+        <summary data-i18n="openTabs">Open tabs</summary>
+        <div class="tabsToolbar">
+          <input type="text" id="tabFilter" aria-label="Filter open tabs by title, URL, or domain" placeholder="Filter by title, URL, or domain" />
+          <div class="tabsActions">
+            <button type="button" id="selectAllTabs">Select all</button>
+            <button type="button" id="selectNoneTabs">None</button>
+            <button type="button" id="closeTabsBtn" class="danger-btn" data-i18n="closeSelected">Close selected</button>
+          </div>
+          <span id="tabCount" class="hint" aria-live="polite"></span>
+        </div>
+        <ul id="tabList"></ul>
+      </details>
     </section>
 
     <section id="summary" hidden></section>
@@ -106,31 +134,8 @@
       <button id="clearPlan" data-i18n="clearList">Clear list</button>
     </div>
 
-    <section class="tools" aria-label="Tools">
-      <div class="toolsHead">Tools</div>
-
-      <details class="tool" id="commandPanel">
-        <summary data-i18n="commandLabel">Type a command</summary>
-        <form id="commandForm" class="commandForm">
-          <input type="text" id="commandInput" aria-label="Natural-language command" placeholder="e.g. close everything about travel" />
-          <button type="submit" data-i18n="runCommand">Run command</button>
-        </form>
-        <p class="hint"><kbd>Ctrl+Shift+O</kbd> to analyze · type <kbd>org &lt;instruction&gt;</kbd> in the address bar.</p>
-      </details>
-
-      <details id="tabsPanel">
-        <summary data-i18n="openTabs">Open tabs</summary>
-        <div class="tabsToolbar">
-          <input type="text" id="tabFilter" aria-label="Filter open tabs by title, URL, or domain" placeholder="Filter by title, URL, or domain" />
-          <div class="tabsActions">
-            <button type="button" id="selectAllTabs">Select all</button>
-            <button type="button" id="selectNoneTabs">None</button>
-            <button type="button" id="closeTabsBtn" class="danger-btn" data-i18n="closeSelected">Close selected</button>
-          </div>
-          <span id="tabCount" class="hint" aria-live="polite"></span>
-        </div>
-        <ul id="tabList"></ul>
-      </details>
+    <section class="tools" aria-label="More">
+      <div class="toolsHead">More</div>
 
     <details id="settings">
       <summary data-i18n="settingsTitle">Settings</summary>

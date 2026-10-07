@@ -96,6 +96,17 @@ export async function loadSettings() {
 }
 
 export function initSettingsView() {
+  // The top-row Settings button opens the (far-down) settings panel and scrolls
+  // it into view; Settings itself stays in place in the DOM.
+  const openSettings = document.getElementById('openSettings');
+  if (openSettings) {
+    openSettings.addEventListener('click', () => {
+      const settings = $('settings');
+      if (!settings) return;
+      settings.open = true;
+      settings.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
   $('openaiKeyShow').addEventListener('change', (e) => { $('openaiApiKey').type = e.target.checked ? 'text' : 'password'; });
   $('openaiKeyClear').addEventListener('click', async () => {
     await clearSecret('openaiApiKey');
