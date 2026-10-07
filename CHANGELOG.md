@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-10-07
+**Security fix by Mycroft (from a background security review of run 4)**
+- Model-written group descriptions are suggestions only. The helper's 'describe' no longer writes the groups file: tab titles are untrusted page text, and the groups file goes back into every later prompt as rules, so a crafted page title could otherwise plant lasting instructions. Only an explicit Save ('groups-write') stores a description.
+- Suggestions are kept only for groups that were asked about (no new group names from model output), flattened to one line, stripped of control characters, capped at 200 characters. Tests cover an injection-style title.
+- index.md now says its tab titles are untrusted page text, for any agent that reads it.
+
 ## 0.2.1 — 2026-10-07
 **Run 4 (Kiro, reviewed by Mycroft)**
 - "Open side panel" button on the new-tab board; "Sort this group" there opens the panel so the suggestions show. (Task 1 failed once, was reverted and logged, and passed on try 2.)

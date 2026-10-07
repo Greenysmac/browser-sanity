@@ -15,6 +15,13 @@ function withGroups(rules, groupsText) {
   return [rules, `MY GROUPS (when a tab fits one of these, use that exact group name): ${groupsText}`].filter(Boolean).join('\n');
 }
 
+// One line, no control characters, at most 200 characters.
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f]/g;
+function cleanSuggestion(text) {
+  return String(text || '').replace(CONTROL, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
 // What this host can do, so the extension can feature-detect instead of probing
 // by catching "Unknown task" errors. `passthrough` is the generic `prompt` task
 // that lets the extension ship new AI operations without a host edit.
@@ -138,27 +145,23 @@ export async function handle(msg, deps = {}) {
     return load();
   }
 
-  // Describe the given groups: ask the model for one sentence per group, then
-  // write each returned description into the groups file — but only for groups
-  // that have no description there yet, so a description the user or an agent
-  // wrote is never overwritten. Returns { descriptions, written }.
+  // Describe the given groups: ask the model for one sentence per group and
+  // return them as SUGGESTIONS only. Nothing is written here. Tab titles are
+  // untrusted page text, and the groups file is fed back into every later
+  // prompt as rules, so model output must never reach that file without the
+  // user seeing it: the extension shows each suggestion and only an explicit
+  // Save ('groups-write') stores it (security review, 2026-10-07). Suggestions
+  // are kept only for groups that were asked about, flattened to one line,
+  // stripped of control characters and capped at 200 characters.
   if (msg.type === 'describe') {
     const payload = msg.payload || {};
     const groups = Array.isArray(payload.groups) ? payload.groups : [];
+    const asked = new Set(groups.map((g) => String(g.name || '').trim().toLowerCase()));
     const out = await adapter.run(buildDescribePrompt(groups), opts);
-    const descriptions = parseDescribeResult(out);
-    const read = deps.readGroups || readGroups;
-    const write = deps.writeGroupDescription || writeGroupDescription;
-    const existing = new Set(read()
-      .filter((g) => g.description)
-      .map((g) => g.name.trim().toLowerCase()));
-    let written = 0;
-    for (const d of descriptions) {
-      if (!d.description || existing.has(d.name.trim().toLowerCase())) continue;
-      write(d.name, d.description);
-      written += 1;
-    }
-    return { descriptions, written };
+    const descriptions = parseDescribeResult(out)
+      .filter((d) => d.description && asked.has(String(d.name || '').trim().toLowerCase()))
+      .map((d) => ({ name: d.name, description: cleanSuggestion(d.description) }));
+    return { descriptions, written: 0 };
   }
 
   // Read the group descriptions the model sees, so the extension can show and
