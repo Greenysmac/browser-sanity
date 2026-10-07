@@ -8,6 +8,7 @@ import { initSessionsView, renderSessions } from './sessions-view.js';
 import { initMutedView } from './muted-view.js';
 import { initHealthView, checkHealth } from './health-view.js';
 import { initUndoHistory } from './undo.js';
+import { initMainPanel } from './main-panel.js';
 import { renderBoard } from '../board/board.js';
 import { $, send, setStatus } from './dom.js';
 
@@ -38,6 +39,7 @@ function initBoardView() {
   initMutedView();
   initHealthView();
   initUndoHistory();
+  initMainPanel();
   // First paint: plan (loads the stored plan), then settings + health + sessions.
   // Each step is independent — one throwing (e.g. loadSettings' direct storage/
   // crypto calls) must not leave the rest of the panel silently uninitialized.

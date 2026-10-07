@@ -5,6 +5,32 @@ export { summarize, digestText };
 
 export function actionLabel(action) { return ACTION_LABELS[action] || action; }
 
+// One plain-English line for the main-panel result card, built from the plan:
+// counts the tabs moved into groups (groupTabs items' tabIds) and the tabs
+// closed (closeTab items), e.g. "Move 412 tabs into 14 groups, close 37
+// duplicates". Omits a clause whose count is zero; returns '' for an empty plan.
+export function planSummaryLine(plan) {
+  const items = plan || [];
+  const groups = items.filter((it) => it.action === 'groupTabs');
+  const groupTabCount = groups.reduce((n, it) => n + ((it.data && it.data.tabIds && it.data.tabIds.length) || 0), 0);
+  const closeCount = items.filter((it) => it.action === 'closeTab').length;
+  const parts = [];
+  if (groupTabCount) {
+    parts.push(`Move ${groupTabCount} tab${groupTabCount === 1 ? '' : 's'} into ${groups.length} group${groups.length === 1 ? '' : 's'}`);
+  }
+  if (closeCount) {
+    parts.push(`close ${closeCount} duplicate${closeCount === 1 ? '' : 's'}`);
+  }
+  return parts.join(', ');
+}
+
+// The muted "models in use" line for the Sort card. Empty slots fall back to
+// "endpoint default", e.g. "Big sorts: claude-sonnet-5-5 · Quick jobs: endpoint default".
+export function modelsInUseLine(bigModel, quickModel) {
+  const name = (m) => (m && String(m).trim()) || 'endpoint default';
+  return `Big sorts: ${name(bigModel)} · Quick jobs: ${name(quickModel)}`;
+}
+
 export function statusLabel(bucket) { return STATUS_LABELS[bucket] || bucket; }
 
 // Maps a bookmark-cleanup proposal to a status bucket key for grouped display.

@@ -15,12 +15,19 @@
           <rect width="7" height="7" x="3" y="14" rx="1.5" />
         </svg>
         <h1 data-i18n="panelTitle">Browser Sanity</h1>
+        <span id="appVersion" class="appVersion" aria-label="Version"></span>
       </div>
       <div class="headerActions">
         <button type="button" id="headerUndoBtn" class="headerIconBtn" title="Undo history" aria-label="Undo history">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 7v6h6" />
             <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+          </svg>
+        </button>
+        <button type="button" id="openSettings" class="headerIconBtn" title="Settings" aria-label="Open settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </button>
       </div>
@@ -30,58 +37,59 @@
     <div class="heroControls">
       <div id="health" role="status"></div>
       <div id="hostUpdate" role="status" hidden></div>
-      <div class="scopeRow">
-        <label for="scope">Scope</label>
-        <select id="scope">
-          <option value="window">This window</option>
-          <option value="all">All windows</option>
-        </select>
-      </div>
-      <div class="runGroup">
-        <button id="run" class="primary" data-i18n="analyzeButton">Analyze my tabs & bookmarks</button>
-        <button id="sortSelected" aria-label="Sort just the tabs selected in the tab strip">Sort selected tabs</button>
-        <button id="loadProposals" aria-label="Load suggestions written by an agent">Load agent suggestions</button>
-        <button id="updateIndex" aria-label="Update the saved index of tab groups">Update index</button>
-        <button id="openSettings" aria-label="Open settings">Settings</button>
-        <button id="cancelRun" aria-label="Cancel the running scan" hidden>Cancel</button>
-      </div>
+
+      <section id="sortCard" class="sortCard" aria-label="Sort tabs">
+        <div id="scopeSegment" class="segmented" role="radiogroup" aria-label="What to sort">
+          <button type="button" class="segBtn" data-scope="window" aria-pressed="true">This window</button>
+          <button type="button" class="segBtn" data-scope="all" aria-pressed="false">All windows</button>
+          <button type="button" class="segBtn" data-scope="selected" aria-pressed="false">Selected tabs</button>
+        </div>
+        <div class="scopeRow" hidden>
+          <label for="scope">Scope</label>
+          <select id="scope">
+            <option value="window">This window</option>
+            <option value="all">All windows</option>
+          </select>
+        </div>
+        <div class="runGroup">
+          <button id="run" class="primary" data-i18n="analyzeButton">Sort tabs</button>
+          <button id="cancelRun" aria-label="Cancel the running scan" hidden>Cancel</button>
+        </div>
+        <p id="modelsInUse" class="modelsInUse"></p>
+      </section>
+
+      <!-- Hidden runners kept for their existing wiring; the segmented control
+           drives the scope select, and "Selected tabs" invokes sortSelected. -->
+      <button id="sortSelected" class="hiddenRunner" aria-label="Sort just the tabs selected in the tab strip" hidden>Sort selected tabs</button>
+
       <p id="status" role="status" aria-live="polite">
         <span id="statusText"></span>
         <span id="statusClock" class="statusClock" aria-hidden="true"></span>
       </p>
     </div>
 
+    <section id="resultCard" class="resultCard" aria-label="Sort result" hidden>
+      <p id="resultSummary" class="resultSummary"></p>
+      <div class="resultActions">
+        <button type="button" id="resultApply" class="apply-primary">Apply</button>
+        <button type="button" id="reviewToggle" aria-expanded="false" aria-controls="plan">Review</button>
+      </div>
+    </section>
+
     <details id="board" class="board" open>
       <summary>Board</summary>
       <div id="boardBody"></div>
     </details>
 
-    <div class="quickActions">
-      <span class="quickLabel">Run one</span>
-      <div id="runOne" class="runOne">
-        <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
-        <button type="button" data-feature="staleTabs" data-i18n="featStaleTabs">Find stale tabs</button>
-        <button type="button" data-feature="importantBookmarks" data-i18n="featBookmarkImportant">Bookmark important</button>
-        <button type="button" data-feature="cleanBookmarks" data-i18n="featCleanBookmarks">Clean bookmarks</button>
-        <button type="button" data-feature="organizeBookmarks" data-i18n="featOrganizeBookmarks">Sort bookmarks</button>
-      </div>
+    <div class="boardActions">
+      <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
+      <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
     </div>
 
-    <section id="onboarding" hidden>
-      <h2 data-i18n="onboardingTitle">Connect your AI CLI</h2>
-      <p>Browser Sanity runs a local AI CLI to organize your tabs and bookmarks. Register the helper once in a terminal:</p>
-      <pre id="installCmd"></pre>
-      <div class="onboardingActions">
-        <button id="copyCmd">Copy command</button>
-        <button id="recheck" class="primary">Recheck connection</button>
-      </div>
-      <p class="hint">Then pick your AI backend in Settings below (Claude, Antigravity, Kiro, Copilot, Codex, or local Ollama).</p>
-    </section>
+    <details id="moreTools" class="moreTools" aria-label="Tools">
+      <summary>More tools</summary>
 
-    <section class="tools" aria-label="Tools">
-      <div class="toolsHead">Tools</div>
-
-      <details class="tool" id="commandPanel">
+      <details id="commandPanel">
         <summary data-i18n="commandLabel">Type a command</summary>
         <form id="commandForm" class="commandForm">
           <input type="text" id="commandInput" aria-label="Natural-language command" placeholder="e.g. close everything about travel" />
@@ -103,6 +111,28 @@
         </div>
         <ul id="tabList"></ul>
       </details>
+
+      <div class="quickActions">
+        <span class="quickLabel">Run one</span>
+        <div id="runOne" class="runOne">
+          <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
+          <button type="button" data-feature="staleTabs" data-i18n="featStaleTabs">Find stale tabs</button>
+          <button type="button" data-feature="importantBookmarks" data-i18n="featBookmarkImportant">Bookmark important</button>
+          <button type="button" data-feature="cleanBookmarks" data-i18n="featCleanBookmarks">Clean bookmarks</button>
+          <button type="button" data-feature="organizeBookmarks" data-i18n="featOrganizeBookmarks">Sort bookmarks</button>
+        </div>
+      </div>
+    </details>
+
+    <section id="onboarding" hidden>
+      <h2 data-i18n="onboardingTitle">Connect your AI CLI</h2>
+      <p>Browser Sanity runs a local AI CLI to organize your tabs and bookmarks. Register the helper once in a terminal:</p>
+      <pre id="installCmd"></pre>
+      <div class="onboardingActions">
+        <button id="copyCmd">Copy command</button>
+        <button id="recheck" class="primary">Recheck connection</button>
+      </div>
+      <p class="hint">Then pick your AI backend in Settings below (Claude, Antigravity, Kiro, Copilot, Codex, or local Ollama).</p>
     </section>
 
     <section id="summary" hidden></section>
