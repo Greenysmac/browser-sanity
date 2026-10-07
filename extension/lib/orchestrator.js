@@ -303,7 +303,14 @@ export async function applyItems(items, deps = {}) {
   const recordUndo = deps.recordUndo || defaultRecordUndo;
   const applied = [];
   const failed = [];
-  for (const item of items) {
+  // Group tabs before anything closes or suspends them (closeTab/discardTab):
+  // an earlier item that closes a tab would otherwise remove it from a later
+  // group. The two filters preserve relative order within each bucket.
+  const ordered = [
+    ...items.filter((it) => it.action === 'groupTabs'),
+    ...items.filter((it) => it.action !== 'groupTabs'),
+  ];
+  for (const item of ordered) {
     try {
       const undo = await applyItem(item);
       // Persist each undo record immediately: if a later item or the process

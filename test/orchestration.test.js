@@ -306,6 +306,25 @@ test('applyItems applies each item, records undo, and reports failures', async (
   assert.equal(recorded.length, 1);
 });
 
+test('applyItems applies every groupTabs item before any close/suspend item, whatever the input order', async () => {
+  const order = [];
+  const items = [
+    { itemId: 'close1', action: 'closeTab', data: {} },
+    { itemId: 'group1', action: 'groupTabs', data: {} },
+    { itemId: 'discard1', action: 'discardTab', data: {} },
+    { itemId: 'group2', action: 'groupTabs', data: {} },
+    { itemId: 'move1', action: 'moveBookmark', data: {} },
+  ];
+  const deps = {
+    applyItem: async (item) => { order.push(item.itemId); return { undoId: 'u', ts: 1, action: item.action, reverse: {} }; },
+    recordUndo: async () => {},
+  };
+  await applyItems(items, deps);
+  // Both groups run first (in their original relative order), then everything
+  // else (also in original relative order).
+  assert.deepEqual(order, ['group1', 'group2', 'close1', 'discard1', 'move1']);
+});
+
 test('buildPlan includes the configured adapter in native requests', async () => {
   let seen = null;
   const stored = {};

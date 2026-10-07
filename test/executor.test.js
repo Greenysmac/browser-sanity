@@ -208,6 +208,43 @@ test('groupTabs falls back to creating one when tabGroups.query fails', async ()
   assert.equal(chrome.tabGroups._groupUpdate.props.title, 'Work');
 });
 
+// tabs.get rejects for ids in `gone`, resolves otherwise — models tabs that
+// were closed between plan-build and apply.
+function makeGroupChromeWithGone(groups, gone = []) {
+  const groupCalls = [];
+  const missing = new Set(gone);
+  return {
+    _groupCalls: groupCalls,
+    tabs: {
+      async get(id) { if (missing.has(id)) throw new Error('no such tab'); return { id, windowId: 7, url: 'https://a.com' }; },
+      async group(arg) { groupCalls.push(arg); return 555; },
+    },
+    tabGroups: {
+      async query() { return groups; },
+      async update(id, props) { this._groupUpdate = { id, props }; },
+    },
+  };
+}
+
+test('groupTabs drops ids whose tab is gone and groups the survivors', async () => {
+  const chrome = makeGroupChromeWithGone([], [2]); // tab 2 was closed
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2, 3], groupName: 'Work', color: 'blue' } };
+  const undo = await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, [{ tabIds: [1, 3] }]);
+  assert.equal(chrome.tabGroups._groupUpdate.props.title, 'Work');
+  assert.deepEqual(undo.reverse.tabIds, [1, 3]);
+});
+
+test('groupTabs is a no-op skip (not a failure) when no tabs remain', async () => {
+  const chrome = makeGroupChromeWithGone([], [1, 2]); // both tabs gone
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  const undo = await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, []); // nothing grouped
+  assert.equal(chrome.tabGroups._groupUpdate, undefined);
+  assert.equal(undo.skipped, true);
+  assert.equal(undo.reverse, null);
+});
+
 test('createBookmark builds folder path then creates the bookmark', async () => {
   const chrome = makeChrome();
   const item = { action: 'createBookmark', data: { url: 'https://b.com', title: 'B', folderPath: ['Dev', 'React'] } };

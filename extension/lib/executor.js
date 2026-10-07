@@ -68,21 +68,29 @@ async function applyItemInner(item, c, deps = {}) {
     }
     case 'groupTabs': {
       const { tabIds, groupName, color } = item.data;
+      // Drop tab ids that no longer exist (closed/suspended since the plan was
+      // built) so we only group what's live. If nothing survives, there's
+      // nothing to group — treat it as a successful no-op, not a failure.
+      const liveTabs = await Promise.all(
+        (tabIds || []).map((id) => c.tabs.get(id).then((t) => (t ? id : null)).catch(() => null)),
+      );
+      const liveIds = liveTabs.filter((id) => id != null);
+      if (!liveIds.length) return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: null, skipped: true };
       // Reuse an existing group in the first tab's window whose title matches
       // groupName (trimmed, case-insensitive); leave its title/color alone.
-      const first = await c.tabs.get(tabIds[0]).catch(() => null);
+      const first = await c.tabs.get(liveIds[0]).catch(() => null);
       const windowId = first ? first.windowId : item.data.windowId;
       const wanted = (groupName || '').trim().toLowerCase();
       const existing = windowId != null && wanted
         ? await c.tabGroups.query({ windowId }).then((gs) => (gs || []).find((g) => (g.title || '').trim().toLowerCase() === wanted)).catch(() => null)
         : null;
       if (existing) {
-        await c.tabs.group({ tabIds, groupId: existing.id });
-        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds } };
+        await c.tabs.group({ tabIds: liveIds, groupId: existing.id });
+        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: liveIds } };
       }
-      const groupId = await c.tabs.group({ tabIds });
+      const groupId = await c.tabs.group({ tabIds: liveIds });
       await c.tabGroups.update(groupId, { title: groupName, color: COLORS.has(color) ? color : 'grey' });
-      return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds } };
+      return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: liveIds } };
     }
     case 'createBookmark': {
       const { url, title, folderPath, rootId } = item.data;
