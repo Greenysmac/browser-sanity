@@ -226,6 +226,71 @@ export function parkGroup(group = {}, {
   return groups.length;
 }
 
+// Split one parked group into sub-groups, in place. The parent is found by name
+// (trimmed, case-insensitive). Each sub-group's tabs are drawn only from the
+// parent's own tabs whose url appears in that sub-group's `urls`, so a url not
+// already parked under the parent can never inject a new tab. Any parent tab not
+// claimed by a sub-group falls into the first sub-group, so no tab is lost. The
+// parent entry is replaced, at its position, by the sub-group entries (status
+// 'parked', lastSeen now, color as given or inherited from the parent). Writes
+// through the same path as other index writes (a dated history copy first).
+// Returns { ok: true, groups: [{ name, tabs }] } or { ok: false, error } when
+// the parent isn't found. Only index.json and index.md are touched.
+export function splitParkedGroup({ name, groups: subGroups = [] } = {}, {
+  env = process.env,
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+  mkdir = fs.mkdirSync,
+  now = new Date().toISOString(),
+} = {}) {
+  const dir = indexDir(env);
+  const jsonPath = path.join(dir, 'index.json');
+  const mdPath = path.join(dir, 'index.md');
+  const prev = readIndex({ env, readFile });
+  const key = groupKey(name);
+  const index = prev.groups.findIndex((g) => groupKey(g.name) === key);
+  if (index === -1) return { ok: false, error: `Group not found: ${String(name || '')}` };
+  const parent = prev.groups[index];
+  const parentTabs = Array.isArray(parent.tabs) ? parent.tabs.map((t) => ({ title: t.title, url: t.url })) : [];
+  const subs = (Array.isArray(subGroups) ? subGroups : []).map((s) => ({
+    name: String((s && s.name) || ''),
+    color: s && s.color !== undefined ? s.color : parent.color,
+    urls: new Set((Array.isArray(s && s.urls) ? s.urls : []).map(String)),
+    tabs: [],
+  }));
+  const claimed = new Set();
+  for (const sub of subs) {
+    for (const t of parentTabs) {
+      if (claimed.has(t.url)) continue; // a url already placed stays in its first sub-group
+      if (sub.urls.has(t.url)) { sub.tabs.push(t); claimed.add(t.url); }
+    }
+  }
+  // Parent tabs no url claimed go into the first sub-group so nothing is lost.
+  if (subs.length) {
+    for (const t of parentTabs) {
+      if (!claimed.has(t.url)) { subs[0].tabs.push(t); claimed.add(t.url); }
+    }
+  }
+  const entries = subs.map((sub) => ({
+    name: sub.name,
+    color: sub.color,
+    windowId: parent.windowId,
+    tabs: sub.tabs,
+    status: 'parked',
+    lastSeen: now,
+  }));
+  const groups = prev.groups.slice();
+  groups.splice(index, 1, ...entries);
+  const ungrouped = Array.isArray(prev.ungrouped)
+    ? prev.ungrouped.map((t) => ({ title: t.title, url: t.url }))
+    : [];
+  mkdir(dir, { recursive: true });
+  snapshotIndex(dir, now, { readFile, writeFile, mkdir });
+  writeFile(jsonPath, `${JSON.stringify({ updated: now, groups, ungrouped }, null, 2)}\n`);
+  writeFile(mdPath, renderMarkdown(groups, ungrouped, now));
+  return { ok: true, groups: entries.map((e) => ({ name: e.name, tabs: e.tabs.length })) };
+}
+
 // List the dated copies kept in index-history, newest first. Each entry is
 // { name, time }, where name is the file name and time is the ISO timestamp
 // recovered from it (':' restored). A missing folder yields an empty list,

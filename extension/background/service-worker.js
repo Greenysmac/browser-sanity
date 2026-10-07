@@ -617,6 +617,32 @@ async function handleDescribe(m) {
   }
 }
 
+// Split a parked group into sub-groups in the host's index via 'split-parked'.
+// Sub-group tabs are drawn only from the parent's own tabs (foreign urls are
+// ignored by the host). Returns the host's { ok, groups } / { ok: false, error }.
+async function handleSplitParked(m) {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    return await client.request({ type: 'split-parked', adapter: settings.adapter, payload: { name: m.name, groups: m.groups } });
+  } finally {
+    client.disconnect();
+  }
+}
+
+// Replace the parent group's line in the host's groups file with one line per
+// sub-group via 'groups-split'.
+async function handleGroupsSplit(m) {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    await client.request({ type: 'groups-split', adapter: settings.adapter, payload: { name: m.name, groups: m.groups } });
+    return { ok: true };
+  } finally {
+    client.disconnect();
+  }
+}
+
 const HANDLERS = {
   run: handleRun,
   cancel: handleCancel,
@@ -647,6 +673,8 @@ const HANDLERS = {
   closeGroup: handleCloseGroup,
   groupsRead: handleGroupsRead,
   groupsWrite: handleGroupsWrite,
+  splitParked: handleSplitParked,
+  groupsSplit: handleGroupsSplit,
   describe: handleDescribe,
   boardData: handleBoardData,
 };

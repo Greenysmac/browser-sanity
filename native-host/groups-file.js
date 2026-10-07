@@ -29,6 +29,12 @@ function cleanDescription(description) {
   return String(description || '').replace(/\s+/g, ' ').trim().slice(0, MAX_DESCRIPTION_CHARS);
 }
 
+// Collapse a group name to a single trimmed line with no colon, so it can never
+// add newlines or break the '- Name: description' shape when written back.
+function cleanName(name) {
+  return String(name || '').replace(/:/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // Parse the group lines ('- Name: description') out of the text, keeping their
 // order. Non-group lines (free text) are ignored here.
 export function parseGroups(text) {
@@ -71,6 +77,37 @@ export function setGroupDescription(text, name, description) {
   return lines.join('\n');
 }
 
+// Return new text with the parent group's '- Name: description' line replaced
+// by one line per sub-group (names/descriptions cleaned), keeping all other
+// lines exactly. The parent name is matched trimmed and case-insensitively. When
+// the parent has no line, the sub-group lines are appended after the last group
+// line (or at the end when there are no group lines yet), just like
+// setGroupDescription. Blank-named sub-groups are skipped so no empty line forms.
+export function splitGroupLines(text, name, subGroups = []) {
+  const key = String(name || '').trim().toLowerCase();
+  const subs = (Array.isArray(subGroups) ? subGroups : [])
+    .map((s) => ({ name: cleanName(s && s.name), description: cleanDescription(s && s.description) }))
+    .filter((s) => s.name);
+  const newLines = subs.map((s) => `- ${s.name}: ${s.description}`);
+  const str = String(text || '');
+  const lines = str === '' ? [] : str.split('\n');
+  let lastGroupIndex = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    const g = matchGroupLine(lines[i]);
+    if (!g) continue;
+    lastGroupIndex = i;
+    if (g.name.toLowerCase() === key) {
+      lines.splice(i, 1, ...newLines);
+      return lines.join('\n');
+    }
+  }
+  // No parent line: append the sub-group lines after the last group line, or at
+  // the end when there are no group lines yet.
+  if (lastGroupIndex === -1) lines.push(...newLines);
+  else lines.splice(lastGroupIndex + 1, 0, ...newLines);
+  return lines.join('\n');
+}
+
 // Read and parse the groups file into [{ name, description }]. A missing or
 // unreadable file yields [], never throws.
 export function readGroups({ env = process.env, readFile = fs.readFileSync } = {}) {
@@ -97,6 +134,26 @@ export function writeGroupDescription(name, description, {
     text = '';
   }
   writeFile(file, setGroupDescription(text, name, description));
+  return { ok: true };
+}
+
+// Replace the parent group's line in the groups file with one line per
+// sub-group, writing it back through the same path (which may be a symlink). A
+// missing file starts from empty text. The file work lives in splitGroupLines.
+// Returns { ok: true }.
+export function writeGroupSplit(name, subGroups, {
+  env = process.env,
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+} = {}) {
+  const file = groupsFilePath(env);
+  let text = '';
+  try {
+    text = String(readFile(file, 'utf8'));
+  } catch {
+    text = '';
+  }
+  writeFile(file, splitGroupLines(text, name, subGroups));
   return { ok: true };
 }
 

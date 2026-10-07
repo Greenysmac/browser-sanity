@@ -4,8 +4,8 @@ import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandP
 import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
-import { loadGroupsFile, readGroups, writeGroupDescription } from './groups-file.js';
-import { writeIndex, parkGroup, readIndex, listIndexHistory, restoreIndexHistory } from './index-file.js';
+import { loadGroupsFile, readGroups, writeGroupDescription, writeGroupSplit } from './groups-file.js';
+import { writeIndex, parkGroup, readIndex, listIndexHistory, restoreIndexHistory, splitParkedGroup } from './index-file.js';
 import { loadProposals } from './proposals-file.js';
 
 // Fold the user's "my groups" file into the rules the model sees. When the file
@@ -28,7 +28,7 @@ function cleanSuggestion(text) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'describe'],
+    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'split-parked', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'groups-split', 'describe'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks', 'split'],
     passthrough: true,
     adapters: adapterNames(),
@@ -154,6 +154,16 @@ export async function handle(msg, deps = {}) {
     return { ok: true };
   }
 
+  // Split a parked group into sub-groups in the index, in place. Sub-group tabs
+  // are drawn only from the parent's own tabs (foreign urls are ignored), so
+  // nothing new is injected. The file work lives in index-file.js; returns
+  // { ok: true, groups } or { ok: false, error } when the parent isn't found.
+  if (msg.type === 'split-parked') {
+    const split = deps.splitParkedGroup || splitParkedGroup;
+    const payload = msg.payload || {};
+    return split({ name: payload.name, groups: payload.groups });
+  }
+
   // Read the parsed index.json so the extension can reopen a parked group. A
   // missing or broken file yields { groups: [], ungrouped: [] } (handled in
   // index-file.js), never an error.
@@ -220,6 +230,15 @@ export async function handle(msg, deps = {}) {
     const write = deps.writeGroupDescription || writeGroupDescription;
     const payload = msg.payload || {};
     return write(payload.name, payload.description);
+  }
+
+  // Replace the parent group's line in the groups file with one line per
+  // sub-group (names/descriptions cleaned), keeping every other line exactly.
+  // The file work lives in groups-file.js.
+  if (msg.type === 'groups-split') {
+    const split = deps.writeGroupSplit || writeGroupSplit;
+    const payload = msg.payload || {};
+    return split(payload.name, payload.groups);
   }
 
   throw new Error(`Unknown message type: ${msg.type}`);
