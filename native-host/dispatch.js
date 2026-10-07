@@ -3,7 +3,7 @@ import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandP
 import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
-import { loadGroupsFile } from './groups-file.js';
+import { loadGroupsFile, readGroups, writeGroupDescription } from './groups-file.js';
 import { writeIndex, parkGroup, readIndex } from './index-file.js';
 import { loadProposals } from './proposals-file.js';
 
@@ -20,7 +20,7 @@ function withGroups(rules, groupsText) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals'],
+    types: ['health', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals', 'groups-read', 'groups-write'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -136,6 +136,22 @@ export async function handle(msg, deps = {}) {
   if (msg.type === 'proposals') {
     const load = deps.loadProposals || loadProposals;
     return load();
+  }
+
+  // Read the group descriptions the model sees, so the extension can show and
+  // edit them. Returns { groups: [{ name, description }] }; a missing file
+  // yields { groups: [] } (handled in groups-file.js), never an error.
+  if (msg.type === 'groups-read') {
+    const read = deps.readGroups || readGroups;
+    return { groups: read() };
+  }
+
+  // Set one group's description in the groups file, writing it back through the
+  // same path (which may be a symlink). The file work lives in groups-file.js.
+  if (msg.type === 'groups-write') {
+    const write = deps.writeGroupDescription || writeGroupDescription;
+    const payload = msg.payload || {};
+    return write(payload.name, payload.description);
   }
 
   throw new Error(`Unknown message type: ${msg.type}`);

@@ -456,6 +456,31 @@ async function handleHealth() {  const settings = await getSettings();
   finally { client.disconnect(); }
 }
 
+// Read the group descriptions the model sees, so the panel can show and edit
+// them. Opens a native client around the host's 'groups-read'.
+async function handleGroupsRead() {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    const { groups } = await client.request({ type: 'groups-read', adapter: settings.adapter });
+    return { ok: true, groups: groups || [] };
+  } finally {
+    client.disconnect();
+  }
+}
+
+// Set one group's description in the host's groups file via 'groups-write'.
+async function handleGroupsWrite(m) {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    await client.request({ type: 'groups-write', adapter: settings.adapter, payload: { name: m.name, description: m.description } });
+    return { ok: true };
+  } finally {
+    client.disconnect();
+  }
+}
+
 const HANDLERS = {
   run: handleRun,
   cancel: handleCancel,
@@ -480,6 +505,8 @@ const HANDLERS = {
   syncIndex: handleSyncIndex,
   parkGroup: handleParkGroup,
   openParked: handleOpenParked,
+  groupsRead: handleGroupsRead,
+  groupsWrite: handleGroupsWrite,
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
