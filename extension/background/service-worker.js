@@ -11,6 +11,7 @@ import { digestText } from '../lib/plan-summary.js';
 import { withLock } from '../lib/mutex.js';
 import { uniqueId } from '../lib/ids.js';
 import { getSecret } from '../lib/secret-store.js';
+import { syncIndex } from '../lib/index-sync.js';
 
 // Creates the native client, attaching the openai adapter's UI-entered config
 // (key decrypted from secret-store here, base/model from settings) so the host
@@ -303,7 +304,7 @@ async function handleApply(m) {
   // Serialize the read-modify-write on currentPlan so a double-clicked Apply
   // (or an auto-scan writing the plan concurrently) can't double-execute an
   // item or clobber the stored plan.
-  return withLock('currentPlan', async () => {
+  const res = await withLock('currentPlan', async () => {
     const { currentPlan = [] } = await chrome.storage.local.get('currentPlan');
     const chosen = currentPlan.filter((i) => m.itemIds.includes(i.itemId));
     const runId = uniqueId('run-');
@@ -312,11 +313,27 @@ async function handleApply(m) {
     // blocks a now-stale moveBookmark/removeFolder item (see executor.js).
     const settings = await getSettings();
     const { folders, rootIds, barId, otherId } = await collectTree(chrome);
-    const res = await applyItems(chosen, { runId, applyItem: (i) => applyItem(i, { runId, settings, folders, rootIds, barId, otherId }), recordUndo });
-    const remaining = currentPlan.filter((i) => !res.applied.includes(i.itemId));
+    const applyRes = await applyItems(chosen, { runId, applyItem: (i) => applyItem(i, { runId, settings, folders, rootIds, barId, otherId }), recordUndo });
+    const remaining = currentPlan.filter((i) => !applyRes.applied.includes(i.itemId));
     await chrome.storage.local.set({ currentPlan: remaining });
-    return { ok: true, ...res };
+    return { ok: true, ...applyRes };
   });
+  // Refresh the on-disk index to match the now-applied tab state. Best-effort:
+  // syncIndex never throws, and a failed sync must not fail the apply.
+  await syncCurrentIndex();
+  return res;
+}
+
+// Open a native client, push the current index through it, and tear it down.
+// Delegates to syncIndex (which swallows errors) so this is always safe to call.
+async function syncCurrentIndex() {
+  const settings = await getSettings();
+  const nativeClient = await makeClient(settings);
+  try {
+    return await syncIndex({ chromeApi: chrome, nativeClient });
+  } finally {
+    nativeClient.disconnect();
+  }
 }
 
 async function handleUndo(m) {
@@ -376,8 +393,14 @@ async function handleDeleteSession(m) {
   return { ok: true };
 }
 
-async function handleHealth() {
-  const settings = await getSettings();
+// The "Update index" button: push the current tab/group state to the host and
+// report how many groups it wrote back.
+async function handleSyncIndex() {
+  const res = await syncCurrentIndex();
+  return { ok: true, groups: res && res.groups };
+}
+
+async function handleHealth() {  const settings = await getSettings();
   const client = await makeClient(settings);
   try { return { ok: true, health: await client.request({ type: 'health', adapter: settings.adapter }) }; }
   catch (err) { return { ok: true, health: { adapter: settings.adapter, ready: false, error: String((err && err.message) || err) } }; }
@@ -404,6 +427,7 @@ const HANDLERS = {
   restoreSession: handleRestoreSession,
   deleteSession: handleDeleteSession,
   health: handleHealth,
+  syncIndex: handleSyncIndex,
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

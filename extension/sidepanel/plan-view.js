@@ -351,6 +351,13 @@ const ALL_FEATURES = ['groupTabs', 'staleTabs', 'importantBookmarks', 'cleanBook
 export async function initPlanView() {
   $('run').addEventListener('click', () => startScan());
   $('cancelRun').addEventListener('click', () => send({ cmd: 'cancel' }));
+  $('updateIndex').addEventListener('click', async () => {
+    setStatus('Updating index…');
+    const res = await send({ cmd: 'syncIndex' });
+    if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
+    const n = res.groups;
+    setStatus(typeof n === 'number' ? `Index updated: ${n} group${n === 1 ? '' : 's'}` : 'Index updated.');
+  });
   for (const btn of $('runOne').querySelectorAll('button[data-feature]')) {
     btn.addEventListener('click', () => {
       const only = btn.dataset.feature;
