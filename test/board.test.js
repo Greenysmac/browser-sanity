@@ -630,3 +630,173 @@ test('section headers show the group counts, e.g. "Open now · 5" and "Parked ·
   assert.ok(texts.includes('Open now · 5'), 'open header shows its count');
   assert.ok(texts.includes('Parked · 10'), 'parked header shows its count');
 });
+
+// --- click-to-expand: description, titles, single-open, keyboard -----------
+
+// The row element that holds a given group name.
+function rowFor(container, name) {
+  const nameEl = walk(container).find((n) => n.className === 'boardName' && n.textContent === name);
+  return nameEl && nameEl.parent;
+}
+
+// Trip a row's click handler with an optional event target, mirroring a real
+// click bubbling up to the row (the fake DOM doesn't bubble on its own).
+function clickRow(row, target) {
+  if (row.listeners.click) row.listeners.click({ target });
+}
+
+// The expanded area under a row (built on click), or undefined when collapsed.
+function expandedOf(row) {
+  return (row.children || []).find((c) => c && c.className === 'boardExpanded');
+}
+
+// A chrome-like api exposing tabs.query/update and windows.update, recording
+// the focus calls so a test can assert a title click focused the right tab.
+function makeFocusChrome(tabsByGroup = {}) {
+  const calls = { tabUpdate: [], windowUpdate: [] };
+  return {
+    api: {
+      tabs: {
+        query: async ({ groupId }) => tabsByGroup[groupId] || [],
+        update: (id, info) => { calls.tabUpdate.push({ id, info }); },
+      },
+      windows: {
+        update: (id, info) => { calls.windowUpdate.push({ id, info }); },
+      },
+    },
+    calls,
+  };
+}
+
+test('clicking an open row expands it with the description and tab titles', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [{ id: 11, title: 'Spec doc', url: 'https://a', windowId: 1 }, { id: 12, title: 'Ticket', url: 'https://b', windowId: 1 }] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  assert.ok(area, 'the row expanded');
+  // The saved description shows (FIXTURE's Work has 'day job stuff').
+  assert.ok(walk(area).some((n) => n.textContent === 'day job stuff'), 'the description shows');
+  assert.ok(walk(area).some((n) => n.textContent === 'Edit'), 'an Edit button shows');
+  // Both live tab titles appear as links.
+  assert.ok(walk(area).some((n) => n.tagName === 'A' && n.textContent === 'Spec doc'), 'first tab title link');
+  assert.ok(walk(area).some((n) => n.tagName === 'A' && n.textContent === 'Ticket'), 'second tab title link');
+});
+
+test('a second click on the same row collapses it', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  assert.ok(expandedOf(row), 'the row is expanded after the first click');
+  clickRow(row);
+  assert.ok(!expandedOf(row), 'the row collapsed after the second click');
+});
+
+test('expanding another row collapses the first (only one open at a time)', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [] });
+  await renderBoard(container, { send, chromeApi: api });
+  const work = rowFor(container, 'Work');
+  const travel = rowFor(container, 'Travel');
+  clickRow(work);
+  await flush();
+  assert.ok(expandedOf(work), 'the open row is expanded');
+  clickRow(travel);
+  await flush();
+  assert.ok(expandedOf(travel), 'the parked row is expanded');
+  assert.ok(!expandedOf(work), 'expanding the parked row collapsed the open one');
+});
+
+test('clicking the ⋯ button does not expand the row', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  const menuBtn = (row.children || []).find((c) => c.className === 'boardMenuBtn');
+  // A click that originated on the ⋯ button bubbling to the row must not toggle.
+  clickRow(row, menuBtn);
+  await flush();
+  assert.ok(!expandedOf(row), 'the ⋯ button did not expand the row');
+});
+
+test('Enter and Space on a focused row toggle the expansion', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  assert.equal(row.tabIndex, 0, 'the row is keyboard-focusable');
+  row.listeners.keydown({ key: 'Enter', preventDefault() {} });
+  await flush();
+  assert.ok(expandedOf(row), 'Enter expanded the row');
+  row.listeners.keydown({ key: ' ', preventDefault() {} });
+  assert.ok(!expandedOf(row), 'Space collapsed the row');
+});
+
+test('clicking a title in an open group focuses that tab', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api, calls } = makeFocusChrome({ 7: [{ id: 42, title: 'Spec doc', url: 'https://a', windowId: 3 }] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const link = walk(row).find((n) => n.tagName === 'A' && n.textContent === 'Spec doc');
+  assert.ok(link, 'the tab title link is present');
+  link.click();
+  assert.deepEqual(calls.tabUpdate, [{ id: 42, info: { active: true } }], 'the tab was activated');
+  assert.deepEqual(calls.windowUpdate, [{ id: 3, info: { focused: true } }], 'its window was focused');
+});
+
+test('a parked row expands with its index tab titles as plain text (no links)', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend({
+    open: [],
+    parked: [{ name: 'Travel', color: 'green', tabCount: 2, lastSeen: '2026-01-02T10:00:00.000Z', tabs: [{ title: 'Hotel', url: 'https://h' }, { title: 'Flights', url: 'https://f' }] }],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const row = rowFor(container, 'Travel');
+  clickRow(row);
+  const area = expandedOf(row);
+  assert.ok(area, 'the parked row expanded');
+  // No saved description, no suggestion: reads "No description yet".
+  assert.ok(walk(area).some((n) => n.textContent === 'No description yet'), 'the no-description placeholder shows');
+  // The index titles show as plain list items, not links.
+  const list = walk(area).find((n) => n.className === 'boardTabList');
+  assert.ok(list, 'the tab list is present');
+  assert.ok((list.children || []).some((li) => li.textContent === 'Hotel'), 'first parked title shown');
+  assert.ok((list.children || []).some((li) => li.textContent === 'Flights'), 'second parked title shown');
+  assert.ok(!walk(area).some((n) => n.tagName === 'A'), 'parked titles are plain text, not links');
+});
+
+test('Edit in the expanded area swaps the description for the inline editor', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  await findByText(area, 'Edit').click();
+  // The editor replaces the description text in place, prefilled from the save.
+  assert.ok(walk(area).some((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff'), 'the editor opened prefilled');
+});

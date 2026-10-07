@@ -88,6 +88,66 @@ function descriptionEditor({ name, description, suggested, send, setStatus }) {
   return wrap;
 }
 
+// The expanded area shown under a row when it's clicked open: the group's
+// description (or, when none is saved, the waiting suggestion with its
+// "Suggested" label, else "No description yet"), an Edit button that swaps the
+// description text for the inline editor above, and the group's tab titles.
+// Each title is a link; for an open group clicking it focuses that tab (via
+// `onOpenTab`), while for a parked group the title is plain text. `tabs` is the
+// list of { title, url } the row expanded with. Built with createElement so
+// names/titles can't inject markup.
+function expandedArea({ name, description, suggested, tabs, send, setStatus, onOpenTab }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'boardExpanded';
+
+  // The description line and its Edit button, grouped so Edit can replace them
+  // with the existing editor in place.
+  const descRow = document.createElement('div');
+  descRow.className = 'boardExpandedDesc';
+  const descText = document.createElement('span');
+  descText.className = 'boardExpandedDescText';
+  if (!description && suggested) {
+    const label = document.createElement('span');
+    label.className = 'boardSuggested';
+    label.textContent = 'Suggested';
+    descRow.appendChild(label);
+    descText.textContent = suggested;
+  } else {
+    descText.textContent = description || 'No description yet';
+  }
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.className = 'boardExpandedEdit';
+  edit.textContent = 'Edit';
+  edit.addEventListener('click', () => {
+    // Swap the description text and Edit button for the inline editor.
+    const editor = descriptionEditor({ name, description, suggested, send, setStatus });
+    descRow.textContent = '';
+    descRow.appendChild(editor);
+  });
+  descRow.append(descText, edit);
+  wrap.appendChild(descRow);
+
+  const list = document.createElement('ul');
+  list.className = 'boardTabList';
+  for (const t of (tabs || [])) {
+    const li = document.createElement('li');
+    const title = (t && t.title) || (t && t.url) || '';
+    if (onOpenTab && t && t.id != null) {
+      const link = document.createElement('a');
+      link.href = '#';
+      link.textContent = title;
+      link.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); onOpenTab(t); });
+      li.appendChild(link);
+    } else {
+      li.textContent = title;
+    }
+    list.appendChild(li);
+  }
+  wrap.appendChild(list);
+  return wrap;
+}
+
 // A small pop-up menu, built with createElement as a positioned <ul> of
 // buttons. Each item is { label, onChoose }. The menu closes after a choice, on
 // Escape, or on a click outside it; whichever happens first detaches the shared
@@ -149,6 +209,64 @@ function parkedMatch(parked, name) {
   return (parked || []).find((g) => String(g.name || '').trim().toLowerCase() === wanted);
 }
 
+// A shared single-open-at-a-time expander for the board's rows. Each row calls
+// `wire(row, build)` to make itself clickable: a click anywhere on the row
+// (except the ⋯ button, its menu, or an open editor/expanded area) toggles an
+// expanded area built by `build()` and appended under the row; Enter or Space
+// on the focused row does the same. Opening one row collapses whichever row was
+// open before, so only one expanded area shows across both sections.
+function makeExpander() {
+  let openRow;
+  const collapse = () => {
+    if (!openRow) return;
+    const area = (openRow.children || []).find((c) => c && c.className === 'boardExpanded');
+    detach(area);
+    openRow = undefined;
+  };
+  // A click/keypress originating from the ⋯ button, its menu, or an already-open
+  // editor/expanded area shouldn't toggle the row.
+  const fromControls = (row, target) => {
+    if (!target) return false;
+    const controls = (row.children || []).filter((c) => c && (
+      c.className === 'boardMenuBtn' || c.className === 'boardMenu'
+      || c.className === 'boardExpanded' || c.className === 'boardDescEditor'));
+    for (const c of controls) {
+      if (target === c) return true;
+      if ((c.children || []).length && walkIncludes(c, target)) return true;
+    }
+    return false;
+  };
+  const wire = (row, build) => {
+    row.tabIndex = 0;
+    const toggle = (e) => {
+      const target = e && e.target;
+      if (fromControls(row, target)) return;
+      const isOpen = (row.children || []).some((c) => c && c.className === 'boardExpanded');
+      if (isOpen) { collapse(); return; }
+      collapse();
+      row.appendChild(build());
+      openRow = row;
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', (e) => {
+      if (e && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+        if (e.preventDefault) e.preventDefault();
+        toggle(e);
+      }
+    });
+  };
+  return { wire };
+}
+
+// True when `target` is `el` or one of its descendants, used to tell whether a
+// click landed inside a row's controls (menu, editor, expanded area).
+function walkIncludes(el, target) {
+  if (!el) return false;
+  if (el === target) return true;
+  for (const kid of el.children || []) { if (walkIncludes(kid, target)) return true; }
+  return false;
+}
+
 // A single open-group row: a compact line of color dot, name, web-tab count in
 // muted text, a small dot when a suggested description is waiting, and a '⋯'
 // button that opens the row's action menu. The description editor (opened from
@@ -163,7 +281,7 @@ function parkedMatch(parked, name) {
 // since there's nothing worth parking. When a parked record carries the same
 // name, the menu offers "Add back <n> parked tabs", opening those parked tabs
 // straight into this open group.
-function openCard({ group, descriptions, suggestions, parked, send, setStatus, rerender }) {
+function openCard({ group, descriptions, suggestions, parked, send, setStatus, rerender, expander, chromeApi }) {
   const row = document.createElement('div');
   row.className = 'boardRow';
   const dot = document.createElement('span');
@@ -219,13 +337,48 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
   menuBtn.textContent = '⋯';
   menuBtn.addEventListener('click', () => { openMenu(row, items); });
   row.append(menuBtn);
+
+  // Clicking the row (anywhere but the ⋯ button/menu/editor) expands it: the
+  // description with an Edit button, plus the live tabs' titles as links that
+  // focus the tab when clicked.
+  if (expander) {
+    const tabsApi = chromeApi && chromeApi.tabs;
+    const windowsApi = chromeApi && chromeApi.windows;
+    const onOpenTab = (t) => {
+      if (!t || t.id == null) return;
+      if (tabsApi && tabsApi.update) tabsApi.update(t.id, { active: true });
+      if (windowsApi && windowsApi.update && t.windowId != null) windowsApi.update(t.windowId, { focused: true });
+    };
+    const build = () => {
+      const area = expandedArea({ name: group.name, description, suggested, tabs: [], send, setStatus, onOpenTab });
+      // Fill the live tab titles asynchronously; the area shows immediately and
+      // the links appear once the query answers.
+      if (tabsApi && tabsApi.query && group.groupId != null) {
+        Promise.resolve(tabsApi.query({ groupId: group.groupId })).then((tabs) => {
+          const list = (area.children || []).find((c) => c && c.className === 'boardTabList');
+          if (!list) return;
+          for (const t of (tabs || [])) {
+            const li = document.createElement('li');
+            const link = document.createElement('a');
+            link.href = '#';
+            link.textContent = t.title || t.url || '';
+            link.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); onOpenTab(t); });
+            li.appendChild(link);
+            list.appendChild(li);
+          }
+        });
+      }
+      return area;
+    };
+    expander.wire(row, build);
+  }
   return row;
 }
 
 // A single parked-group row: color dot, name, "<n> tabs · last seen <date>" in
 // muted text, and a '⋯' button whose menu offers "Open" and "Description…".
 // After Open the board re-renders.
-function parkedCard({ group, descriptions, send, setStatus, rerender }) {
+function parkedCard({ group, descriptions, send, setStatus, rerender, expander }) {
   const row = document.createElement('div');
   row.className = 'boardRow';
   const dot = document.createElement('span');
@@ -255,6 +408,15 @@ function parkedCard({ group, descriptions, send, setStatus, rerender }) {
   menuBtn.textContent = '⋯';
   menuBtn.addEventListener('click', () => { openMenu(row, items); });
   row.append(menuBtn);
+
+  // Clicking a parked row expands it with the description (plus Edit) and the
+  // tab titles from the index entry as plain text (parked tabs aren't live, so
+  // there's nothing to focus).
+  if (expander) {
+    const tabs = Array.isArray(group.tabs) ? group.tabs : [];
+    const build = () => expandedArea({ name: group.name, description, suggested: '', tabs, send, setStatus });
+    expander.wire(row, build);
+  }
   return row;
 }
 
@@ -381,6 +543,10 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   const parked = parkedRaw.filter((g) => !openNames.has(String(g.name || '').trim().toLowerCase()));
   container.textContent = '';
 
+  // One expander shared by every row so only a single row stays expanded at a
+  // time, across both the open and parked sections.
+  const expander = makeExpander();
+
   const openSection = document.createElement('details');
   openSection.open = true;
   openSection.className = 'boardSection';
@@ -393,7 +559,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'No open groups';
     openSection.appendChild(empty);
   } else {
-    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, parked: parkedRaw, send, setStatus, rerender }));
+    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, parked: parkedRaw, send, setStatus, rerender, expander, chromeApi }));
   }
 
   const parkedSection = document.createElement('details');
@@ -408,7 +574,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'Nothing parked yet';
     parkedSection.appendChild(empty);
   } else {
-    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, send, setStatus, rerender }));
+    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, send, setStatus, rerender, expander }));
   }
 
   container.append(openSection, parkedSection);

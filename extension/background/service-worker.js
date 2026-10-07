@@ -539,7 +539,7 @@ async function handleBoardData() {
     const indexGroups = (index && Array.isArray(index.groups)) ? index.groups : [];
     parked = indexGroups
       .filter((g) => g.status !== 'open')
-      .map((g) => ({ name: g.name || '', color: g.color, tabCount: Array.isArray(g.tabs) ? g.tabs.length : 0, lastSeen: g.lastSeen }));
+      .map((g) => ({ name: g.name || '', color: g.color, tabCount: Array.isArray(g.tabs) ? g.tabs.length : 0, lastSeen: g.lastSeen, tabs: Array.isArray(g.tabs) ? g.tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) : [] }));
     const read = await client.request({ type: 'groups-read', adapter: settings.adapter });
     descriptions = (read && Array.isArray(read.groups)) ? read.groups : [];
   } finally {
