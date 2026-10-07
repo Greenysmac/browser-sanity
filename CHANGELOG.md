@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-10-07
+**Run 6 (Kiro, four tasks, all first try; reviewed by Mycroft)** after Park lost two groups' records on Jeff's machine (recovered by Mycroft).
+- Park merges into a saved group instead of replacing it; an empty Park never shrinks a record; Park closes the whole group, new-tab pages included. Mycroft tested on a copy of the real index: 139 stays 139 after an empty Park, 140 after a Park with one new tab.
+- The helper keeps dated copies of the index (newest 50) and can restore one; bad names refused.
+- Live boards: redraw as tabs and groups change; counts are web tabs; groups with no web pages offer Close group; a parked twin of an open group offers Add them back.
+- Panel cleanup: Sort tabs label, readable model names, one model select with Other, Run one inside More tools, Settings as its own view, the suggestions count inside the result card.
+
 ## 0.3.0 — 2026-10-07
 **Run 5 (Kiro, six tasks, all first try; reviewed by Mycroft)**
 - A reopened group shows as open, never as parked (index reads Chrome's pending address; the board hides a parked card when that group is open).
