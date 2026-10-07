@@ -727,9 +727,30 @@ button.danger:hover {
 #openaiConfig[hidden] { display: none; }
 #openaiConfig label:not(.inlineCheck) { display: grid; gap: 4px; align-items: start; }
 #openaiConfig input[type="text"], #openaiConfig input[type="password"] { width: 100%; }
+#apiKeyConfig { display: grid; gap: 10px; padding: 2px 0; }
+#apiKeyConfig[hidden] { display: none; }
+#apiKeyConfig label:not(.inlineCheck) { display: grid; gap: 4px; align-items: start; }
+#apiKeyConfig input[type="text"], #apiKeyConfig input[type="password"] { width: 100%; }
 .apiKeyRow { display: flex; align-items: center; justify-content: space-between; }
 #openaiKeyClear { padding: 3px 9px; font-size: 11px; }
 .fieldHint { color: var(--text-faint); font-weight: 400; font-size: 12px; }
+
+/* ---------- "Runs on" provider choices (radio row) ---------- */
+.providerRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.providerRow .providerRowLabel { font-size: 12px; color: var(--text); font-weight: 600; }
+.providerChoice { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+
+/* ---------- Model pickers (big sorts / quick jobs) ---------- */
+#settingsForm label:has(> #bigModelSelect),
+#settingsForm label:has(> #quickModelSelect) { flex-direction: column; align-items: stretch; gap: 4px; }
+#bigModelSelect, #quickModelSelect, #settingsForm input[name="bigModel"], #settingsForm input[name="quickModel"] { width: 100%; }
+
+/* ---------- "More" settings group (collapsible) ---------- */
+#moreSettings { display: block; }
+#moreSettings > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-muted); list-style: revert; }
+#moreSettings[open] > summary { margin-bottom: 8px; }
+#moreSettings fieldset { border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px 10px; margin: 0 0 8px; display: grid; gap: 8px; min-width: 0; }
+#moreSettings legend { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 0 4px; }
 
 /* ---------- Non-http (browser page) tabs ---------- */
 li.nonHttp span:not(.tabTag) { color: var(--text-muted); }

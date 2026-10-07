@@ -47,6 +47,7 @@ test('plan toolbar filters + bulk-selects, and click-to-focus jumps to a tab', a
 
 test('settings shows a lower-assurance note for Copilot only', async ({ panel }) => {
   await panel.click('#settings summary');
+  await panel.check('#settingsForm input[name=provider][value=other]'); // reveal the backend dropdown
   await panel.selectOption('#settingsForm [name=adapter]', 'copilot');
   await expect(panel.locator('#adapterNote')).toBeVisible();
   await expect(panel.locator('#adapterNote')).toContainText(/Lower assurance/);

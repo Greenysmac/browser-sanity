@@ -87,8 +87,10 @@ test('UI: edit a proposed group (rename + drop a tab) and apply just that group'
 test('UI: settings form persists auto mode and thresholds', async ({ panel }) => {
   await panel.click('#settings summary');
   const form = panel.locator('#settingsForm');
+  await form.locator('input[name="provider"][value="other"]').check(); // reveal the backend dropdown
   await form.locator('select[name="adapter"]').selectOption('kiro');
   await form.locator('input[name="groupTabs"]').uncheck();
+  await panel.locator('#moreSettings > summary').click(); // forgotten-tabs + automation live under "More"
   await form.locator('input[name="autoMode"]').check();
   await form.locator('input[name="staleTabDays"]').fill('30');
   await form.locator('button[type="submit"]').click();

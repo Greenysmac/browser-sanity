@@ -6,6 +6,7 @@ import { test, expect, send } from './fixtures.mjs';
 // openai adapter uses it → fetch the stubbed local /v1 endpoint. Fully offline.
 test('OpenAI backend: key entered in the UI (encrypted) is used by the host', async ({ server, panel }) => {
   await panel.click('#settings summary');
+  await panel.check('#settingsForm input[name=provider][value=other]');
   await panel.selectOption('#settingsForm [name=adapter]', 'openai');
   await expect(panel.locator('#openaiConfig')).toBeVisible(); // config fields appear for the API backend
   await panel.fill('#openaiApiKey', 'test-key-123');
@@ -39,6 +40,7 @@ test('OpenAI backend: key entered in the UI (encrypted) is used by the host', as
 // must NOT fall through to setSecret('') and silently clear the stored key.
 test('OpenAI key: saving with a whitespace-only key preserves the saved key', async ({ server, panel }) => {
   await panel.click('#settings summary');
+  await panel.check('#settingsForm input[name=provider][value=other]');
   await panel.selectOption('#settingsForm [name=adapter]', 'openai');
   await expect(panel.locator('#openaiConfig')).toBeVisible();
 

@@ -2,7 +2,7 @@
 // and apply an adapter switch immediately (re-checking health so the banner
 // tracks the chosen backend). The encrypted OpenAI key is written only when the
 // user types one. loadSettings() is exported for the bootstrap's first paint.
-import { $, setStatus, flashStatus, setSettings } from './dom.js';
+import { $, setStatus, flashStatus, setSettings, send } from './dom.js';
 import { getSettings } from '../lib/storage.js';
 import { setSecret, hasSecret, clearSecret } from '../lib/secret-store.js';
 import { adapterNote } from './viewmodel.js';
@@ -10,6 +10,38 @@ import { providerSettings, providerFor, EDITABLE_BASE, PROVIDERS } from '../lib/
 import { checkHealth } from './health-view.js';
 
 let advancedExtraArgs = {}; // per-adapter extra CLI flags, loaded from settings
+
+// Human-readable label per provider radio, for the "Switching to …" status
+// (radios have no selectedOptions, so this stands in for a <select>'s option text).
+const PROVIDER_LABELS = {
+  claude: 'Claude subscription',
+  poe: 'Poe',
+  openrouter: 'OpenRouter',
+  openai: 'OpenAI',
+  local: 'Local model',
+  other: 'Other',
+};
+
+// Which providers need an API key field, and which need a base URL field.
+const KEY_PROVIDERS = new Set(['poe', 'openrouter', 'openai']);
+const BASE_PROVIDERS = new Set(['local']); // 'other' adds this only when its adapter is openai
+
+// Recommended Claude models for the two slots, so the picker can label them
+// without a round-trip. Opus is the heaviest option; the slot default is called
+// out as "(recommended)".
+const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'];
+const MODEL_SELECTS = [
+  ['bigModelSelect', 'bigModel', 'claude-sonnet-5-5'],
+  ['quickModelSelect', 'quickModel', 'claude-haiku-4-5'],
+];
+
+// Label a model id for the picker: the slot's recommended Claude model gets
+// "(recommended)" and Opus "(most thorough, most usage)". Other ids pass through.
+function modelOptionLabel(id, recommended) {
+  if (id === recommended) return `${id} (recommended)`;
+  if (id === 'claude-opus-5-5') return `${id} (most thorough, most usage)`;
+  return id;
+}
 
 // Features gated behind an optional host permission, and the origin each needs.
 const PERM_FEATURES = [
@@ -52,15 +84,57 @@ function syncExtraArgsField(adapter) {
 function updateAdapterNote(value) {
   const note = adapterNote(value);
   const el = $('adapterNote');
-  el.textContent = note;
-  el.hidden = !note;
-  $('openaiConfig').hidden = value !== 'openai'; // key/base/model only for the API backend
+  if (el) {
+    el.textContent = note;
+    el.hidden = !note;
+  }
+}
+
+// Fill a model <select> and its paired <datalist> from a list of ids, built with
+// DOM nodes (no innerHTML). Selecting an option writes the id into the slot's
+// text input (name=bigModel/quickModel), which is what gets saved. Keeps the
+// current slot value selected when it's present. `recommended` drives the labels.
+function fillModelSelect(selectId, slotName, recommended, ids) {
+  const sel = document.getElementById(selectId);
+  const list = document.getElementById(`${slotName}List`);
+  const input = $('settingsForm') && $('settingsForm')[slotName];
+  const current = input ? input.value : '';
+  if (sel) {
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '(backend default)';
+    sel.appendChild(blank);
+    for (const id of ids) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = modelOptionLabel(id, recommended);
+      sel.appendChild(opt);
+    }
+    sel.value = ids.includes(current) ? current : '';
+  }
+  if (list) {
+    while (list.firstChild) list.removeChild(list.firstChild);
+    for (const id of ids) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      list.appendChild(opt);
+    }
+  }
+}
+
+// Fill both slots' pickers from the same id list (Claude's fixed set by default).
+function fillAllModelSelects(ids = CLAUDE_MODELS) {
+  for (const [selectId, slotName, recommended] of MODEL_SELECTS) {
+    fillModelSelect(selectId, slotName, recommended, ids);
+  }
 }
 
 // Reflect the chosen provider in the form: the raw backend dropdown shows only
-// under 'Other'; the openai key/base/model block shows whenever the resolved
-// adapter is openai; and the base URL stays editable only where a provider
-// allows it ('local') or when picking a backend directly ('other').
+// under 'Other'; the API key field shows for the key-bearing hosted providers
+// (poe/openrouter/openai) and under 'Other' when its adapter is openai; the base
+// URL field shows for 'local' and for 'other' when its adapter is openai (and
+// stays editable there). The adapter note tracks the resolved backend.
 function applyProviderView(provider) {
   const form = $('settingsForm');
   const isOther = provider === 'other';
@@ -68,6 +142,12 @@ function applyProviderView(provider) {
   const adapterRow = document.getElementById('adapterRow');
   if (adapterRow) adapterRow.hidden = !isOther;
   updateAdapterNote(adapter);
+  const otherIsOpenai = isOther && adapter === 'openai';
+  const keyRow = document.getElementById('apiKeyConfig');
+  if (keyRow) keyRow.hidden = !(KEY_PROVIDERS.has(provider) || otherIsOpenai);
+  const baseRow = document.getElementById('openaiConfig'); // base URL + model block
+  const showBase = BASE_PROVIDERS.has(provider) || otherIsOpenai;
+  if (baseRow) baseRow.hidden = !showBase;
   const baseEditable = isOther || EDITABLE_BASE.has(provider);
   if (form.openaiBaseUrl) form.openaiBaseUrl.disabled = !baseEditable;
 }
@@ -83,6 +163,7 @@ export async function loadSettings() {
   form.openaiModel.value = s.openaiModel || '';
   form.bigModel.value = s.bigModel || '';
   form.quickModel.value = s.quickModel || '';
+  fillAllModelSelects(); // seed the pickers with Claude's set; "Load models" refreshes from the live backend
   const hasKey = await hasSecret('openaiApiKey');
   $('openaiApiKey').value = '';
   $('openaiApiKey').placeholder = hasKey
@@ -137,12 +218,14 @@ export function initSettingsView() {
     await checkHealth();
   });
 
-  // Picking "where it runs" sets the backend + endpoint and applies immediately,
-  // same as the backend dropdown. 'other' leaves adapter/base alone and reveals
-  // the full backend dropdown so every CLI backend stays reachable.
-  const providerSelect = $('settingsForm').provider;
-  if (providerSelect) {
-    providerSelect.addEventListener('change', async (e) => {
+  // Picking "runs on" sets the backend + endpoint and applies immediately. The
+  // provider is a radio group, so wire each radio; 'other' leaves adapter/base
+  // alone and reveals the full backend dropdown so every CLI backend stays reachable.
+  const form0 = $('settingsForm');
+  const providerRadios = form0.querySelectorAll ? form0.querySelectorAll('input[name="provider"]') : [];
+  for (const radio of providerRadios) {
+    radio.addEventListener('change', async (e) => {
+      if (!e.target.checked) return;
       const provider = e.target.value;
       const form = $('settingsForm');
       const patch = providerSettings(provider); // {} for 'other' — keeps current adapter/base
@@ -150,7 +233,7 @@ export function initSettingsView() {
       if (patch.openaiBaseUrl !== undefined) form.openaiBaseUrl.value = patch.openaiBaseUrl;
       applyProviderView(provider);
       syncExtraArgsField(form.adapter.value);
-      setStatus(`Switching to ${e.target.selectedOptions[0].text}…`);
+      setStatus(`Switching to ${PROVIDER_LABELS[provider] || provider}…`);
       try {
         await setSettings({ provider, ...patch });
         await checkHealth();
@@ -159,10 +242,34 @@ export function initSettingsView() {
     });
   }
 
+  // The model pickers write the chosen id into the slot's text input (which is
+  // what gets saved); the input stays editable for free-text model names.
+  for (const [selectId, slotName] of MODEL_SELECTS) {
+    const sel = document.getElementById(selectId);
+    if (sel) sel.addEventListener('change', (e) => { form0[slotName].value = e.target.value; });
+  }
+
+  // "Load models" asks the host for the selected backend's model list and fills
+  // both pickers from it (falling back to Claude's set / keeping them if it fails).
+  const loadModelsBtn = document.getElementById('loadModels');
+  if (loadModelsBtn) {
+    loadModelsBtn.addEventListener('click', async () => {
+      setStatus('Loading models…');
+      try {
+        const r = await send({ cmd: 'listModels' });
+        const models = (r && r.ok && Array.isArray(r.models) && r.models.length) ? r.models : CLAUDE_MODELS;
+        fillAllModelSelects(models);
+        setStatus('');
+      } catch (err) { setStatus(`Could not load models: ${err.message}`); }
+    });
+  }
+
   // Switching the AI backend applies immediately (persist + re-check health), so the
   // banner reflects the chosen backend without also having to click "Save settings".
   $('settingsForm').adapter.addEventListener('change', async (e) => {
     updateAdapterNote(e.target.value);
+    const form = $('settingsForm');
+    if (form.provider) applyProviderView(form.provider.value); // reveal key/base when 'other' resolves to openai
     syncExtraArgsField(e.target.value); // show this backend's extra flags
     setStatus(`Switching to ${e.target.selectedOptions[0].text}…`);
     try {

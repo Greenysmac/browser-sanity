@@ -147,17 +147,16 @@
       <summary data-i18n="settingsTitle">Settings</summary>
       <form id="settingsForm">
         <fieldset class="settingsGroup">
-          <legend>AI Backend &amp; Model</legend>
-          <label>Where it runs
-            <select name="provider">
-              <option value="claude">Claude (Claude Code subscription)</option>
-              <option value="poe">Poe</option>
-              <option value="openrouter">OpenRouter</option>
-              <option value="openai">OpenAI</option>
-              <option value="local">Local model (Ollama / LM Studio)</option>
-              <option value="other">Other (pick a backend)</option>
-            </select>
-          </label>
+          <legend>AI</legend>
+          <div class="providerRow" role="radiogroup" aria-label="Runs on">
+            <span class="providerRowLabel">Runs on</span>
+            <label class="providerChoice"><input type="radio" name="provider" value="claude" /> Claude subscription</label>
+            <label class="providerChoice"><input type="radio" name="provider" value="poe" /> Poe</label>
+            <label class="providerChoice"><input type="radio" name="provider" value="openrouter" /> OpenRouter</label>
+            <label class="providerChoice"><input type="radio" name="provider" value="openai" /> OpenAI</label>
+            <label class="providerChoice"><input type="radio" name="provider" value="local" /> Local model</label>
+            <label class="providerChoice"><input type="radio" name="provider" value="other" /> Other</label>
+          </div>
           <label id="adapterRow" hidden>AI backend
             <select name="adapter">
               <option value="claude">Claude Code</option>
@@ -170,13 +169,7 @@
             </select>
           </label>
           <p id="adapterNote" class="warnNote" role="note" hidden></p>
-          <label>Big-job model <span class="fieldHint">(full Analyze runs &amp; typed commands)</span>
-            <input type="text" name="bigModel" spellcheck="false" placeholder="(backend default)" />
-          </label>
-          <label>Quick-job model <span class="fieldHint">(sort selected/group, describe)</span>
-            <input type="text" name="quickModel" spellcheck="false" placeholder="(backend default)" />
-          </label>
-          <div id="openaiConfig" hidden>
+          <div id="apiKeyConfig" hidden>
             <label>API key
               <input type="password" id="openaiApiKey" autocomplete="off" spellcheck="false" placeholder="sk-… (stored encrypted on this device)" />
             </label>
@@ -184,64 +177,83 @@
               <label class="inlineCheck"><input type="checkbox" id="openaiKeyShow" /> Show key</label>
               <button type="button" id="openaiKeyClear">Clear key</button>
             </div>
+            <p class="hint">Your key is stored encrypted (AES-GCM) in this browser only — never synced.</p>
+          </div>
+          <div id="openaiConfig" hidden>
             <label>Base URL <span class="fieldHint">(optional)</span>
               <input type="text" name="openaiBaseUrl" spellcheck="false" placeholder="https://api.openai.com/v1" />
             </label>
             <label>Model <span class="fieldHint">(optional)</span>
               <input type="text" name="openaiModel" spellcheck="false" placeholder="gpt-4o-mini" />
             </label>
-            <p class="hint">Your key is stored encrypted (AES-GCM) in this browser only — never synced. Point Base URL at OpenAI, OpenRouter, Groq, or a local server.</p>
           </div>
+          <label>Big sorts: decides your groups
+            <input type="text" name="bigModel" list="bigModelList" spellcheck="false" placeholder="(backend default)" />
+            <select id="bigModelSelect" aria-label="Big sorts model"></select>
+            <datalist id="bigModelList"></datalist>
+          </label>
+          <label>Quick jobs: files a few tabs, names, descriptions
+            <input type="text" name="quickModel" list="quickModelList" spellcheck="false" placeholder="(backend default)" />
+            <select id="quickModelSelect" aria-label="Quick jobs model"></select>
+            <datalist id="quickModelList"></datalist>
+          </label>
+          <button type="button" id="loadModels">Load models</button>
         </fieldset>
 
         <fieldset class="settingsGroup">
-          <legend>Tab Organization</legend>
-          <label><input type="checkbox" name="groupTabs" /> Group open tabs by topic</label>
+          <legend>What to suggest</legend>
+          <label><input type="checkbox" name="groupTabs" /> Group tabs by your needs</label>
           <label><input type="checkbox" name="regroupExisting" /> Re-sort tabs already in groups</label>
-          <p class="hint">Lets the organizer move tabs between your existing groups.</p>
-          <label><input type="checkbox" name="staleTabs" /> Suggest closing forgotten tabs</label>
-          <label><input type="checkbox" name="dupeTabs" /> Detect duplicate open tabs</label>
-          <label>Close tabs idle more than
-            <input type="number" name="staleTabDays" min="1" max="365" /> days</label>
+          <label><input type="checkbox" name="dupeTabs" /> Close duplicate tabs</label>
         </fieldset>
 
-        <fieldset class="settingsGroup">
-          <legend>Bookmark Management</legend>
-          <label><input type="checkbox" name="importantBookmarks" /> Auto-bookmark important tabs</label>
-          <label><input type="checkbox" name="cleanBookmarks" /> Clean up stale/dead bookmarks</label>
-          <label><input type="checkbox" name="deadLinkScan" /> Check bookmarked pages for dead links (requests access to all sites)</label>
-          <label><input type="checkbox" name="organizeBookmarks" /> Sort bookmarks into folders</label>
-          <label>Organizing method
-            <select name="organizeMode">
-              <option value="match">Match existing folders (no new folders)</option>
-              <option value="additive">Add folders &amp; sort loose bookmarks</option>
-              <option value="full">Fully reorganize (including filed bookmarks)</option>
-            </select>
-          </label>
-          <label><input type="checkbox" name="protectBookmarkBar" /> Never touch the Bookmarks Bar</label>
-          <label><input type="checkbox" name="removeEmptyFolders" /> Remove folders left empty after sorting</label>
-          <label>Bookmarks unvisited more than
-            <input type="number" name="staleBookmarkDays" min="1" max="3650" /> days</label>
-        </fieldset>
+        <details class="settingsGroup" id="moreSettings">
+          <summary>More</summary>
+          <fieldset>
+            <legend>Forgotten tabs</legend>
+            <label><input type="checkbox" name="staleTabs" /> Suggest closing forgotten tabs</label>
+            <label>Close tabs idle more than
+              <input type="number" name="staleTabDays" min="1" max="365" /> days</label>
+          </fieldset>
 
-        <fieldset class="settingsGroup">
-          <legend>Automation &amp; Schedule</legend>
-          <label><input type="checkbox" name="autoMode" /> Auto-apply on a schedule (with undo)</label>
-          <label>Auto-scan every
-            <input type="number" name="scanIntervalHours" min="1" max="168" /> hours</label>
-          <label>Keep undo history for
-            <input type="number" name="undoRetentionDays" min="1" max="90" /> days</label>
-        </fieldset>
+          <fieldset>
+            <legend>Bookmarks</legend>
+            <label><input type="checkbox" name="importantBookmarks" /> Auto-bookmark important tabs</label>
+            <label><input type="checkbox" name="cleanBookmarks" /> Clean up stale/dead bookmarks</label>
+            <label><input type="checkbox" name="deadLinkScan" /> Check bookmarked pages for dead links (requests access to all sites)</label>
+            <label><input type="checkbox" name="organizeBookmarks" /> Sort bookmarks into folders</label>
+            <label>Organizing method
+              <select name="organizeMode">
+                <option value="match">Match existing folders (no new folders)</option>
+                <option value="additive">Add folders &amp; sort loose bookmarks</option>
+                <option value="full">Fully reorganize (including filed bookmarks)</option>
+              </select>
+            </label>
+            <label><input type="checkbox" name="protectBookmarkBar" /> Never touch the Bookmarks Bar</label>
+            <label><input type="checkbox" name="removeEmptyFolders" /> Remove folders left empty after sorting</label>
+            <label>Bookmarks unvisited more than
+              <input type="number" name="staleBookmarkDays" min="1" max="3650" /> days</label>
+          </fieldset>
 
-        <fieldset class="settingsGroup">
-          <legend>Protected Items</legend>
-          <label>Never-touch folders (name or path, one per line)
-            <textarea name="protectedFolders" rows="2" placeholder="Work&#10;Other Bookmarks/Archive"></textarea>
-          </label>
-          <label>Protected domains (never close/delete) — one per line
-            <textarea name="whitelist" rows="3" placeholder="github.com&#10;mail.google.com"></textarea>
-          </label>
-        </fieldset>
+          <fieldset>
+            <legend>Protected Items</legend>
+            <label>Never-touch folders (name or path, one per line)
+              <textarea name="protectedFolders" rows="2" placeholder="Work&#10;Other Bookmarks/Archive"></textarea>
+            </label>
+            <label>Protected domains (never close/delete) — one per line
+              <textarea name="whitelist" rows="3" placeholder="github.com&#10;mail.google.com"></textarea>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Automation &amp; Schedule</legend>
+            <label><input type="checkbox" name="autoMode" /> Auto-apply on a schedule (with undo)</label>
+            <label>Auto-scan every
+              <input type="number" name="scanIntervalHours" min="1" max="168" /> hours</label>
+            <label>Keep undo history for
+              <input type="number" name="undoRetentionDays" min="1" max="90" /> days</label>
+          </fieldset>
+        </details>
 
         <details class="advanced">
           <summary>Advanced</summary>
