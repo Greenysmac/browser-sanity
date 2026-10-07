@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-10-07
+**Run 4 (Kiro, reviewed by Mycroft)**
+- "Open side panel" button on the new-tab board; "Sort this group" there opens the panel so the suggestions show. (Task 1 failed once, was reverted and logged, and passed on try 2.)
+- Missing group descriptions are written by the model, one sentence each, at most once a day per group; existing descriptions are never overwritten. Held back: the helper with this feature isn't installed yet, because it would also describe the old ATO groups and add them to the groups file; 0.3.0 changes it to show a suggested description that Jeff saves.
+
 ## 0.2.0 Browser Sanity — 2026-10-07
 Jeff's fork of Browser Organizer 0.1.8, renamed Browser Sanity. Built by Kiro in three unattended runs (Mycroft's runner: revert on a failed try, three tries then stop), each reviewed by Mycroft.
 
