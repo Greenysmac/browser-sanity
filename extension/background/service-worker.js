@@ -394,6 +394,38 @@ async function handleProposals(m) {
   }
 }
 
+// Build a plan over just the given tab ids and store it as the current plan
+// (same shapes as a normal scan, so review/apply/undo are unchanged). buildPlan
+// with onlyTabIds runs only the grouping phase over those tabs. Fewer than one
+// tab returns a friendly message instead of running the backend.
+async function sortTabIds(tabIds, emptyMessage) {
+  if (!Array.isArray(tabIds) || tabIds.length < 1) return { ok: true, items: [], message: emptyMessage };
+  const settings = await getSettings();
+  const nativeClient = await makeClient(settings);
+  try {
+    const items = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds });
+    await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+    return { ok: true, items };
+  } finally {
+    nativeClient.disconnect();
+  }
+}
+
+// "Sort group": regroup every tab currently in the given Chrome tab group.
+async function handleSortGroup(m) {
+  const tabs = await chrome.tabs.query({ groupId: m.groupId });
+  const tabIds = tabs.map((t) => t.id).filter((id) => id != null);
+  return sortTabIds(tabIds, 'That group has no tabs to sort.');
+}
+
+// "Sort selected tabs": regroup the tabs the user highlighted (shift/cmd-click)
+// in the current window's tab strip.
+async function handleSortSelected() {
+  const tabs = await chrome.tabs.query({ highlighted: true, currentWindow: true });
+  const tabIds = tabs.map((t) => t.id).filter((id) => id != null);
+  return sortTabIds(tabIds, 'Select one or more tabs in the tab strip first.');
+}
+
 async function handleSaveSession(m) {
   const session = await saveCurrentWindowSession(m.name, { chrome, close: m.close !== false, windowId: m.windowId });
   return { ok: true, session };
@@ -496,6 +528,8 @@ const HANDLERS = {
   getUndo: handleGetUndo,
   command: handleCommand,
   proposals: handleProposals,
+  sortGroup: handleSortGroup,
+  sortSelected: handleSortSelected,
   saveSession: handleSaveSession,
   renameSession: handleRenameSession,
   listSessions: handleListSessions,

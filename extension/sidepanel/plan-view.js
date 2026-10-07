@@ -318,6 +318,20 @@ async function loadAgentSuggestions() {
   setStatus(note ? `${note} — ${plan.length} suggestions.` : `${plan.length} suggestions.`);
 }
 
+// "Sort selected tabs": regroup just the tabs highlighted in the tab strip. The
+// background builds a plan over those tabs only (grouping phase), then we show
+// it as a normal plan so review/apply/undo are unchanged.
+async function sortSelectedTabs() {
+  setStatus('Sorting selected tabs… (running your local AI CLI)');
+  const res = await send({ cmd: 'sortSelected' });
+  if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
+  if (res.message) { setStatus(res.message); return; }
+  plan = res.items || [];
+  selection = new Set();
+  renderPlan(true);
+  setStatus(plan.length ? `${plan.length} suggestions.` : 'Nothing to sort.');
+}
+
 // Confirms a large destructive batch via a modal before applying. Resolves true
 // to proceed, false to cancel (Cancel button or Esc).
 function confirmBulk(items) {
@@ -375,6 +389,7 @@ export async function initPlanView() {
     setStatus(typeof n === 'number' ? `Index updated: ${n} group${n === 1 ? '' : 's'}` : 'Index updated.');
   });
   $('loadProposals').addEventListener('click', loadAgentSuggestions);
+  $('sortSelected').addEventListener('click', sortSelectedTabs);
   for (const btn of $('runOne').querySelectorAll('button[data-feature]')) {
     btn.addEventListener('click', () => {
       const only = btn.dataset.feature;

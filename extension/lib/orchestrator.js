@@ -89,7 +89,12 @@ export async function buildPlan(deps) {
     await chromeApi.storage.local.set({ tabActivity: next });
     return next;
   });
-  const tabs = await collectTabs(chromeApi, activity, now, deps.windowId ?? null);
+  let tabs = await collectTabs(chromeApi, activity, now, deps.windowId ?? null);
+  // Sort-just-these mode: keep only the requested tabs and run grouping over all
+  // of them (whether or not they're already grouped, like regroupExisting),
+  // skipping every other phase (duplicates, forgotten tabs, bookmarks).
+  const onlyTabIds = Array.isArray(deps.onlyTabIds) ? new Set(deps.onlyTabIds) : null;
+  if (onlyTabIds) tabs = tabs.filter((t) => onlyTabIds.has(t.tabId));
   const byId = indexById(tabs);
   const items = [];
   const f = { ...settings.enabledFeatures, ...(deps.features || {}) };
@@ -98,7 +103,7 @@ export async function buildPlan(deps) {
 
   step('Finding duplicate tabs');
   if (shouldCancel()) return finalizePlan(items, settings, folders);
-  if (f.dupeTabs && tabs.length) {
+  if (!onlyTabIds && f.dupeTabs && tabs.length) {
     try { items.push(...findDuplicateTabs(tabs)); } catch (e) { console.warn('[organizer] duplicate-tabs phase failed:', e); }
   }
 
@@ -108,9 +113,10 @@ export async function buildPlan(deps) {
     // Respect existing Chrome tab groups: only offer to group currently-ungrouped
     // tabs, so re-running doesn't propose new groups over already-organized ones.
     // When regroupExisting is on, send every collected tab so the organizer may
-    // move tabs between existing groups too.
+    // move tabs between existing groups too. Sort-just-these mode (onlyTabIds)
+    // always regroups all of the chosen tabs regardless of their current group.
     try {
-      const candidates = settings.regroupExisting ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
+      const candidates = (onlyTabIds || settings.regroupExisting) ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
       if (candidates.length) {
         const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(candidates), rules } });
         items.push(...mapGroupResult(r.groups, byId));
@@ -120,7 +126,7 @@ export async function buildPlan(deps) {
 
   step('Finding forgotten tabs');
   if (shouldCancel()) return finalizePlan(items, settings, folders);
-  if (f.staleTabs && tabs.length) {
+  if (!onlyTabIds && f.staleTabs && tabs.length) {
     try {
       const stale = tabs.filter((t) => t.idleDays >= settings.staleTabDays && !t.pinned); // never propose closing pinned tabs
       if (stale.length) {
@@ -133,7 +139,7 @@ export async function buildPlan(deps) {
 
   step('Finding tabs to bookmark');
   if (shouldCancel()) return finalizePlan(items, settings, folders);
-  if (f.importantBookmarks && tabs.length) {
+  if (!onlyTabIds && f.importantBookmarks && tabs.length) {
     try {
       const r = await nativeClient.request({ type: 'organize', task: 'important', adapter, payload: { tabs: projectTabsForHost(tabs), rules } });
       items.push(...mapImportantResult(r.important, byId));
@@ -142,7 +148,7 @@ export async function buildPlan(deps) {
 
   step('Cleaning bookmarks');
   if (shouldCancel()) return finalizePlan(items, settings, folders);
-  if (f.cleanBookmarks) {
+  if (!onlyTabIds && f.cleanBookmarks) {
    try {
     const bookmarks = await collectBookmarks(chromeApi);
     const visits = await getVisitsMap(bookmarks, chromeApi);
@@ -171,7 +177,7 @@ export async function buildPlan(deps) {
 
   step('Organizing bookmarks');
   if (shouldCancel()) return finalizePlan(items, settings, folders);
-  if (f.organizeBookmarks) {
+  if (!onlyTabIds && f.organizeBookmarks) {
     try {
       const tree = await collectTree(chromeApi);
       folders = tree.folders; // captured for finalize protection (bar/whitelist)
