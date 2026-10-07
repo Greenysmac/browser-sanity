@@ -68,6 +68,18 @@ async function applyItemInner(item, c, deps = {}) {
     }
     case 'groupTabs': {
       const { tabIds, groupName, color } = item.data;
+      // Reuse an existing group in the first tab's window whose title matches
+      // groupName (trimmed, case-insensitive); leave its title/color alone.
+      const first = await c.tabs.get(tabIds[0]).catch(() => null);
+      const windowId = first ? first.windowId : item.data.windowId;
+      const wanted = (groupName || '').trim().toLowerCase();
+      const existing = windowId != null && wanted
+        ? await c.tabGroups.query({ windowId }).then((gs) => (gs || []).find((g) => (g.title || '').trim().toLowerCase() === wanted)).catch(() => null)
+        : null;
+      if (existing) {
+        await c.tabs.group({ tabIds, groupId: existing.id });
+        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds } };
+      }
       const groupId = await c.tabs.group({ tabIds });
       await c.tabGroups.update(groupId, { title: groupName, color: COLORS.has(color) ? color : 'grey' });
       return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds } };

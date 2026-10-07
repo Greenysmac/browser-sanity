@@ -156,6 +156,58 @@ test('groupTabs groups and titles the group', async () => {
   assert.deepEqual(undo.reverse.tabIds, [1, 2]);
 });
 
+// Mock focused on the groupTabs reuse path: the first tab reports a windowId,
+// tabGroups.query returns `groups`, and tabs.group records every call.
+function makeGroupChrome(groups) {
+  const groupCalls = [];
+  return {
+    _groupCalls: groupCalls,
+    tabs: {
+      async get(id) { return { id, windowId: 7, url: 'https://a.com' }; },
+      async group(arg) { groupCalls.push(arg); return 555; },
+    },
+    tabGroups: {
+      async query({ windowId }) { this._queried = windowId; return groups; },
+      async update(id, props) { this._groupUpdate = { id, props }; },
+    },
+  };
+}
+
+test('groupTabs reuses a matching group: tabs join it, no new group, no update', async () => {
+  const chrome = makeGroupChrome([{ id: 42, title: 'Work' }]);
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  const undo = await applyItem(item, { chrome });
+  assert.equal(chrome.tabGroups._queried, 7);
+  assert.deepEqual(chrome._groupCalls, [{ tabIds: [1, 2], groupId: 42 }]);
+  assert.equal(chrome.tabGroups._groupUpdate, undefined);
+  assert.deepEqual(undo.reverse.tabIds, [1, 2]);
+});
+
+test('groupTabs match ignores case and surrounding whitespace', async () => {
+  const chrome = makeGroupChrome([{ id: 9, title: '  wOrK  ' }]);
+  const item = { action: 'groupTabs', data: { tabIds: [3], groupName: 'Work', color: 'blue' } };
+  await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, [{ tabIds: [3], groupId: 9 }]);
+  assert.equal(chrome.tabGroups._groupUpdate, undefined);
+});
+
+test('groupTabs with no matching group falls back to creating one', async () => {
+  const chrome = makeGroupChrome([{ id: 9, title: 'Personal' }]);
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, [{ tabIds: [1, 2] }]);
+  assert.equal(chrome.tabGroups._groupUpdate.props.title, 'Work');
+});
+
+test('groupTabs falls back to creating one when tabGroups.query fails', async () => {
+  const chrome = makeGroupChrome([]);
+  chrome.tabGroups.query = async () => { throw new Error('no query'); };
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  await applyItem(item, { chrome });
+  assert.deepEqual(chrome._groupCalls, [{ tabIds: [1, 2] }]);
+  assert.equal(chrome.tabGroups._groupUpdate.props.title, 'Work');
+});
+
 test('createBookmark builds folder path then creates the bookmark', async () => {
   const chrome = makeChrome();
   const item = { action: 'createBookmark', data: { url: 'https://b.com', title: 'B', folderPath: ['Dev', 'React'] } };
