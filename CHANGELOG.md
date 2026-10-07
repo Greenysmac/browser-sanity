@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4 — 2026-10-07
+**Run 9 (Kiro, one task, first try; reviewed by Mycroft)**
+- Dark mode: the new-tab page sets color-scheme and uses theme tokens for light and dark; buttons, the filter, rows, the expanded area, the description editor and the ⋯ menu (with hover and focus) draw only from those tokens, on the new-tab page and in the side panel.
+
 ## 0.3.3 — 2026-10-07
 **Run 8 (Kiro, two tasks, first try; reviewed by Mycroft)**
 - Click a group row to open it: its description (or the waiting suggestion, or "No description yet") with Edit, and its tab titles; open groups' titles jump to the tab. One row open at a time; Enter or Space works too.
