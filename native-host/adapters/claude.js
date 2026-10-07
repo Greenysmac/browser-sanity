@@ -9,6 +9,10 @@ import { runCli, cliVersion } from './run-cli.js';
 // Shares runCli/cliVersion with every other CLI adapter so the process-safety
 // logic (timeout, SIGKILL settle race, stdout cap, stdin-error handling) lives
 // in exactly one place.
+// USER lets the claude CLI find its saved login in the macOS keychain; with only
+// PATH and HOME it reports "Not logged in" (found 2026-10-07).
+const AUTH_ENV = ['USER', 'LOGNAME'];
+
 export const claudeAdapter = {
   name: 'claude',
   // Flags the extension's Advanced settings may add (see config.sanitizeCli).
@@ -21,14 +25,14 @@ export const claudeAdapter = {
       args: [...resolveArgs(opts.cli), ...extraArgs(opts)],
       prompt,
       usesStdin: true,
-      env: hostEnv([]),
+      env: hostEnv(AUTH_ENV),
       timeoutMs: opts.timeoutMs,
       spawnFn: opts.spawnFn,
     });
     return extractResultText(out);
   },
   async health(opts = {}) {
-    return cliVersion({ command: resolveCommand(), env: hostEnv([]), spawnFn: opts.spawnFn });
+    return cliVersion({ command: resolveCommand(), env: hostEnv(AUTH_ENV), spawnFn: opts.spawnFn });
   },
 };
 

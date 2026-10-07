@@ -50,3 +50,19 @@ test('registry includes all built-in adapters', () => {
     assert.equal(getAdapter(name).name, name);
   }
 });
+
+test('claude adapter passes USER through so the CLI can read its saved login', async () => {
+  const prev = process.env.USER;
+  process.env.USER = 'someone';
+  let seenEnv;
+  const spawnFn = makeFakeSpawn((stdin, command, args, options) => {
+    seenEnv = options.env;
+    return { stdout: JSON.stringify({ result: 'ok' }) };
+  });
+  try {
+    assert.equal(await claudeAdapter.run('hi', { spawnFn }), 'ok');
+  } finally {
+    if (prev === undefined) delete process.env.USER; else process.env.USER = prev;
+  }
+  assert.equal(seenEnv.USER, 'someone');
+});
