@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseJsonBlock, parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult } from '../native-host/parse.js';
+import { parseJsonBlock, parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult } from '../native-host/parse.js';
 
 test('parseOrganizeResult coerces ids to strings and requires a destination', () => {
   const m = parseOrganizeResult('{"moves":[{"bookmarkId":12,"targetFolderId":5,"reason":"ref"},{"bookmarkId":13,"newFolderPath":["Dev","X"]},{"bookmarkId":14,"reason":"no dest"}]}');
@@ -69,6 +69,16 @@ test('parseStaleResult defaults suggestBookmark to false and action to close', (
 test('parseImportantResult keeps folderPath as string array', () => {
   const i = parseImportantResult('{"important":[{"tabId":9,"folderPath":["Dev","X"],"reason":"ref"}]}');
   assert.deepEqual(i, [{ tabId: 9, folderPath: ['Dev', 'X'], reason: 'ref' }]);
+});
+
+test('parseDescribeResult trims fields and drops entries without a name', () => {
+  const d = parseDescribeResult('prose {"descriptions":[{"name":" Dev ","description":"  dev stuff "},{"description":"no name"}]} trailing');
+  assert.deepEqual(d, [{ name: 'Dev', description: 'dev stuff' }]);
+});
+
+test('parseDescribeResult reads a code-fenced answer leniently', () => {
+  const d = parseDescribeResult('```json\n{"descriptions":[{"name":"Trip","description":"travel tabs"}]}\n```');
+  assert.deepEqual(d, [{ name: 'Trip', description: 'travel tabs' }]);
 });
 
 test('parseStaleResult preserves a suspend action', () => {

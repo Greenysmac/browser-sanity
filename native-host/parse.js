@@ -129,6 +129,20 @@ export function parseOrganizeResult(text) {
   return normalizeOrganize(obj && obj.moves);
 }
 
+// Descriptions are [{ name, description }]; both are coerced to trimmed strings
+// and entries without a name are dropped. Leniently handles missing fields.
+export function normalizeDescriptions(descriptions) {
+  if (!Array.isArray(descriptions)) throw new Error('Expected {"descriptions":[...]}');
+  return descriptions
+    .map((d) => ({ name: String((d && d.name) ?? '').trim(), description: String((d && d.description) ?? '').trim() }))
+    .filter((d) => d.name);
+}
+
+export function parseDescribeResult(text) {
+  const obj = parseJsonBlock(text);
+  return normalizeDescriptions(obj && obj.descriptions);
+}
+
 export function parseCommandResult(text) {
   const obj = parseJsonBlock(text) || {}; // model may emit literal null
   return {

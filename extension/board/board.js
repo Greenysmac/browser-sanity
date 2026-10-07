@@ -122,12 +122,73 @@ function parkedCard({ group, descriptions, send, setStatus, rerender }) {
   return card;
 }
 
+// The chrome.storage.local key holding the "last asked" dates, so we describe a
+// given group at most once a day and opening new tabs doesn't call the model
+// again and again.
+const ASKED_KEY = 'boardDescribeAsked';
+
+// Today's date as YYYY-MM-DD (local), the granularity of the once-a-day memory.
+function todayStr(now = new Date()) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+// chrome.storage.local when available, else undefined (e.g. the unit tests'
+// bare fake document) so the view stays importable without a chrome mock.
+function defaultStorage() {
+  return (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) || undefined;
+}
+
+// Read/write the once-a-day memory: a plain { "<name-lowercased>": "YYYY-MM-DD" }
+// map. A missing store (tests) reads {} and writes nothing.
+async function readAsked(storage) {
+  if (!storage) return {};
+  const got = await storage.get(ASKED_KEY);
+  return (got && got[ASKED_KEY]) || {};
+}
+
+async function writeAsked(storage, asked) {
+  if (!storage) return;
+  await storage.set({ [ASKED_KEY]: asked });
+}
+
+// Pick the open groups that have a name, lack a saved description, and haven't
+// been asked about today (per the memory). Returns [{ groupId, name }].
+function groupsNeedingDescription(open, descriptions, asked, today) {
+  return open
+    .filter((g) => {
+      const name = String(g.name || '').trim();
+      if (!name) return false;
+      if (descriptionFor(descriptions, name)) return false;
+      return asked[name.toLowerCase()] !== today;
+    })
+    .map((g) => ({ groupId: g.groupId, name: g.name }));
+}
+
+// In the background (never blocking the board), fill in any missing open-group
+// descriptions: ask at most once a day per group, send one 'describe' request,
+// then re-render and report how many were written. Does nothing when nothing
+// needs asking. storage/today are injectable so the view is testable.
+async function autoDescribe({ open, descriptions, send, setStatus, rerender, storage, today }) {
+  const asked = await readAsked(storage);
+  const needing = groupsNeedingDescription(open, descriptions, asked, today);
+  if (!needing.length) return;
+  // Mark them asked before sending so a re-render (or new tabs) won't ask again.
+  for (const g of needing) asked[String(g.name).trim().toLowerCase()] = today;
+  await writeAsked(storage, asked);
+  const res = await send({ cmd: 'describe', groups: needing });
+  const written = (res && res.written) || 0;
+  if (written > 0) {
+    await rerender();
+    setStatus(`Wrote descriptions for ${written} ${written === 1 ? 'group' : 'groups'}`);
+  }
+}
+
 // Build (or rebuild) the board inside `container`: an "Open now" section and a
 // "Parked, from the index" section, each a foldable <details open>. Data comes
 // from the service worker's 'boardData' command. setStatus is optional (defaults
 // to a no-op) so the module stays importable without the panel's dom.js.
-export async function renderBoard(container, { send, setStatus = () => {} } = {}) {
-  const rerender = () => renderBoard(container, { send, setStatus });
+export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr() } = {}) {
+  const rerender = () => renderBoard(container, { send, setStatus, storage, today });
   const res = await send({ cmd: 'boardData' });
   const open = (res && res.open) || [];
   const parked = (res && res.parked) || [];
@@ -165,4 +226,9 @@ export async function renderBoard(container, { send, setStatus = () => {} } = {}
   }
 
   container.append(openSection, parkedSection);
+
+  // After painting, fill in any missing open-group descriptions in the
+  // background — this never blocks the board above, and re-renders itself when
+  // the model answers.
+  autoDescribe({ open, descriptions, send, setStatus, rerender, storage, today });
 }

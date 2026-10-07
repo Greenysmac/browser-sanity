@@ -175,3 +175,101 @@ test('both top-level sections are open <details> so the user can fold them', asy
   assert.equal(details.length, 2);
   assert.ok(details.every((d) => d.open === true), 'both sections start open');
 });
+
+// A fake chrome.storage.local-shaped store for the once-a-day describe memory.
+function makeStorage(initial = {}) {
+  let data = { ...initial };
+  return {
+    get: async (key) => (key in data ? { [key]: data[key] } : {}),
+    set: async (obj) => { data = { ...data, ...obj }; },
+    peek: () => data,
+  };
+}
+
+// A send that answers boardData with the current fixture (so a re-render can
+// pick up a changed fixture), records every message, and answers describe with
+// the supplied result. Lets a test flip the fixture after describe writes.
+function makeDescribeSend(getFixture, describeResult) {
+  const sent = [];
+  const send = (msg) => {
+    sent.push(msg);
+    if (msg.cmd === 'boardData') return Promise.resolve({ ok: true, ...getFixture() });
+    if (msg.cmd === 'describe') return Promise.resolve({ ok: true, ...describeResult });
+    return Promise.resolve({ ok: true });
+  };
+  return { send, sent };
+}
+
+// Let fire-and-forget autoDescribe promises settle (it isn't awaited by render).
+async function flush() {
+  for (let i = 0; i < 50; i += 1) await Promise.resolve();
+}
+
+const NO_DESC = {
+  open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 3 }],
+  parked: [],
+  descriptions: [],
+};
+
+test('board asks the model to describe open groups that have no description', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  const { send, sent } = makeDescribeSend(() => NO_DESC, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-05' });
+  await flush();
+  const req = sent.find((m) => m.cmd === 'describe');
+  assert.ok(req, 'a describe command was sent');
+  assert.deepEqual(req.groups, [{ groupId: 7, name: 'Work' }]);
+  // The ask is remembered so the next render that day doesn't ask again.
+  assert.equal(storage.peek().boardDescribeAsked.work, '2026-01-05');
+});
+
+test('board does not re-describe a group already asked about today (once-a-day memory)', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage({ boardDescribeAsked: { work: '2026-01-05' } });
+  const { send, sent } = makeDescribeSend(() => NO_DESC, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-05' });
+  await flush();
+  assert.ok(!sent.some((m) => m.cmd === 'describe'), 'no describe sent when already asked today');
+});
+
+test('board asks again on a new day', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage({ boardDescribeAsked: { work: '2026-01-05' } });
+  const { send, sent } = makeDescribeSend(() => NO_DESC, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-06' });
+  await flush();
+  assert.ok(sent.some((m) => m.cmd === 'describe'), 'a new day asks again');
+});
+
+test('board skips open groups that already have a description', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  // FIXTURE's open 'Work' group already has a description.
+  const { send, sent } = makeDescribeSend(() => FIXTURE, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-05' });
+  await flush();
+  assert.ok(!sent.some((m) => m.cmd === 'describe'), 'no describe for already-described groups');
+});
+
+test('board re-renders and reports a count after descriptions are written', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  let fixture = NO_DESC;
+  const described = { ...NO_DESC, descriptions: [{ name: 'Work', description: 'day job stuff' }] };
+  const { send } = makeDescribeSend(() => fixture, { descriptions: [{ name: 'Work', description: 'day job stuff' }], written: 1 });
+  const statuses = [];
+  await renderBoard(container, { send, setStatus: (t) => statuses.push(t), storage, today: '2026-01-05' });
+  // Simulate the host having written the description so the re-render shows it.
+  fixture = described;
+  await flush();
+  assert.ok(statuses.some((s) => s === 'Wrote descriptions for 1 group'), 'status reports the written count');
+  // The re-render picked up the now-present description for the open card.
+  const textarea = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
+  assert.ok(textarea, 'board re-rendered with the written description');
+});

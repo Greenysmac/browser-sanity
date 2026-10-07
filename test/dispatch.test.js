@@ -103,6 +103,7 @@ test('health advertises capabilities (types, tasks, passthrough, adapters)', asy
   assert.ok(r.capabilities, 'capabilities present');
   assert.ok(r.capabilities.passthrough, 'passthrough advertised');
   assert.ok(r.capabilities.types.includes('prompt'));
+  assert.ok(r.capabilities.types.includes('describe'));
   assert.ok(r.capabilities.tasks.includes('organize-bookmarks'));
   assert.ok(Array.isArray(r.capabilities.adapters));
   // Also present on the not-ready path (capability is host-level, not adapter-level).
@@ -141,4 +142,37 @@ test('handle applies the adapter flag allowlist (accepts allowed, rejects the re
   await handle({ type: 'organize', task: 'group', cli: { extraArgs: '-s danger-full-access' }, payload: { tabs: [] } }, { getAdapter });
   assert.equal(seenOpts.cli.rejected, true);          // codex sandbox override blocked
   assert.deepEqual(seenOpts.cli.extraArgs, []);
+});
+
+test('describe writes only groups with no existing description and returns the parsed list and count', async () => {
+  const out = '{"descriptions":[{"name":"Dev","description":"dev tabs"},{"name":"Trip","description":"travel tabs"}]}';
+  const writes = [];
+  const r = await handle(
+    { type: 'describe', payload: { groups: [{ name: 'Dev', tabs: [{ title: 't', url: 'https://a' }] }, { name: 'Trip', tabs: [] }] } },
+    {
+      getAdapter: fakeGetAdapter(out),
+      // Dev already has a description on disk; Trip does not.
+      readGroups: () => [{ name: 'Dev', description: 'already written' }, { name: 'Trip', description: '' }],
+      writeGroupDescription: (name, description) => { writes.push({ name, description }); return { ok: true }; },
+    },
+  );
+  assert.deepEqual(r.descriptions, [{ name: 'Dev', description: 'dev tabs' }, { name: 'Trip', description: 'travel tabs' }]);
+  assert.equal(r.written, 1);
+  // Only Trip is written; Dev's existing description is left untouched.
+  assert.deepEqual(writes, [{ name: 'Trip', description: 'travel tabs' }]);
+});
+
+test('describe never overwrites an existing description (case/space-insensitive match)', async () => {
+  const out = '{"descriptions":[{"name":" dev ","description":"new text"}]}';
+  const writes = [];
+  const r = await handle(
+    { type: 'describe', payload: { groups: [{ name: 'Dev', tabs: [] }] } },
+    {
+      getAdapter: fakeGetAdapter(out),
+      readGroups: () => [{ name: 'Dev', description: 'kept' }],
+      writeGroupDescription: (name, description) => { writes.push({ name, description }); return { ok: true }; },
+    },
+  );
+  assert.equal(r.written, 0);
+  assert.deepEqual(writes, []);
 });

@@ -1,6 +1,6 @@
 import { getAdapter as defaultGetAdapter, adapterNames } from './adapters/registry.js';
-import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt } from './prompts.js';
-import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseJsonBlock } from './parse.js';
+import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt } from './prompts.js';
+import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile, readGroups, writeGroupDescription } from './groups-file.js';
@@ -20,7 +20,7 @@ function withGroups(rules, groupsText) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals', 'groups-read', 'groups-write'],
+    types: ['health', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals', 'groups-read', 'groups-write', 'describe'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -136,6 +136,29 @@ export async function handle(msg, deps = {}) {
   if (msg.type === 'proposals') {
     const load = deps.loadProposals || loadProposals;
     return load();
+  }
+
+  // Describe the given groups: ask the model for one sentence per group, then
+  // write each returned description into the groups file — but only for groups
+  // that have no description there yet, so a description the user or an agent
+  // wrote is never overwritten. Returns { descriptions, written }.
+  if (msg.type === 'describe') {
+    const payload = msg.payload || {};
+    const groups = Array.isArray(payload.groups) ? payload.groups : [];
+    const out = await adapter.run(buildDescribePrompt(groups), opts);
+    const descriptions = parseDescribeResult(out);
+    const read = deps.readGroups || readGroups;
+    const write = deps.writeGroupDescription || writeGroupDescription;
+    const existing = new Set(read()
+      .filter((g) => g.description)
+      .map((g) => g.name.trim().toLowerCase()));
+    let written = 0;
+    for (const d of descriptions) {
+      if (!d.description || existing.has(d.name.trim().toLowerCase())) continue;
+      write(d.name, d.description);
+      written += 1;
+    }
+    return { descriptions, written };
   }
 
   // Read the group descriptions the model sees, so the extension can show and

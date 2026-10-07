@@ -98,6 +98,32 @@ export function buildCommandPrompt(instruction, tabs, rules = '') {
   ].join('\n');
 }
 
+// Each group's tabs are capped so a huge group can't bloat the prompt; 30 tab
+// titles are plenty to tell what belongs in a group.
+function groupTable(groups) {
+  return groups
+    .map((g) => {
+      const titles = (Array.isArray(g.tabs) ? g.tabs : [])
+        .slice(0, 30)
+        .map((t) => `${clip(t.title, 120)}\t${clip(t.url, 300)}`)
+        .join('\n');
+      return `GROUP ${clip(g.name, 120)}\n${titles}`;
+    })
+    .join('\n');
+}
+
+export function buildDescribePrompt(groups) {
+  return [
+    'You write a one-sentence description for each browser tab group.',
+    'Each GROUP line names a group; the lines under it are its tabs as title<TAB>url.',
+    'For each group, write one plain sentence, at most 25 words, saying what kinds of tabs belong in that group so a sorter can use it.',
+    'Respond with ONLY this JSON, no prose:',
+    '{"descriptions":[{"name":"Group name","description":"..."}]}',
+    '',
+    wrapWithFence(groupTable(groups), 'DATA'),
+  ].join('\n');
+}
+
 export function buildImportantPrompt(tabs, rules = '') {
   return [
     'You identify high-value browser tabs worth bookmarking and file them into a tidy shallow folder structure.',

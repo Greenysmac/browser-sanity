@@ -542,6 +542,28 @@ async function handleGroupsWrite(m) {
   }
 }
 
+// Fill in missing group descriptions: for each open group the board flags
+// (by name + groupId), read its tabs from the live strip, hand the host the
+// group name and tab titles/urls, and let it ask the model for one sentence
+// each, writing only the ones not already described. Returns { descriptions,
+// written }.
+async function handleDescribe(m) {
+  const want = Array.isArray(m.groups) ? m.groups : [];
+  const groups = [];
+  for (const g of want) {
+    const tabs = g.groupId != null ? await chrome.tabs.query({ groupId: g.groupId }) : [];
+    groups.push({ name: g.name || '', tabs: tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) });
+  }
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    const res = await client.request({ type: 'describe', adapter: settings.adapter, payload: { groups } });
+    return { ok: true, descriptions: (res && res.descriptions) || [], written: (res && res.written) || 0 };
+  } finally {
+    client.disconnect();
+  }
+}
+
 const HANDLERS = {
   run: handleRun,
   cancel: handleCancel,
@@ -570,6 +592,7 @@ const HANDLERS = {
   openParked: handleOpenParked,
   groupsRead: handleGroupsRead,
   groupsWrite: handleGroupsWrite,
+  describe: handleDescribe,
   boardData: handleBoardData,
 };
 
