@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3 — 2026-10-07
+**Run 8 (Kiro, two tasks, first try; reviewed by Mycroft)**
+- Click a group row to open it: its description (or the waiting suggestion, or "No description yet") with Edit, and its tab titles; open groups' titles jump to the tab. One row open at a time; Enter or Space works too.
+- New-tab page: title, filter, then Open side panel on the right; rows in real columns; long names cut to one line.
+- Side panel: the result card clears after Apply and hides when there's nothing to apply; no Settings section in the main view (gear only).
+
 ## 0.3.2 — 2026-10-07
 **Run 7 (Kiro, three tasks, all first try; reviewed by Mycroft)**: the declutter.
 - One line per group (color, name, count, a dot when a description suggestion waits) with a ⋯ menu: Sort this group, Park or Close group, Add back parked tabs, Description…; parked rows: Open, Description…. Section headers show counts.
