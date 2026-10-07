@@ -212,6 +212,9 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
    each view's "Done" head shows only in that view and returns to the main view. */
 .settingsViewHead { display: none; margin-bottom: 10px; }
 body[data-view="settings"] .settingsViewHead { display: block; }
+/* The Settings panel never shows in the main view; the gear opens its view. */
+.tools { display: none; }
+body[data-view="settings"] .tools { display: block; }
 body[data-view="settings"] .heroControls,
 body[data-view="settings"] #resultCard,
 body[data-view="settings"] #board,
@@ -226,7 +229,6 @@ body[data-view="settings"] #plan,
 body[data-view="settings"] #planActions,
 body[data-view="settings"] #sessions,
 body[data-view="settings"] #mutedPanel,
-body[data-view="settings"] .toolsHead,
 body[data-view="settings"] .toolRow { display: none !important; }
 
 /* The More view: its head shows only in that view; everything else is hidden. */
