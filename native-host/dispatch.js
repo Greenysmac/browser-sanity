@@ -1,4 +1,5 @@
 import { getAdapter as defaultGetAdapter, adapterNames } from './adapters/registry.js';
+import { listModels as openaiListModels } from './adapters/openai.js';
 import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt } from './prompts.js';
 import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
@@ -27,7 +28,7 @@ function cleanSuggestion(text) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals', 'groups-read', 'groups-write', 'describe'],
+    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals', 'groups-read', 'groups-write', 'describe'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -55,6 +56,21 @@ export async function handle(msg, deps = {}) {
     } catch (err) {
       return { adapter: adapter.name, ready: false, error: String((err && err.message) || err), hostVersion: hostVersion(), capabilities: capabilities() };
     }
+  }
+
+  // List the models the selected backend offers, so the extension can populate
+  // a model picker instead of making the user type an id. The openai adapter
+  // GETs <base>/models (host-side key + SSRF guards reused from the adapter);
+  // Claude Code has no models endpoint, so return the current fixed line-up.
+  // Any other backend reports an empty list (no enumeration available).
+  if (msg.type === 'models') {
+    const name = msg.adapter || 'claude';
+    if (name === 'claude') return { models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'] };
+    if (name === 'openai') {
+      const listModels = deps.listModels || openaiListModels;
+      return { models: await listModels(opts) };
+    }
+    return { models: [] };
   }
 
   // Generic passthrough: the extension supplies the full prompt and gets the

@@ -16,6 +16,7 @@ export const DEFAULTS = {
   whitelist: [],                       // protected domains — never close/discard/delete their tabs/bookmarks
   decisions: {},                       // per-target approve/reject counters (see recordDecision in orchestrator.js)
   adapter: 'claude',                   // native host adapter name
+  provider: 'claude',                  // "where it runs" preset → sets adapter + openaiBaseUrl (see lib/providers.js); 'other' = pick a backend directly
   scanIntervalMinutes: 720,           // auto-run cadence (12h)
   openaiBaseUrl: '',                   // OpenAI-compatible endpoint (blank = host default). Key is in secret-store, not here.
   openaiModel: '',                     // OpenAI-compatible model (blank = host default)

@@ -148,7 +148,17 @@
       <form id="settingsForm">
         <fieldset class="settingsGroup">
           <legend>AI Backend &amp; Model</legend>
-          <label>AI backend
+          <label>Where it runs
+            <select name="provider">
+              <option value="claude">Claude (Claude Code subscription)</option>
+              <option value="poe">Poe</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="openai">OpenAI</option>
+              <option value="local">Local model (Ollama / LM Studio)</option>
+              <option value="other">Other (pick a backend)</option>
+            </select>
+          </label>
+          <label id="adapterRow" hidden>AI backend
             <select name="adapter">
               <option value="claude">Claude Code</option>
               <option value="antigravity">Antigravity (agy)</option>

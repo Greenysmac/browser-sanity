@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openaiAdapter, resolveBase, resolveModel, resolveKey } from '../native-host/adapters/openai.js';
+import { openaiAdapter, resolveBase, resolveModel, resolveKey, listModels } from '../native-host/adapters/openai.js';
 import { getAdapter } from '../native-host/adapters/registry.js';
 
 test('the registry resolves the openai adapter by name', () => {
@@ -177,5 +177,35 @@ test('resolveKey allows a message base URL when the message also supplies its ow
   // With no env key set, a message base URL alone just yields no key (normal "key not set" path).
   await withEnv({}, async () => {
     assert.equal(resolveKey({ baseUrl: 'https://x/v1' }), '');
+  });
+});
+
+test('listModels GETs /models and returns the ids sorted', async () => {
+  await withEnv({ [KEY]: 'k' }, async () => {
+    let seen = null;
+    const fetchFn = (url, opts) => { seen = { url, method: opts.method, headers: opts.headers }; return Promise.resolve(okJson({ data: [{ id: 'gpt-4o-mini' }, { id: 'gpt-4o' }, { id: 'o1' }] })); };
+    const ids = await listModels({ fetchFn });
+    assert.equal(seen.url, 'https://api.openai.com/v1/models');
+    assert.equal(seen.method, 'GET');
+    assert.equal(seen.headers.Authorization, 'Bearer k');
+    assert.deepEqual(ids, ['gpt-4o', 'gpt-4o-mini', 'o1']); // sorted
+  });
+});
+
+test('listModels tolerates a response with no data array (returns [])', async () => {
+  await withEnv({ [KEY]: 'k' }, async () => {
+    const fetchFn = () => Promise.resolve(okJson({}));
+    assert.deepEqual(await listModels({ fetchFn }), []);
+  });
+});
+
+test('listModels throws without a key and reuses the metadata/base guards', async () => {
+  await withEnv({}, async () => {
+    await assert.rejects(() => listModels({ fetchFn: () => { throw new Error('nope'); } }), /API key not set/);
+    // A message-supplied metadata base is refused the same as run()/health().
+    await assert.rejects(
+      () => listModels({ fetchFn: () => { throw new Error('nope'); }, config: { apiKey: 'k', baseUrl: 'http://169.254.169.254/latest' } }),
+      /link-local\/metadata/,
+    );
   });
 });

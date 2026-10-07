@@ -6,6 +6,7 @@ import { $, setStatus, flashStatus, setSettings } from './dom.js';
 import { getSettings } from '../lib/storage.js';
 import { setSecret, hasSecret, clearSecret } from '../lib/secret-store.js';
 import { adapterNote } from './viewmodel.js';
+import { providerSettings, providerFor, EDITABLE_BASE, PROVIDERS } from '../lib/providers.js';
 import { checkHealth } from './health-view.js';
 
 let advancedExtraArgs = {}; // per-adapter extra CLI flags, loaded from settings
@@ -56,11 +57,28 @@ function updateAdapterNote(value) {
   $('openaiConfig').hidden = value !== 'openai'; // key/base/model only for the API backend
 }
 
+// Reflect the chosen provider in the form: the raw backend dropdown shows only
+// under 'Other'; the openai key/base/model block shows whenever the resolved
+// adapter is openai; and the base URL stays editable only where a provider
+// allows it ('local') or when picking a backend directly ('other').
+function applyProviderView(provider) {
+  const form = $('settingsForm');
+  const isOther = provider === 'other';
+  const adapter = isOther ? form.adapter.value : (PROVIDERS[provider] && PROVIDERS[provider].adapter) || 'claude';
+  const adapterRow = document.getElementById('adapterRow');
+  if (adapterRow) adapterRow.hidden = !isOther;
+  updateAdapterNote(adapter);
+  const baseEditable = isOther || EDITABLE_BASE.has(provider);
+  if (form.openaiBaseUrl) form.openaiBaseUrl.disabled = !baseEditable;
+}
+
 export async function loadSettings() {
   const s = await getSettings();
   const form = $('settingsForm');
   form.adapter.value = s.adapter;
-  updateAdapterNote(s.adapter);
+  const provider = s.provider || providerFor(s.adapter, s.openaiBaseUrl);
+  if (form.provider) form.provider.value = provider;
+  applyProviderView(provider);
   form.openaiBaseUrl.value = s.openaiBaseUrl || '';
   form.openaiModel.value = s.openaiModel || '';
   form.bigModel.value = s.bigModel || '';
@@ -119,6 +137,28 @@ export function initSettingsView() {
     await checkHealth();
   });
 
+  // Picking "where it runs" sets the backend + endpoint and applies immediately,
+  // same as the backend dropdown. 'other' leaves adapter/base alone and reveals
+  // the full backend dropdown so every CLI backend stays reachable.
+  const providerSelect = $('settingsForm').provider;
+  if (providerSelect) {
+    providerSelect.addEventListener('change', async (e) => {
+      const provider = e.target.value;
+      const form = $('settingsForm');
+      const patch = providerSettings(provider); // {} for 'other' — keeps current adapter/base
+      if (patch.adapter) form.adapter.value = patch.adapter;
+      if (patch.openaiBaseUrl !== undefined) form.openaiBaseUrl.value = patch.openaiBaseUrl;
+      applyProviderView(provider);
+      syncExtraArgsField(form.adapter.value);
+      setStatus(`Switching to ${e.target.selectedOptions[0].text}…`);
+      try {
+        await setSettings({ provider, ...patch });
+        await checkHealth();
+        setStatus('');
+      } catch (err) { setStatus(`Could not switch provider: ${err.message}`); }
+    });
+  }
+
   // Switching the AI backend applies immediately (persist + re-check health), so the
   // banner reflects the chosen backend without also having to click "Save settings".
   $('settingsForm').adapter.addEventListener('change', async (e) => {
@@ -165,6 +205,7 @@ export function initSettingsView() {
         $('openaiKeyClear').disabled = false;
       }
       await setSettings({
+        provider: form.provider ? form.provider.value : 'other',
         adapter: form.adapter.value,
         openaiBaseUrl: form.openaiBaseUrl.value.trim(),
         openaiModel: form.openaiModel.value.trim(),

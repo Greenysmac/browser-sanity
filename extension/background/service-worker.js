@@ -13,6 +13,7 @@ import { uniqueId } from '../lib/ids.js';
 import { getSecret } from '../lib/secret-store.js';
 import { syncIndex, openGroupTitles } from '../lib/index-sync.js';
 import { parkGroup, openParked } from '../lib/park.js';
+import { apiKeyForProvider } from '../lib/providers.js';
 
 // Creates the native client, attaching the openai adapter's UI-entered config
 // (key decrypted from secret-store here, base/model from settings) so the host
@@ -44,7 +45,10 @@ async function makeClient(settings, job = 'big') {
   const model = modelForJob(settings, job);
   if (settings.adapter === 'openai') {
     // Per-slot model when set; otherwise keep the configured openaiModel default.
-    extras.config = { apiKey: await getSecret('openaiApiKey'), baseUrl: settings.openaiBaseUrl || '', model: model || settings.openaiModel || '' };
+    // Local servers ignore the bearer token but the adapter still requires one,
+    // so for the 'local' provider with no stored key we send the throwaway 'local'.
+    const apiKey = apiKeyForProvider(settings.provider, await getSecret('openaiApiKey'));
+    extras.config = { apiKey, baseUrl: settings.openaiBaseUrl || '', model: model || settings.openaiModel || '' };
   } else if (settings.adapter === 'claude' && model) {
     // Add '--model <name>' to this request's claude flags unless the user's own
     // extra flags already set --model (their explicit flag wins). The host's
@@ -536,6 +540,21 @@ async function handleHealth() {  const settings = await getSettings();
   finally { client.disconnect(); }
 }
 
+// List the models the selected backend offers, so the panel can show a picker
+// instead of a free-text model field. Opens a native client around the host's
+// 'models' type; the host returns Claude's fixed list or GETs the openai
+// endpoint's /models. Failures surface as { ok: false } for the caller to show.
+async function handleListModels() {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    const { models } = await client.request({ type: 'models', adapter: settings.adapter });
+    return { ok: true, models: models || [] };
+  } finally {
+    client.disconnect();
+  }
+}
+
 // Read the group descriptions the model sees, so the panel can show and edit
 // them. Opens a native client around the host's 'groups-read'.
 async function handleGroupsRead() {
@@ -606,6 +625,7 @@ const HANDLERS = {
   restoreSession: handleRestoreSession,
   deleteSession: handleDeleteSession,
   health: handleHealth,
+  listModels: handleListModels,
   syncIndex: handleSyncIndex,
   parkGroup: handleParkGroup,
   openParked: handleOpenParked,

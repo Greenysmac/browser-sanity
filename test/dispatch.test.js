@@ -60,6 +60,31 @@ test('unknown type rejects', async () => {
   await assert.rejects(() => handle({ type: 'wat' }, { getAdapter: fakeGetAdapter('') }), /Unknown message type/);
 });
 
+test('models: claude returns the fixed built-in list', async () => {
+  const r = await handle({ type: 'models', adapter: 'claude' }, { getAdapter: fakeGetAdapter('') });
+  assert.deepEqual(r, { models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'] });
+});
+
+test('models: openai delegates to listModels (host-side), passing the sanitized config', async () => {
+  let seenOpts = null;
+  const r = await handle(
+    { type: 'models', adapter: 'openai', config: { apiKey: 'k', baseUrl: 'https://openrouter.ai/api/v1', model: 'x' } },
+    { getAdapter: fakeGetAdapter(''), listModels: async (opts) => { seenOpts = opts; return ['b', 'a']; } },
+  );
+  assert.deepEqual(r, { models: ['b', 'a'] }); // handler returns whatever listModels gives (already sorted there)
+  assert.deepEqual(seenOpts.config, { apiKey: 'k', baseUrl: 'https://openrouter.ai/api/v1', model: 'x' });
+});
+
+test('models: any other backend reports an empty list', async () => {
+  const r = await handle({ type: 'models', adapter: 'kiro' }, { getAdapter: fakeGetAdapter('') });
+  assert.deepEqual(r, { models: [] });
+});
+
+test('capabilities advertises the models type', async () => {
+  const r = await handle({ type: 'health' }, { getAdapter: fakeGetAdapter('') });
+  assert.ok(r.capabilities.types.includes('models'));
+});
+
 test('organize-bookmarks task returns parsed moves', async () => {
   const out = '{"moves":[{"bookmarkId":"9","targetFolderId":"5","reason":"ref"}]}';
   const r = await handle(

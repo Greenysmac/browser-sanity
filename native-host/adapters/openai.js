@@ -145,3 +145,22 @@ export const openaiAdapter = {
     return { version: `openai-compatible (${resolveModel(cfg)})` };
   },
 };
+
+// List the model ids the configured endpoint offers (GET <base>/models). Reuses
+// the same host-side resolution and SSRF/cleartext guards as run()/health() via
+// checkedBase + resolveKey, so a client-chosen base can't exfiltrate the host
+// key or hit a metadata address. Returns the ids sorted; a response without a
+// data array yields []. Shape mirrors the OpenAI { data: [{ id }, …] } body.
+export async function listModels(opts = {}) {
+  const cfg = opts.config;
+  const key = resolveKey(cfg);
+  if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_ORGANIZER_OPENAI_API_KEY).');
+  const fetchFn = opts.fetchFn || globalThis.fetch;
+  const timeoutMs = opts.timeoutMs || HEALTH_TIMEOUT;
+  const res = await fetchWithTimeout(fetchFn, `${checkedBase(cfg)}/models`, { method: 'GET', headers: authHeaders(key) }, timeoutMs);
+  if (!res.ok) throw new Error(`OpenAI API ${res.status}`);
+  const data = await readCappedJson(res);
+  const list = (data && Array.isArray(data.data)) ? data.data : [];
+  const ids = list.map((m) => m && m.id).filter((id) => typeof id === 'string');
+  return ids.sort();
+}
