@@ -27,6 +27,12 @@ function lastSeenText(lastSeen) {
   return day ? `last seen ${day}` : 'last seen unknown';
 }
 
+// The site name shown in bold at the head of each tab line: the URL's hostname
+// without a leading "www.". A tab without a parseable URL reads ''.
+function siteName(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
 // Find the saved description for a group name (trimmed, case-insensitive) in the
 // descriptions list, or '' when none is recorded.
 function descriptionFor(descriptions, name) {
@@ -96,6 +102,64 @@ function descriptionEditor({ name, description, suggested, send, setStatus }) {
 // `onOpenTab`), while for a parked group the title is plain text. `tabs` is the
 // list of { title, url } the row expanded with. Built with createElement so
 // names/titles can't inject markup.
+// The most tab lines an expanded card shows; a group with more adds a muted
+// "+ <n> more" line instead of listing the rest.
+const MAX_TAB_LINES = 5;
+
+// Build one tab line (<li>): the site name (hostname without "www.") in bold,
+// then the page title in normal weight. For an open group `onOpenTab` makes the
+// whole line a link that focuses the tab; a parked group's line is plain text.
+// Built with createElement so names/titles can't inject markup.
+function tabLine(t, onOpenTab) {
+  const li = document.createElement('li');
+  const site = siteName(t && t.url);
+  const title = (t && t.title) || (t && t.url) || '';
+  const makeContent = (host) => {
+    if (site) {
+      const siteEl = document.createElement('strong');
+      siteEl.className = 'boardTabSite';
+      siteEl.textContent = site;
+      host.appendChild(siteEl);
+      if (title) {
+        const titleEl = document.createElement('span');
+        titleEl.className = 'boardTabTitle';
+        titleEl.textContent = title;
+        host.appendChild(titleEl);
+      }
+    } else {
+      const titleEl = document.createElement('span');
+      titleEl.className = 'boardTabTitle';
+      titleEl.textContent = title;
+      host.appendChild(titleEl);
+    }
+  };
+  if (onOpenTab && t && t.id != null) {
+    const link = document.createElement('a');
+    link.href = '#';
+    makeContent(link);
+    link.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); onOpenTab(t); });
+    li.appendChild(link);
+  } else {
+    makeContent(li);
+  }
+  return li;
+}
+
+// Fill a <ul.boardTabList> with at most five tab lines; when the group has
+// more, a muted "+ <n> more" line follows instead of the rest. `onOpenTab`,
+// when given, makes each line a link that focuses that tab.
+function fillTabList(list, tabs, onOpenTab) {
+  const all = Array.isArray(tabs) ? tabs : [];
+  for (const t of all.slice(0, MAX_TAB_LINES)) list.appendChild(tabLine(t, onOpenTab));
+  const extra = all.length - MAX_TAB_LINES;
+  if (extra > 0) {
+    const more = document.createElement('li');
+    more.className = 'boardTabMore';
+    more.textContent = `+ ${extra} more`;
+    list.appendChild(more);
+  }
+}
+
 function expandedArea({ name, description, suggested, tabs, send, setStatus, onOpenTab }) {
   const wrap = document.createElement('div');
   wrap.className = 'boardExpanded';
@@ -130,20 +194,7 @@ function expandedArea({ name, description, suggested, tabs, send, setStatus, onO
 
   const list = document.createElement('ul');
   list.className = 'boardTabList';
-  for (const t of (tabs || [])) {
-    const li = document.createElement('li');
-    const title = (t && t.title) || (t && t.url) || '';
-    if (onOpenTab && t && t.id != null) {
-      const link = document.createElement('a');
-      link.href = '#';
-      link.textContent = title;
-      link.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); onOpenTab(t); });
-      li.appendChild(link);
-    } else {
-      li.textContent = title;
-    }
-    list.appendChild(li);
-  }
+  fillTabList(list, tabs, onOpenTab);
   wrap.appendChild(list);
   return wrap;
 }
@@ -227,19 +278,17 @@ function parkedMatch(parked, name) {
   return (parked || []).find((g) => String(g.name || '').trim().toLowerCase() === wanted);
 }
 
-// A shared single-open-at-a-time expander for the board's rows. Each row calls
-// `wire(row, build)` to make itself clickable: a click anywhere on the row
-// (except the ⋯ button, its menu, or an open editor/expanded area) toggles an
-// expanded area built by `build()` and appended under the row; Enter or Space
-// on the focused row does the same. Opening one row collapses whichever row was
-// open before, so only one expanded area shows across both sections.
+// A shared expander for the board's rows. Each row calls `wire(row, build)` to
+// make itself clickable: a click anywhere on the row (except the ⋯ button, its
+// menu, or an open editor/expanded area) toggles an expanded area built by
+// `build()` and appended under the row; Enter or Space on the focused row does
+// the same. Several rows may be open at once — clicking a row doesn't collapse
+// any other, and clicking an already-open row collapses just that one.
 function makeExpander() {
-  let openRow;
-  const collapse = () => {
-    if (!openRow) return;
-    const area = Array.from(openRow.children || []).find((c) => c && c.className === 'boardExpanded');
+  const collapse = (row) => {
+    if (!row) return;
+    const area = Array.from(row.children || []).find((c) => c && c.className === 'boardExpanded');
     detach(area);
-    openRow = undefined;
   };
   // A click/keypress originating from the ⋯ button, its menu, or an already-open
   // editor/expanded area shouldn't toggle the row.
@@ -260,10 +309,8 @@ function makeExpander() {
       const target = e && e.target;
       if (fromControls(row, target)) return;
       const isOpen = Array.from(row.children || []).some((c) => c && c.className === 'boardExpanded');
-      if (isOpen) { collapse(); return; }
-      collapse();
+      if (isOpen) { collapse(row); return; }
       row.appendChild(build());
-      openRow = row;
     };
     row.addEventListener('click', toggle);
     row.addEventListener('keydown', (e) => {
@@ -312,11 +359,15 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
   const count = document.createElement('span');
   count.className = 'boardCount';
   count.textContent = webCount ? `${webCount} tabs` : 'no web pages';
-  row.append(dot, name, count);
-  // A crowded group (more than 30 web pages) shows a small "30+" badge — a hint
-  // that Split (in the ⋯ menu) is worth a look.
+  // The count sits top-right, against the right edge before the ⋯ button, with
+  // the "30+" split-hint badge (on a crowded group) beside it. A right-aligned
+  // container holds both and pushes itself to the far side of the row.
+  const countWrap = document.createElement('span');
+  countWrap.className = 'boardCountWrap';
+  countWrap.appendChild(count);
   const badge = splitHintBadge(webCount);
-  if (badge) row.append(badge);
+  if (badge) countWrap.appendChild(badge);
+  row.append(dot, name, countWrap);
 
   const description = descriptionFor(descriptions, group.name);
   // Only surface a stored suggestion when nothing is saved yet; a saved
@@ -378,20 +429,14 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
     const build = () => {
       const area = expandedArea({ name: group.name, description, suggested, tabs: [], send, setStatus, onOpenTab });
       // Fill the live tab titles asynchronously; the area shows immediately and
-      // the links appear once the query answers.
+      // the lines appear once the query answers — at most five, each a link
+      // (bold site name + title) that focuses the tab, with a "+ <n> more" line
+      // when the group has more.
       if (tabsApi && tabsApi.query && group.groupId != null) {
         Promise.resolve(tabsApi.query({ groupId: group.groupId })).then((tabs) => {
           const list = Array.from(area.children || []).find((c) => c && c.className === 'boardTabList');
           if (!list) return;
-          for (const t of (tabs || [])) {
-            const li = document.createElement('li');
-            const link = document.createElement('a');
-            link.href = '#';
-            link.textContent = t.title || t.url || '';
-            link.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); onOpenTab(t); });
-            li.appendChild(link);
-            list.appendChild(li);
-          }
+          fillTabList(list, tabs, onOpenTab);
         });
       }
       return area;
@@ -416,10 +461,14 @@ function parkedCard({ group, descriptions, send, setStatus, rerender, expander, 
   const meta = document.createElement('span');
   meta.className = 'boardCount';
   meta.textContent = `${group.tabCount} tabs · ${lastSeenText(group.lastSeen)}`;
-  row.append(dot, name, meta);
-  // A crowded parked group (more than 30 tabs) shows the same "30+" split hint.
+  // The count/meta sits top-right, before the ⋯ button, with the "30+" split
+  // hint (on a crowded parked group) beside it, in a right-aligned container.
+  const countWrap = document.createElement('span');
+  countWrap.className = 'boardCountWrap';
+  countWrap.appendChild(meta);
   const badge = splitHintBadge(group.tabCount);
-  if (badge) row.append(badge);
+  if (badge) countWrap.appendChild(badge);
+  row.append(dot, name, countWrap);
 
   const description = descriptionFor(descriptions, group.name);
   const openEditor = () => {

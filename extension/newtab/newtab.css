@@ -174,11 +174,17 @@ textarea, input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.boardCountWrap {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
 .boardCount {
   color: var(--text-muted);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  margin-right: auto;
 }
 .boardSuggestDot {
   width: 7px;
@@ -197,9 +203,7 @@ textarea, input {
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
   padding: 0 6px;
-  margin-right: auto;
 }
-.boardCount:has(+ .boardSplitHint) { margin-right: 4px; }
 .boardMenuBtn {
   flex: none;
   padding: 2px 10px;
@@ -260,6 +264,10 @@ textarea, input {
 .boardTabList li { margin: 2px 0; }
 .boardTabList a { color: var(--accent); text-decoration: none; }
 .boardTabList a:hover { text-decoration: underline; }
+/* Each tab line: the site name in bold, then the page title in normal weight. */
+.boardTabSite { font-weight: 600; margin-right: 6px; }
+.boardTabTitle { font-weight: 400; color: var(--text-muted); }
+.boardTabMore { color: var(--text-faint); }
 .boardSuggested {
   display: block;
   margin-bottom: 4px;

@@ -422,11 +422,20 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   flex: none;
 }
 .boardName { font-weight: 600; }
+/* The count sits in its own container at the row's right edge (before the ⋯
+   button); margin-left:auto pushes the whole container there, so the name keeps
+   the left. The "30+" badge sits beside the count inside the container. */
+.boardCountWrap {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
 .boardCount {
   color: var(--text-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  margin-right: auto;
 }
 /* The small dot flagging a waiting suggested description. */
 .boardSuggestDot {
@@ -437,9 +446,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   flex: none;
   margin-right: 2px;
 }
-/* The "30+" badge next to the count on a crowded row (a split hint). The badge
-   carries the margin-right:auto that pushes the ⋯ button to the far edge, so
-   it sits right next to the count instead of being flung right itself. */
+/* The "30+" badge next to the count on a crowded row (a split hint); it sits
+   beside the count inside the right-aligned count container. */
 .boardSplitHint {
   flex: none;
   font-size: 10px;
@@ -449,9 +457,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
   padding: 0 5px;
-  margin-right: auto;
 }
-.boardCount:has(+ .boardSplitHint) { margin-right: 4px; }
 /* The split proposal Review list under the split card. */
 .splitReviewList { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .splitReviewList[hidden] { display: none; }
@@ -524,6 +530,10 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .boardTabList li { margin: 2px 0; }
 .boardTabList a { color: var(--accent); text-decoration: none; }
 .boardTabList a:hover { text-decoration: underline; }
+/* Each tab line: the site name in bold, then the page title in normal weight. */
+.boardTabSite { font-weight: 600; margin-right: 6px; }
+.boardTabTitle { font-weight: 400; color: var(--text-muted); }
+.boardTabMore { color: var(--text-faint); }
 .boardSuggested {
   display: block;
   margin-bottom: 4px;

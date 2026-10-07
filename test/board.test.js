@@ -550,7 +550,11 @@ test('each group renders as a single compact row with dot, name, count and a ⋯
   // The row carries its parts: a color dot, the name, a muted count, and a ⋯ button.
   assert.ok((openRow.children || []).some((c) => c.className === 'boardDot'), 'row has a color dot');
   assert.ok((openRow.children || []).some((c) => c.className === 'boardName' && c.textContent === 'Work'), 'row has the name');
-  assert.ok((openRow.children || []).some((c) => c.className === 'boardCount' && c.textContent === '3 tabs'), 'row has the muted count');
+  // The count now sits inside a right-aligned container rather than directly on
+  // the row (it moved to the top right); the text is still '3 tabs'.
+  const countWrap = (openRow.children || []).find((c) => c.className === 'boardCountWrap');
+  assert.ok(countWrap, 'row has a right-aligned count container');
+  assert.ok((countWrap.children || []).some((c) => c.className === 'boardCount' && c.textContent === '3 tabs'), 'the container holds the muted count');
   assert.ok((openRow.children || []).some((c) => c.className === 'boardMenuBtn' && c.textContent === '⋯'), 'row has a ⋯ button');
   // Nothing about the description shows on the row (Work has a saved description).
   assert.ok(!(openRow.children || []).some((c) => c.tagName === 'TEXTAREA'), 'no inline editor until opened');
@@ -687,9 +691,12 @@ test('clicking an open row expands it with the description and tab titles', asyn
   // The saved description shows (FIXTURE's Work has 'day job stuff').
   assert.ok(walk(area).some((n) => n.textContent === 'day job stuff'), 'the description shows');
   assert.ok(walk(area).some((n) => n.textContent === 'Edit'), 'an Edit button shows');
-  // Both live tab titles appear as links.
-  assert.ok(walk(area).some((n) => n.tagName === 'A' && n.textContent === 'Spec doc'), 'first tab title link');
-  assert.ok(walk(area).some((n) => n.tagName === 'A' && n.textContent === 'Ticket'), 'second tab title link');
+  // Both live tab titles appear as links, each with the bold site name and the
+  // page title.
+  const links = walk(area).filter((n) => n.tagName === 'A');
+  const titleOf = (n) => (walk(n).find((c) => c.className === 'boardTabTitle') || {}).textContent;
+  assert.ok(links.some((a) => titleOf(a) === 'Spec doc'), 'first tab title link');
+  assert.ok(links.some((a) => titleOf(a) === 'Ticket'), 'second tab title link');
 });
 
 test('a second click on the same row collapses it', async () => {
@@ -706,7 +713,7 @@ test('a second click on the same row collapses it', async () => {
   assert.ok(!expandedOf(row), 'the row collapsed after the second click');
 });
 
-test('expanding another row collapses the first (only one open at a time)', async () => {
+test('several rows can be open at once; opening another leaves the first open', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const { send } = makeSend(FIXTURE);
@@ -720,7 +727,11 @@ test('expanding another row collapses the first (only one open at a time)', asyn
   clickRow(travel);
   await flush();
   assert.ok(expandedOf(travel), 'the parked row is expanded');
-  assert.ok(!expandedOf(work), 'expanding the parked row collapsed the open one');
+  assert.ok(expandedOf(work), 'opening the parked row left the open one expanded (two open at once)');
+  // Clicking an open row closes just that one, leaving the other open.
+  clickRow(work);
+  assert.ok(!expandedOf(work), 'clicking the open row closed just it');
+  assert.ok(expandedOf(travel), 'the other row stayed open');
 });
 
 test('clicking the ⋯ button does not expand the row', async () => {
@@ -761,7 +772,7 @@ test('clicking a title in an open group focuses that tab', async () => {
   const row = rowFor(container, 'Work');
   clickRow(row);
   await flush();
-  const link = walk(row).find((n) => n.tagName === 'A' && n.textContent === 'Spec doc');
+  const link = walk(row).find((n) => n.tagName === 'A' && walk(n).some((c) => c.className === 'boardTabTitle' && c.textContent === 'Spec doc'));
   assert.ok(link, 'the tab title link is present');
   link.click();
   assert.deepEqual(calls.tabUpdate, [{ id: 42, info: { active: true } }], 'the tab was activated');
@@ -783,11 +794,13 @@ test('a parked row expands with its index tab titles as plain text (no links)', 
   assert.ok(area, 'the parked row expanded');
   // No saved description, no suggestion: reads "No description yet".
   assert.ok(walk(area).some((n) => n.textContent === 'No description yet'), 'the no-description placeholder shows');
-  // The index titles show as plain list items, not links.
+  // The index titles show as plain list items (no links), each with the bold
+  // site name and the page title.
   const list = walk(area).find((n) => n.className === 'boardTabList');
   assert.ok(list, 'the tab list is present');
-  assert.ok((list.children || []).some((li) => li.textContent === 'Hotel'), 'first parked title shown');
-  assert.ok((list.children || []).some((li) => li.textContent === 'Flights'), 'second parked title shown');
+  const titleOf = (li) => (walk(li).find((c) => c.className === 'boardTabTitle') || {}).textContent;
+  assert.ok((list.children || []).some((li) => titleOf(li) === 'Hotel'), 'first parked title shown');
+  assert.ok((list.children || []).some((li) => titleOf(li) === 'Flights'), 'second parked title shown');
   assert.ok(!walk(area).some((n) => n.tagName === 'A'), 'parked titles are plain text, not links');
 });
 
@@ -804,4 +817,121 @@ test('Edit in the expanded area swaps the description for the inline editor', as
   await findByText(area, 'Edit').click();
   // The editor replaces the description text in place, prefilled from the save.
   assert.ok(walk(area).some((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff'), 'the editor opened prefilled');
+});
+
+// --- count at top right, card tab lines (bold host + title), "+ n more" -----
+
+// The direct children of a row, in order, by their class/tag — enough to assert
+// relative position without the fake DOM's layout.
+function rowChildClasses(row) {
+  return (row.children || []).map((c) => c.className || c.tagName);
+}
+
+test('the count comes after the name and sits in a right-aligned container before the ⋯', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = rowFor(container, 'Work');
+  const classes = rowChildClasses(row);
+  const nameAt = classes.indexOf('boardName');
+  const wrapAt = classes.indexOf('boardCountWrap');
+  const menuAt = classes.indexOf('boardMenuBtn');
+  assert.ok(nameAt >= 0 && wrapAt >= 0 && menuAt >= 0, 'row has name, count container and ⋯');
+  assert.ok(nameAt < wrapAt, 'the count container comes after the name');
+  assert.ok(wrapAt < menuAt, 'the count container sits before the ⋯ button');
+  // The count element lives inside the right-aligned container.
+  const wrap = row.children[wrapAt];
+  assert.ok((wrap.children || []).some((c) => c.className === 'boardCount' && c.textContent === '3 tabs'), 'the count is inside the container');
+});
+
+test('a crowded group puts the 30+ badge beside the count in the same right-aligned container', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend({
+    open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 40, webTabCount: 40 }],
+    parked: [],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const row = rowFor(container, 'Work');
+  const wrap = (row.children || []).find((c) => c.className === 'boardCountWrap');
+  assert.ok(wrap, 'the count container is present');
+  const classes = (wrap.children || []).map((c) => c.className);
+  assert.deepEqual(classes, ['boardCount', 'boardSplitHint'], 'the count and the 30+ badge sit together, count first');
+  assert.ok((wrap.children || []).some((c) => c.className === 'boardSplitHint' && c.textContent === '30+'), 'the 30+ badge is beside the count');
+});
+
+test('an opened open card shows the description before the tab lines', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [{ id: 11, title: 'Spec doc', url: 'https://example.com', windowId: 1 }] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  // The description row is the area's first child; the tab list follows it.
+  const areaClasses = (area.children || []).map((c) => c.className);
+  assert.ok(areaClasses.indexOf('boardExpandedDesc') < areaClasses.indexOf('boardTabList'), 'the description comes before the tab list');
+  assert.ok(walk(area).some((n) => n.textContent === 'day job stuff'), 'the saved description shows first');
+});
+
+test('each tab line shows the hostname (without www) in bold, then the title in normal weight', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const { api } = makeFocusChrome({ 7: [{ id: 11, title: 'The spec', url: 'https://www.example.com/doc', windowId: 1 }] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  const list = walk(area).find((n) => n.className === 'boardTabList');
+  const li = (list.children || [])[0];
+  // The site name is a bold <strong> with the hostname minus 'www.'; the title
+  // follows in a normal-weight span.
+  const site = walk(li).find((n) => n.tagName === 'STRONG' && n.className === 'boardTabSite');
+  const title = walk(li).find((n) => n.className === 'boardTabTitle');
+  assert.ok(site, 'the line has a bold site element');
+  assert.equal(site.textContent, 'example.com', 'the hostname has no www. prefix');
+  assert.ok(title, 'the line has a title element');
+  assert.equal(title.textContent, 'The spec', 'the title follows in normal weight');
+});
+
+test('a card lists at most five tab lines and a "+ n more" line for the rest', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  // Seven tabs: only five lines show, then "+ 2 more".
+  const tabs = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, title: `Tab ${i + 1}`, url: `https://site${i + 1}.com`, windowId: 1 }));
+  const { api } = makeFocusChrome({ 7: tabs });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  const list = walk(area).find((n) => n.className === 'boardTabList');
+  const items = list.children || [];
+  // Five tab lines plus one "+ n more" line.
+  const tabLines = items.filter((li) => walk(li).some((n) => n.className === 'boardTabSite'));
+  assert.equal(tabLines.length, 5, 'at most five tab lines show');
+  const more = items.find((li) => li.className === 'boardTabMore');
+  assert.ok(more, 'a "+ n more" line follows');
+  assert.equal(more.textContent, '+ 2 more', 'the more line counts the remaining tabs');
+});
+
+test('a card with five or fewer tabs shows no "+ n more" line', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const tabs = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, title: `Tab ${i + 1}`, url: `https://site${i + 1}.com`, windowId: 1 }));
+  const { api } = makeFocusChrome({ 7: tabs });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  assert.ok(!walk(area).some((n) => n.className === 'boardTabMore'), 'no more line when five or fewer tabs');
 });
