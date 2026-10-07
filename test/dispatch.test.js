@@ -94,6 +94,29 @@ test('organize-bookmarks task returns parsed moves', async () => {
   assert.deepEqual(r.moves, [{ bookmarkId: '9', targetFolderId: '5', reason: 'ref' }]);
 });
 
+test('organize/split returns sub-groups, keeps sent ids, and does not send the groups file', async () => {
+  const out = '{"groups":[{"name":"Reading","description":"articles","tabIds":[1,99]},{"name":"Tooling","description":"","tabIds":[2]}]}';
+  let seenPrompt = null;
+  const getAdapter = () => ({ name: 'fake', async run(p) { seenPrompt = p; return out; } });
+  const r = await handle(
+    { type: 'organize', task: 'split', payload: { groupName: 'Work', tabs: [{ tabId: 1, title: 'a', url: 'https://a' }, { tabId: 2, title: 'b', url: 'https://b' }, { tabId: 3, title: 'c', url: 'https://c' }] } },
+    { getAdapter, loadGroups: () => 'Work\nPersonal' },
+  );
+  assert.equal(r.task, 'split');
+  // 99 was never sent → dropped; 3 was sent but left out → folded into group 0.
+  assert.deepEqual(r.groups[0].tabIds.sort((a, b) => a - b), [1, 3]);
+  assert.deepEqual(r.groups[1].tabIds, [2]);
+  assert.equal(r.groups[0].description, 'articles');
+  // The split is about this group alone, so the groups file never reaches the prompt.
+  assert.equal(seenPrompt.includes('MY GROUPS'), false);
+  assert.equal(seenPrompt.includes('Personal'), false);
+});
+
+test('capabilities advertises the split task', async () => {
+  const r = await handle({ type: 'health' }, { getAdapter: fakeGetAdapter('') });
+  assert.ok(r.capabilities.tasks.includes('split'));
+});
+
 test('command task returns parsed actions', async () => {
   const out = '{"close":[{"tabId":2,"reason":"travel"}],"groups":[],"important":[]}';
   const getAdapter = () => ({ name: 'fake', async run() { return out; }, async health() { return { version: 't' }; } });

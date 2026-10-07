@@ -1,7 +1,7 @@
 import { getAdapter as defaultGetAdapter, adapterNames } from './adapters/registry.js';
 import { listModels as openaiListModels } from './adapters/openai.js';
-import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt } from './prompts.js';
-import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseJsonBlock } from './parse.js';
+import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt, buildSplitPrompt } from './prompts.js';
+import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile, readGroups, writeGroupDescription } from './groups-file.js';
@@ -29,7 +29,7 @@ function cleanSuggestion(text) {
 function capabilities() {
   return {
     types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'describe'],
-    tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
+    tasks: ['group', 'stale', 'important', 'organize-bookmarks', 'split'],
     passthrough: true,
     adapters: adapterNames(),
   };
@@ -115,6 +115,15 @@ export async function handle(msg, deps = {}) {
     if (task === 'organize-bookmarks') {
       const out = await adapter.run(buildOrganizePrompt(payload.bookmarks, payload.folders, payload.mode, rules), opts);
       return { task, moves: parseOrganizeResult(out) };
+    }
+    // Split one group into sub-groups. The groups file is deliberately NOT fed
+    // in here (via rules): the split concerns this single group alone, so the
+    // model should only see its tabs. Left-out tabs are recovered in the parser.
+    if (task === 'split') {
+      const tabs = Array.isArray(payload.tabs) ? payload.tabs : [];
+      const out = await adapter.run(buildSplitPrompt(payload.groupName, tabs, { maxPerGroup: payload.maxPerGroup }), opts);
+      const sentIds = tabs.map((t) => Number(t.tabId)).filter(Number.isInteger);
+      return { task, groups: parseSplitResult(out, sentIds) };
     }
     throw new Error(`Unknown task: ${task}`);
   }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseJsonBlock, parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult } from '../native-host/parse.js';
+import { parseJsonBlock, parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult } from '../native-host/parse.js';
 
 test('parseOrganizeResult coerces ids to strings and requires a destination', () => {
   const m = parseOrganizeResult('{"moves":[{"bookmarkId":12,"targetFolderId":5,"reason":"ref"},{"bookmarkId":13,"newFolderPath":["Dev","X"]},{"bookmarkId":14,"reason":"no dest"}]}');
@@ -79,6 +79,38 @@ test('parseDescribeResult trims fields and drops entries without a name', () => 
 test('parseDescribeResult reads a code-fenced answer leniently', () => {
   const d = parseDescribeResult('```json\n{"descriptions":[{"name":"Trip","description":"travel tabs"}]}\n```');
   assert.deepEqual(d, [{ name: 'Trip', description: 'travel tabs' }]);
+});
+
+test('parseSplitResult keeps only sent tabIds and drops unknown ones', () => {
+  const g = parseSplitResult('{"groups":[{"name":"Docs","description":"reading","tabIds":[1,"2",99]}]}', [1, 2, 3]);
+  assert.equal(g.length, 1);
+  // 99 was never sent → dropped; 3 was sent but left out → folded into group 0.
+  assert.deepEqual(g[0].tabIds.sort((a, b) => a - b), [1, 2, 3]);
+});
+
+test('parseSplitResult puts left-out tabs into the first sub-group', () => {
+  const g = parseSplitResult('{"groups":[{"name":"A","tabIds":[1]},{"name":"B","tabIds":[2]}]}', [1, 2, 3, 4]);
+  assert.deepEqual(g[0].tabIds, [1, 3, 4]);
+  assert.deepEqual(g[1].tabIds, [2]);
+});
+
+test('parseSplitResult cleans names and descriptions to one capped line', () => {
+  const longName = 'n'.repeat(100);
+  const longDesc = 'd'.repeat(300);
+  const g = parseSplitResult(JSON.stringify({ groups: [
+    { name: `  ${longName}\u0007 `, description: `line one\nline\u0007 two`, tabIds: [1] },
+    { name: 'Travel', description: longDesc, tabIds: [2] },
+  ] }), [1, 2]);
+  assert.equal(g[0].name.length, 60);
+  assert.equal(g[0].name.includes('\u0007'), false);
+  assert.equal(g[0].description, 'line one line two');
+  assert.equal(g[1].description.length, 200);
+});
+
+test('parseSplitResult falls back to one group when the model drops everything', () => {
+  const g = parseSplitResult('{"groups":[]}', [1, 2]);
+  assert.equal(g.length, 1);
+  assert.deepEqual(g[0].tabIds, [1, 2]);
 });
 
 test('parseStaleResult preserves a suspend action', () => {

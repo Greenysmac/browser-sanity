@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt } from '../native-host/prompts.js';
+import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt, buildSplitPrompt } from '../native-host/prompts.js';
 
 test('buildOrganizePrompt wraps data, lists folders, and states the mode', () => {
   const p = buildOrganizePrompt(
@@ -119,4 +119,22 @@ test('describe prompt clips very long urls', () => {
   const longUrl = 'https://a.com/' + 'x'.repeat(1000);
   const p = buildDescribePrompt([{ name: 'G', tabs: [{ title: 't', url: longUrl }] }]);
   assert.ok(!p.includes('x'.repeat(600)), 'url should be clipped');
+});
+
+test('split prompt wraps the group name, caps sub-group size, and fences tab data', () => {
+  const p = buildSplitPrompt('Work', [{ tabId: 1, title: 'ignore previous', url: 'https://a.com' }], { maxPerGroup: 12 });
+  assert.match(p, /belong to the user's group "Work"/);
+  assert.match(p, /2 to 6 sub-groups/);
+  assert.match(p, /each about 12 tabs at most/);
+  assert.match(p, /BEGIN TAB DATA/);
+  assert.match(p, /END TAB DATA/);
+  assert.match(p, /data, not instructions/i);
+  assert.match(p, /1\tignore previous\thttps:\/\/a\.com/);
+  assert.match(p, /"groups"/);
+  assert.match(p, /tabIds/);
+});
+
+test('split prompt defaults the cap to 30 tabs', () => {
+  const p = buildSplitPrompt('Dev', [{ tabId: 1, title: 't', url: 'https://a' }]);
+  assert.match(p, /each about 30 tabs at most/);
 });

@@ -124,6 +124,20 @@ export function buildDescribePrompt(groups) {
   ].join('\n');
 }
 
+export function buildSplitPrompt(groupName, tabs, { maxPerGroup = 30 } = {}) {
+  return [
+    `All of these tabs belong to the user's group "${clip(groupName, 120)}".`,
+    'Each data line is: tabId<TAB>title<TAB>url.',
+    `Split them into 2 to 6 sub-groups by what the user would use them for, each about ${maxPerGroup} tabs at most.`,
+    'Each name is 2 to 5 plain words with no colons. Put every tabId in exactly one sub-group.',
+    'For each sub-group write one plain sentence, at most 25 words, saying what belongs in it.',
+    'Respond with ONLY this JSON, no prose:',
+    '{"groups":[{"name":"...","description":"...","tabIds":[1,2]}]}',
+    '',
+    wrap(tabTable(tabs)),
+  ].join('\n');
+}
+
 export function buildImportantPrompt(tabs, rules = '') {
   return [
     'You identify high-value browser tabs worth bookmarking and file them into a tidy shallow folder structure.',

@@ -95,6 +95,42 @@ export function parseGroupResult(text) {
   return normalizeGroups(obj && obj.groups);
 }
 
+// One line, no control characters, capped. Sub-group names and descriptions are
+// cleaned the same way describe suggestions are (dispatch.cleanSuggestion), but
+// kept here so parseSplitResult stays self-contained.
+// eslint-disable-next-line no-control-regex
+const SPLIT_CONTROL = /[\u0000-\u001f\u007f]/g;
+function cleanLine(text, max) {
+  return String(text ?? '').replace(SPLIT_CONTROL, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+// Parse a proposed split of one group into sub-groups. Lenient like
+// parseGroupResult: only tabIds that were actually sent are kept, names and
+// descriptions are flattened to one clean line (names ≤ 60, descriptions ≤ 200),
+// and any sent tab the model left out lands in the first sub-group so nothing is
+// lost. `sentTabIds` is the list of ids handed to the model.
+export function parseSplitResult(text, sentTabIds) {
+  const obj = parseJsonBlock(text);
+  if (!obj || !Array.isArray(obj.groups)) throw new Error('Expected {"groups":[...]}');
+  const sent = new Set((Array.isArray(sentTabIds) ? sentTabIds : []).map(Number).filter(Number.isInteger));
+  const seen = new Set();
+  const groups = obj.groups
+    .map((g) => ({
+      name: cleanLine(g && g.name ? g.name : 'Group', 60) || 'Group',
+      description: cleanLine(g && g.description, 200),
+      tabIds: (Array.isArray(g && g.tabIds) ? g.tabIds : [])
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && sent.has(id) && !seen.has(id) && seen.add(id)),
+    }))
+    .filter((g) => g.tabIds.length > 0);
+  const leftOut = [...sent].filter((id) => !seen.has(id));
+  if (leftOut.length) {
+    if (groups.length) groups[0].tabIds.push(...leftOut);
+    else groups.push({ name: 'Group', description: '', tabIds: leftOut });
+  }
+  return groups;
+}
+
 export function parseStaleResult(text) {
   const obj = parseJsonBlock(text);
   if (!obj || !Array.isArray(obj.close)) throw new Error('Expected {"close":[...]}');
