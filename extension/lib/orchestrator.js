@@ -256,6 +256,38 @@ export async function runCommand(instruction, deps) {
   return finalizePlan(items, settings);
 }
 
+// Loads agent-written suggestions from the host's proposals.json and maps them
+// into the same PlanItem shapes buildPlan/runCommand use, so review/apply/undo
+// work unchanged. Each proposal URL is matched to an open tab by exact URL (the
+// first match wins); URLs with no open tab are dropped. Returns the mapped items
+// plus the file's `note`/`from` for the status line.
+export async function loadProposals(deps) {
+  const { nativeClient, chromeApi = chrome, now = Date.now(), windowId = null, settings = {} } = deps;
+  const adapter = settings.adapter || 'claude';
+  const activity = (await chromeApi.storage.local.get('tabActivity')).tabActivity || {};
+  const tabs = await collectTabs(chromeApi, activity, now, windowId);
+  const byId = indexById(tabs);
+  const candidateIds = new Set(tabs.map((t) => t.tabId));
+  // Exact-URL → tabId, first open tab wins (ties keep the earliest in tab order).
+  const tabIdByUrl = new Map();
+  for (const t of tabs) if (!tabIdByUrl.has(t.url)) tabIdByUrl.set(t.url, t.tabId);
+  const r = await nativeClient.request({ type: 'proposals', adapter });
+  const proposals = r || {};
+  const groups = (Array.isArray(proposals.groups) ? proposals.groups : []).map((g) => ({
+    name: g.name,
+    color: g.color,
+    tabIds: (Array.isArray(g.urls) ? g.urls : []).map((u) => tabIdByUrl.get(u)).filter((id) => id != null),
+  }));
+  const close = (Array.isArray(proposals.close) ? proposals.close : [])
+    .map((c) => ({ tabId: tabIdByUrl.get(c.url), reason: c.reason }))
+    .filter((c) => c.tabId != null);
+  const items = [
+    ...mapGroupResult(groups, byId),
+    ...mapStaleResult(close, byId, candidateIds),
+  ];
+  return { items: finalizePlan(items, settings), note: proposals.note, from: proposals.from };
+}
+
 export async function hasAllUrls(chromeApi = chrome) {
   if (!chromeApi.permissions) return false;
   return chromeApi.permissions.contains({ origins: ['<all_urls>'] });

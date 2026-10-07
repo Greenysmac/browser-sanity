@@ -302,6 +302,22 @@ async function startScan(features) {
   setStatus(plan.length ? `${plan.length} suggestions.` : 'Nothing to do — your browser looks tidy.');
 }
 
+// "Load agent suggestions": fetch proposals.json via the host, mapped to the
+// current open tabs, and show them as a normal plan. The file's note (and who
+// it's from) is surfaced in the status line when present.
+async function loadAgentSuggestions() {
+  setStatus('Loading agent suggestions…');
+  const windowId = await currentScopeWindowId();
+  const res = await send({ cmd: 'proposals', windowId });
+  if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
+  plan = res.items || [];
+  selection = new Set();
+  renderPlan(true);
+  const note = res.note ? (res.from ? `${res.from}: ${res.note}` : res.note) : '';
+  if (!plan.length) { setStatus(note || 'No agent suggestions matched your open tabs.'); return; }
+  setStatus(note ? `${note} — ${plan.length} suggestions.` : `${plan.length} suggestions.`);
+}
+
 // Confirms a large destructive batch via a modal before applying. Resolves true
 // to proceed, false to cancel (Cancel button or Esc).
 function confirmBulk(items) {
@@ -358,6 +374,7 @@ export async function initPlanView() {
     const n = res.groups;
     setStatus(typeof n === 'number' ? `Index updated: ${n} group${n === 1 ? '' : 's'}` : 'Index updated.');
   });
+  $('loadProposals').addEventListener('click', loadAgentSuggestions);
   for (const btn of $('runOne').querySelectorAll('button[data-feature]')) {
     btn.addEventListener('click', () => {
       const only = btn.dataset.feature;

@@ -1,7 +1,7 @@
 import { getSettings, setSettings } from '../lib/storage.js';
 import { installActivityListeners } from '../lib/activity-tracker.js';
 import { createNativeClient } from '../lib/native-client.js';
-import { buildPlan, partitionForApply, applyItems, runCommand, recordDecision } from '../lib/orchestrator.js';
+import { buildPlan, partitionForApply, applyItems, runCommand, loadProposals, recordDecision } from '../lib/orchestrator.js';
 import { applyItem } from '../lib/executor.js';
 import { collectTree } from '../lib/bookmark-collector.js';
 import { recordUndo, reverseEntry, pruneUndo, getUndoLog, claimUndoEntries, restoreUndoEntries } from '../lib/undo-log.js';
@@ -369,6 +369,22 @@ async function handleCommand(m) {
   }
 }
 
+// "Load agent suggestions": pull proposals.json from the host, map it to the
+// current open tabs, and store the result as the current plan (same shapes as a
+// normal scan, so review/apply/undo are unchanged). Carries the file's note back
+// so the panel can surface who proposed it and why.
+async function handleProposals(m) {
+  const settings = await getSettings();
+  const nativeClient = await makeClient(settings);
+  try {
+    const { items, note, from } = await loadProposals({ nativeClient, windowId: m.windowId ?? null, settings });
+    await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+    return { ok: true, items, note, from };
+  } finally {
+    nativeClient.disconnect();
+  }
+}
+
 async function handleSaveSession(m) {
   const session = await saveCurrentWindowSession(m.name, { chrome, close: m.close !== false, windowId: m.windowId });
   return { ok: true, session };
@@ -421,6 +437,7 @@ const HANDLERS = {
   undo: handleUndo,
   getUndo: handleGetUndo,
   command: handleCommand,
+  proposals: handleProposals,
   saveSession: handleSaveSession,
   renameSession: handleRenameSession,
   listSessions: handleListSessions,

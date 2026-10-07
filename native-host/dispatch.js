@@ -5,6 +5,7 @@ import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile } from './groups-file.js';
 import { writeIndex } from './index-file.js';
+import { loadProposals } from './proposals-file.js';
 
 // Fold the user's "my groups" file into the rules the model sees. When the file
 // is empty this returns the incoming rules unchanged, so prompts stay identical
@@ -19,7 +20,7 @@ function withGroups(rules, groupsText) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'organize', 'command', 'prompt', 'index'],
+    types: ['health', 'organize', 'command', 'prompt', 'index', 'proposals'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -110,6 +111,14 @@ export async function handle(msg, deps = {}) {
     const writeIdx = deps.writeIndex || writeIndex;
     const count = writeIdx(msg.payload || {});
     return { ok: true, groups: count };
+  }
+
+  // Read the agent-written proposals.json (same directory as the index) and
+  // return its parsed content. A missing or invalid file yields the empty shape
+  // { groups: [], close: [] }, so the extension always gets a usable response.
+  if (msg.type === 'proposals') {
+    const load = deps.loadProposals || loadProposals;
+    return load();
   }
 
   throw new Error(`Unknown message type: ${msg.type}`);

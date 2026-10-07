@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { partitionForApply, applyItems, buildPlan, sliceForScan, projectTabsForHost, ignoreKey, applyIgnoreList, recordDecision, decisionRules } from '../extension/lib/orchestrator.js';
 
 import { dedupeTabActions, finalizePlan, runCommand, selectOrganizeCandidates, projectBookmarksForHost, findEmptyFolders } from '../extension/lib/orchestrator.js';
+import { loadProposals } from '../extension/lib/orchestrator.js';
 import { applyWhitelist, applyFolderProtection } from '../extension/lib/protections.js';
 import { applyItem } from '../extension/lib/executor.js';
 
@@ -411,4 +412,81 @@ test('sliceForScan returns a batch and wraps the cursor', () => {
   ({ slice, nextCursor } = sliceForScan(items, 4, 2));
   assert.deepEqual(slice, [4]);
   assert.equal(nextCursor, 0); // wrapped
+});
+
+test('loadProposals maps proposal URLs to open tabs and builds group/close items in the existing shapes', async () => {
+  const chromeApi = {
+    storage: { local: { async get() { return {}; }, async set() {} } },
+    tabs: { async query() { return [
+      { id: 1, url: 'https://a.com', windowId: 1, index: 0, pinned: false },
+      { id: 2, url: 'https://b.com', windowId: 1, index: 1, pinned: false },
+      { id: 3, url: 'https://c.com', windowId: 1, index: 2, pinned: false },
+    ]; } },
+  };
+  const nativeClient = { request: async (m) => {
+    assert.equal(m.type, 'proposals');
+    return {
+      from: 'Mycroft',
+      note: 'tidy up',
+      groups: [{ name: 'Private AI', color: 'purple', urls: ['https://a.com', 'https://b.com'] }],
+      close: [{ url: 'https://c.com', reason: 'duplicate' }],
+    };
+  } };
+  const { items, note, from } = await loadProposals({ nativeClient, chromeApi, settings: { adapter: 'claude' } });
+  assert.equal(note, 'tidy up');
+  assert.equal(from, 'Mycroft');
+  const group = items.find((i) => i.action === 'groupTabs');
+  assert.ok(group, 'a groupTabs item was built');
+  assert.equal(group.data.groupName, 'Private AI');
+  assert.equal(group.data.color, 'purple');
+  assert.deepEqual(group.data.tabIds, [1, 2]); // mapped from the two matching URLs
+  const close = items.find((i) => i.action === 'closeTab');
+  assert.ok(close, 'a closeTab item was built');
+  assert.equal(close.data.tabId, 3);
+  assert.equal(close.reason, 'duplicate');
+});
+
+test('loadProposals drops URLs with no matching open tab', async () => {
+  const chromeApi = {
+    storage: { local: { async get() { return {}; }, async set() {} } },
+    tabs: { async query() { return [
+      { id: 1, url: 'https://a.com', windowId: 1, index: 0, pinned: false },
+      { id: 2, url: 'https://b.com', windowId: 1, index: 1, pinned: false },
+    ]; } },
+  };
+  const nativeClient = { request: async () => ({
+    // a.com + b.com match (so a 2-tab group forms); gone.com and nope.com don't.
+    groups: [{ name: 'G', urls: ['https://a.com', 'https://gone.com', 'https://b.com'] }],
+    close: [{ url: 'https://nope.com', reason: 'x' }],
+  }) };
+  const { items } = await loadProposals({ nativeClient, chromeApi, settings: { adapter: 'claude' } });
+  const group = items.find((i) => i.action === 'groupTabs');
+  assert.deepEqual(group.data.tabIds, [1, 2]); // unmatched URL dropped
+  assert.ok(!items.some((i) => i.action === 'closeTab'), 'close with no open tab is dropped');
+});
+
+test('loadProposals maps a duplicate URL to the first open tab in tab order', async () => {
+  const chromeApi = {
+    storage: { local: { async get() { return {}; }, async set() {} } },
+    tabs: { async query() { return [
+      { id: 1, url: 'https://dup.com', windowId: 1, index: 0, pinned: false },
+      { id: 2, url: 'https://dup.com', windowId: 1, index: 1, pinned: false }, // same URL, later
+    ]; } },
+  };
+  const nativeClient = { request: async () => ({ groups: [], close: [{ url: 'https://dup.com', reason: 'd' }] }) };
+  const { items } = await loadProposals({ nativeClient, chromeApi, settings: { adapter: 'claude' } });
+  const close = items.find((i) => i.action === 'closeTab');
+  assert.equal(close.data.tabId, 1); // first match wins
+});
+
+test('loadProposals returns an empty plan (no note) for the empty host response', async () => {
+  const chromeApi = {
+    storage: { local: { async get() { return {}; }, async set() {} } },
+    tabs: { async query() { return [{ id: 1, url: 'https://a.com', windowId: 1, index: 0 }]; } },
+  };
+  const nativeClient = { request: async () => ({ groups: [], close: [] }) };
+  const { items, note, from } = await loadProposals({ nativeClient, chromeApi, settings: { adapter: 'claude' } });
+  assert.deepEqual(items, []);
+  assert.equal(note, undefined);
+  assert.equal(from, undefined);
 });
