@@ -35,6 +35,16 @@ test('"More" is a closed <details> (no open attribute on its tag)', () => {
   assert.ok(!/\bopen\b/.test(m[0]), 'moreSettings is collapsed by default');
 });
 
+// TASK 3: grouping is always on, and "Re-sort tabs already in groups" and
+// "Close duplicate tabs" are now Sort-card actions — none of the three switches
+// appear in Settings anymore.
+test('Settings no longer shows the group-tabs, re-sort, or close-duplicates switches', () => {
+  assert.ok(!/name="groupTabs"/.test(html), 'no "Group tabs by your needs" switch');
+  assert.ok(!/name="regroupExisting"/.test(html), 'no "Re-sort tabs already in groups" switch');
+  assert.ok(!/name="dupeTabs"/.test(html), 'no "Close duplicate tabs" switch');
+  assert.ok(!/Group tabs by your needs/.test(html), 'no stale "Group tabs by your needs" label');
+});
+
 // ---- Fake DOM harness --------------------------------------------------------
 
 // A tiny element supporting the DOM ops settings-view uses to build options

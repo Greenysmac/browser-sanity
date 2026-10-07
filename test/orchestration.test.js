@@ -181,7 +181,7 @@ test('buildPlan excludes already-grouped tabs from group candidates (respects ex
   assert.deepEqual(ids, [2, 3]); // the grouped tab (1) is excluded
 });
 
-test('buildPlan includes already-grouped tabs in group candidates when regroupExisting is on', async () => {
+test('buildPlan includes already-grouped tabs in group candidates when regroupAll is on', async () => {
   const stored = {};
   const chromeApi = {
     storage: { local: { async get(k) { return typeof k === 'string' ? { [k]: stored[k] } : { ...stored }; }, async set(o) { Object.assign(stored, o); } } },
@@ -195,10 +195,13 @@ test('buildPlan includes already-grouped tabs in group candidates when regroupEx
   };
   let groupPayload = null;
   const nativeClient = { request: async (m) => { if (m.task === 'group') groupPayload = m.payload; return { groups: [], stale: [], important: [] }; } };
-  const settings = { adapter: 'claude', regroupExisting: true, enabledFeatures: { groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, dupeTabs: false }, staleTabDays: 14, staleBookmarkDays: 180, deadLinkBatchSize: 200 };
-  await buildPlan({ settings, nativeClient, chromeApi, now: 1 });
+  const settings = { adapter: 'claude', enabledFeatures: { groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, dupeTabs: false }, staleTabDays: 14, staleBookmarkDays: 180, deadLinkBatchSize: 200 };
+  // regroupAll is a per-run flag ("Re-sort all groups"), replacing the old
+  // regroupExisting setting; mode is forced to 'mine'.
+  await buildPlan({ settings, nativeClient, chromeApi, now: 1, regroupAll: true });
   const ids = groupPayload.tabs.map((t) => t.tabId).sort();
   assert.deepEqual(ids, [1, 2, 3]); // every tab sent, grouped included
+  assert.equal(groupPayload.mode, 'mine');
 });
 
 test('buildPlan excludes pinned tabs from stale close candidates', async () => {

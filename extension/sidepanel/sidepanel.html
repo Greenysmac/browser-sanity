@@ -54,8 +54,17 @@
           </select>
         </div>
         <div class="runGroup">
-          <button id="run" class="primary" data-i18n="analyzeButton">Sort tabs</button>
+          <button id="run" class="primary" data-i18n="analyzeButton">Analyze</button>
           <button id="cancelRun" aria-label="Cancel the running scan" hidden>Cancel</button>
+        </div>
+        <p id="analyzeCounts" class="analyzeCounts" aria-live="polite" hidden></p>
+        <div id="sortChoices" class="sortChoices" hidden>
+          <button type="button" id="putMine" class="primary">Put into my groups</button>
+          <button type="button" id="suggestGroups">Suggest new groups</button>
+        </div>
+        <div id="sortExtras" class="sortExtras muted">
+          <button type="button" id="resortAll" class="linkBtn">Re-sort all groups</button>
+          <button type="button" id="closeDuplicates" class="linkBtn">Close duplicates</button>
         </div>
         <p id="modelsInUse" class="modelsInUse"></p>
       </section>
@@ -274,16 +283,13 @@
 
         <fieldset class="settingsGroup">
           <legend>What to suggest</legend>
-          <label><input type="checkbox" name="groupTabs" /> Group tabs by your needs</label>
-          <label><input type="checkbox" name="regroupExisting" /> Re-sort tabs already in groups</label>
-          <label><input type="checkbox" name="dupeTabs" /> Close duplicate tabs</label>
+          <label><input type="checkbox" name="staleTabs" /> Suggest closing forgotten tabs</label>
         </fieldset>
 
         <details class="settingsGroup" id="moreSettings">
           <summary>More</summary>
           <fieldset>
             <legend>Forgotten tabs</legend>
-            <label><input type="checkbox" name="staleTabs" /> Suggest closing forgotten tabs</label>
             <label>Close tabs idle more than
               <input type="number" name="staleTabDays" min="1" max="365" /> days</label>
           </fieldset>

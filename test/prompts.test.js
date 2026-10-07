@@ -46,6 +46,16 @@ test('group prompt describes the group column and tells the model to reuse exist
   assert.match(p, /1\tMDN\thttps:\/\/mdn\.dev\tDev/);
 });
 
+test("group prompt mode 'mine' adds the use-only-my-groups line; 'suggest' does not", () => {
+  const mine = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev' }], '', { mode: 'mine' });
+  assert.match(mine, /Use only the group names listed in MY GROUPS or already shown in the group column; never invent a new name\. A tab that fits none goes in Someday\./);
+  const suggest = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev' }], '', { mode: 'suggest' });
+  assert.ok(!/Use only the group names listed in MY GROUPS/.test(suggest), "suggest mode omits the 'mine' line");
+  // The default (no mode) is today's suggest prompt.
+  const dflt = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev' }]);
+  assert.ok(!/Use only the group names listed in MY GROUPS/.test(dflt), 'default omits the mine line');
+});
+
 test('group prompt leaves the group column empty for ungrouped tabs', () => {
   const p = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev' }]);
   assert.match(p, /1\tMDN\thttps:\/\/mdn\.dev\t\n/);

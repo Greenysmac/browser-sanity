@@ -110,16 +110,35 @@ export async function buildPlan(deps) {
   step('Grouping tabs');
   if (shouldCancel()) return finalizePlan(items, settings, folders);
   if (f.groupTabs && tabs.length) {
-    // Respect existing Chrome tab groups: only offer to group currently-ungrouped
-    // tabs, so re-running doesn't propose new groups over already-organized ones.
-    // When regroupExisting is on, send every collected tab so the organizer may
-    // move tabs between existing groups too. Sort-just-these mode (onlyTabIds)
-    // always regroups all of the chosen tabs regardless of their current group.
+    // Normally only currently-ungrouped (loose) tabs are sent, so re-running
+    // doesn't shuffle already-organized groups. onlyTabIds (sort-just-these) and
+    // deps.regroupAll ("Re-sort all groups") both send every collected tab so the
+    // organizer may move tabs between existing groups too. regroupAll is a
+    // per-run flag that replaces the old regroupExisting setting.
+    // mode 'mine' makes the model reuse existing/parked group names only;
+    // 'suggest' (default) lets it invent new groups.
     try {
-      const candidates = (onlyTabIds || settings.regroupExisting) ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
+      const regroupAll = onlyTabIds || deps.regroupAll;
+      const mode = deps.groupMode === 'mine' ? 'mine' : (onlyTabIds || deps.regroupAll ? 'mine' : 'suggest');
+      const candidates = regroupAll ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
       if (candidates.length) {
-        const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(candidates), rules } });
-        items.push(...mapGroupResult(r.groups, byId));
+        // Pass the live open-group names (per window) and parked-group names so a
+        // single-tab result that joins an existing group is kept (see
+        // mapGroupResult); a brand-new single-tab "group" is still dropped.
+        const openNamesByWindow = new Map();
+        for (const t of tabs) {
+          if (!t.groupName) continue;
+          if (!openNamesByWindow.has(t.windowId)) openNamesByWindow.set(t.windowId, new Set());
+          openNamesByWindow.get(t.windowId).add(t.groupName);
+        }
+        let parkedNames = [];
+        try {
+          const idx = await nativeClient.request({ type: 'index-read' });
+          const idxGroups = (idx && Array.isArray(idx.groups)) ? idx.groups : [];
+          parkedNames = idxGroups.filter((g) => g.status !== 'open').map((g) => g.name || '');
+        } catch { parkedNames = []; } // the index is best-effort; grouping still works without it
+        const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(candidates), rules, mode } });
+        items.push(...mapGroupResult(r.groups, byId, { openNamesByWindow, parkedNames }));
       }
     } catch (e) { console.warn('[organizer] grouping phase failed:', e); } // keep other results
   }

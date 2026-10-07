@@ -1,9 +1,11 @@
 import { getSettings, setSettings } from '../lib/storage.js';
 import { installActivityListeners } from '../lib/activity-tracker.js';
 import { createNativeClient } from '../lib/native-client.js';
-import { buildPlan, partitionForApply, applyItems, runCommand, loadProposals, recordDecision } from '../lib/orchestrator.js';
+import { buildPlan, partitionForApply, applyItems, runCommand, loadProposals, recordDecision, finalizePlan } from '../lib/orchestrator.js';
 import { applyItem } from '../lib/executor.js';
 import { collectTree } from '../lib/bookmark-collector.js';
+import { collectTabs } from '../lib/tab-collector.js';
+import { findDuplicateTabs } from '../lib/tab-health.js';
 import { recordUndo, reverseEntry, pruneUndo, getUndoLog, claimUndoEntries, restoreUndoEntries } from '../lib/undo-log.js';
 import { listSessions, saveCurrentWindowSession, restoreSession, removeSession, renameSession, mutateSessions } from '../lib/sessions.js';
 import { parseOmnibox } from '../lib/omnibox.js';
@@ -166,7 +168,7 @@ let scanInFlightSig = null;
 let currentScanCancel = null;
 
 function scanSig(deps = {}) {
-  return JSON.stringify({ w: deps.windowId ?? null, f: deps.features ?? null });
+  return JSON.stringify({ w: deps.windowId ?? null, f: deps.features ?? null, m: deps.groupMode ?? null, r: !!deps.regroupAll });
 }
 
 function runScan(deps = {}) {
@@ -186,7 +188,7 @@ function runScan(deps = {}) {
     const nativeClient = await makeClient(settings);
     const warnings = [];
     try {
-      const items = await buildPlan({ settings, nativeClient, onProgress, shouldCancel, onWarning: (w) => warnings.push(w), features: deps.features, windowId: deps.windowId ?? null });
+      const items = await buildPlan({ settings, nativeClient, onProgress, shouldCancel, onWarning: (w) => warnings.push(w), features: deps.features, windowId: deps.windowId ?? null, groupMode: deps.groupMode, regroupAll: deps.regroupAll });
       if (settings.debugLogging) console.info('[organizer] scan produced', items.length, 'item(s),', warnings.length, 'warning(s)');
       const { autoApply, needsReview } = partitionForApply(items, settings);
       await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: needsReview }));
@@ -250,8 +252,41 @@ async function notify(message) {
 // ---- Message handlers (one function per command; dispatched by the map below) ----
 
 async function handleRun(m) {
-  const { items, warnings } = await runScan({ features: m.features, windowId: m.windowId ?? null });
+  const { items, warnings } = await runScan({ features: m.features, windowId: m.windowId ?? null, groupMode: m.groupMode, regroupAll: m.regroupAll });
   return { ok: true, items, warnings };
+}
+
+// Resolve the tabs an Analyze/Close-duplicates run should look at: the user's
+// highlighted tabs when the panel is in "Selected tabs" scope, otherwise every
+// http(s) tab in the chosen window (null = all windows).
+async function scopeTabs(m) {
+  const activity = (await chrome.storage.local.get('tabActivity')).tabActivity || {};
+  const tabs = await collectTabs(chrome, activity, Date.now(), m.windowId ?? null);
+  if (!m.selected) return tabs;
+  const highlighted = await chrome.tabs.query({ highlighted: true, currentWindow: true });
+  const ids = new Set(highlighted.map((t) => t.id));
+  return tabs.filter((t) => ids.has(t.tabId));
+}
+
+// "Analyze": count the loose (ungrouped) web tabs and the duplicate tabs in the
+// chosen scope, without calling the model. The panel shows the counts and offers
+// the grouping choices.
+async function handleAnalyze(m) {
+  const tabs = await scopeTabs(m);
+  const loose = tabs.filter((t) => (t.groupId ?? -1) === -1).length;
+  const duplicates = findDuplicateTabs(tabs).length;
+  return { ok: true, loose, duplicates };
+}
+
+// "Close duplicates": run only the duplicate-tab finder (no model) over the
+// chosen scope and store the result as the current plan, so review/apply/undo
+// work unchanged.
+async function handleCloseDuplicates(m) {
+  const settings = await getSettings();
+  const tabs = await scopeTabs(m);
+  const items = finalizePlan(findDuplicateTabs(tabs), settings);
+  await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+  return { ok: true, items };
 }
 
 function handleCancel() {
@@ -744,6 +779,8 @@ async function handleGroupsSplit(m) {
 
 const HANDLERS = {
   run: handleRun,
+  analyze: handleAnalyze,
+  closeDuplicates: handleCloseDuplicates,
   cancel: handleCancel,
   setSettings: handleSetSettings,
   ignore: handleIgnore,

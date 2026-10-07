@@ -176,22 +176,19 @@ test('Review toggles the detailed suggestion list, hidden by default', async () 
   assert.ok(els.plan.classes.has('reviewHidden'), 'Review toggles the list back off');
 });
 
-// ---- 5. "Selected tabs" segment routes the Sort button to sortSelected -------
+// ---- 5. "Selected tabs" segment sets selected mode and drives the scope -----
 
-test('the Selected tabs segment makes the Sort button run sortSelected', () => {
-  const { els, segBtns, info } = makeHarness();
+test('the Selected tabs segment sets selected mode; window/all drive the scope select', () => {
+  const { els, segBtns } = makeHarness();
   initMainPanel();
   assert.equal(isSelectedMode(), false, 'defaults to This window');
 
-  // Pick "Selected tabs".
+  // Pick "Selected tabs": the scope goes into selected mode (plan-view reads
+  // isSelectedMode() to route the grouping choices to sortSelected).
   segBtns[2].listeners.click();
   assert.equal(isSelectedMode(), true);
   assert.equal(segBtns[2].getAttribute('aria-pressed'), 'true');
   assert.equal(segBtns[0].getAttribute('aria-pressed'), 'false');
-
-  // Clicking the Sort button now fires sortSelected (capture handler intercepts).
-  els.run.listeners.click({ preventDefault() {}, stopImmediatePropagation() {} });
-  assert.equal(info().sortSelectedClicks, 1, 'Sort button invoked sortSelected');
 
   // Switching back to "This window" leaves selected mode and drives the scope select.
   segBtns[0].listeners.click();

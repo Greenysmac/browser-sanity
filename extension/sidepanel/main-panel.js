@@ -98,21 +98,6 @@ export function initMainPanel() {
   setScope('window');
   setReviewShown(false); // detailed list hidden until Review is clicked
 
-  // "Selected tabs" mode reroutes the Sort button to the existing sortSelected
-  // path; otherwise it falls through to the normal Analyze run (plan-view wired
-  // #run already). We intercept in the capture phase only for selected mode.
-  const runBtn = $('run');
-  const sortSelectedBtn = $('sortSelected');
-  if (runBtn && sortSelectedBtn) {
-    runBtn.addEventListener('click', (e) => {
-      if (selectedMode) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        sortSelectedBtn.click();
-      }
-    }, true);
-  }
-
   const applyBtn = $('resultApply');
   const approveAll = $('approveAll');
   if (applyBtn && approveAll) applyBtn.addEventListener('click', () => approveAll.click());

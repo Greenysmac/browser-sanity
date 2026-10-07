@@ -100,8 +100,8 @@ export async function handle(msg, deps = {}) {
     if (task === 'group') {
       // A loaded groups file can define many named buckets, so lift the cap.
       const out = groupsText
-        ? await adapter.run(buildGroupPrompt(payload.tabs, rules, { maxGroups: 15 }), opts)
-        : await adapter.run(buildGroupPrompt(payload.tabs, rules), opts);
+        ? await adapter.run(buildGroupPrompt(payload.tabs, rules, { maxGroups: 15, mode: payload.mode }), opts)
+        : await adapter.run(buildGroupPrompt(payload.tabs, rules, { mode: payload.mode }), opts);
       return { task, groups: parseGroupResult(out) };
     }
     if (task === 'stale') {

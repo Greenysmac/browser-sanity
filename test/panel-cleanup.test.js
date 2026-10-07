@@ -20,8 +20,8 @@ const messages = JSON.parse(readFileSync(new URL('../extension/_locales/en/messa
 
 // ---- 1. The main button label message ---------------------------------------
 
-test('the analyzeButton i18n message reads "Sort tabs" (no stale wording)', () => {
-  assert.equal(messages.analyzeButton.message, 'Sort tabs');
+test('the analyzeButton i18n message reads "Analyze" (no stale wording)', () => {
+  assert.equal(messages.analyzeButton.message, 'Analyze');
   const json = JSON.stringify(messages);
   assert.ok(!/Analyze my tabs & bookmarks/.test(json), 'no "Analyze my tabs & bookmarks" wording');
   assert.ok(!/Browser Organizer/.test(json), 'no "Browser Organizer" wording in user-visible text');

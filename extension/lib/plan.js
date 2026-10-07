@@ -8,10 +8,16 @@ export function indexById(snapshots) {
 
 // Splits each model-returned group into one PlanItem per window, since
 // chrome.tabs.group is per-window and cannot span windows. A window with
-// fewer than 2 of the group's tabs is skipped — grouping a single tab is a
-// pointless no-op for the user, and per-window group membership is only
-// meaningful once there's something to group it with.
-export function mapGroupResult(groups, tabsById) {
+// fewer than 2 of the group's tabs is normally skipped — grouping a single tab
+// is a pointless no-op. The exception: a single-tab item is kept when its name
+// matches an existing open group in that window (`openNamesByWindow`) or a
+// parked group (`parkedNames`), since joining an existing group is useful even
+// for one tab. Name matching is trimmed/case-insensitive.
+export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map(), parkedNames = [] } = {}) {
+  const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
+  const parkedSet = new Set(parkedNames.map(norm));
+  const openSets = new Map();
+  for (const [windowId, names] of openNamesByWindow) openSets.set(windowId, new Set((names || []).map(norm)));
   const items = [];
   groups.forEach((g, gi) => {
     const byWindow = new Map();
@@ -23,7 +29,11 @@ export function mapGroupResult(groups, tabsById) {
     }
     let wi = 0;
     for (const [windowId, members] of byWindow) {
-      if (members.length < 2) continue;
+      if (members.length < 2) {
+        const name = norm(g.name);
+        const matchesOpen = openSets.has(windowId) && openSets.get(windowId).has(name);
+        if (!matchesOpen && !parkedSet.has(name)) continue; // single tab, no existing group to join
+      }
       items.push({
         itemId: `group-${gi}-${wi++}`,
         action: 'groupTabs',

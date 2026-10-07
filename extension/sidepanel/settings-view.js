@@ -174,15 +174,12 @@ export async function loadSettings() {
     ? '•••••••• saved — leave blank to keep'
     : 'sk-… (stored encrypted on this device)';
   $('openaiKeyClear').disabled = !hasKey;
-  form.groupTabs.checked = s.enabledFeatures.groupTabs;
   form.staleTabs.checked = s.enabledFeatures.staleTabs;
   form.importantBookmarks.checked = s.enabledFeatures.importantBookmarks;
   form.cleanBookmarks.checked = s.enabledFeatures.cleanBookmarks;
-  form.dupeTabs.checked = s.enabledFeatures.dupeTabs;
   form.deadLinkScan.checked = s.enabledFeatures.deadLinkScan;
   form.organizeBookmarks.checked = s.enabledFeatures.organizeBookmarks;
   form.organizeMode.value = s.organizeMode || 'additive';
-  form.regroupExisting.checked = !!s.regroupExisting;
   form.protectBookmarkBar.checked = s.protectBookmarkBar !== false;
   form.removeEmptyFolders.checked = !!s.removeEmptyFolders;
   form.protectedFolders.value = (s.protectedFolders || []).join('\n');
@@ -343,16 +340,13 @@ export function initSettingsView() {
         bigModel: form.bigModel.value.trim(),
         quickModel: form.quickModel.value.trim(),
         enabledFeatures: {
-          groupTabs: form.groupTabs.checked,
           staleTabs: form.staleTabs.checked,
           importantBookmarks: form.importantBookmarks.checked,
           cleanBookmarks: form.cleanBookmarks.checked,
-          dupeTabs: form.dupeTabs.checked,
           deadLinkScan: form.deadLinkScan.checked,
           organizeBookmarks: form.organizeBookmarks.checked,
         },
         organizeMode: form.organizeMode.value,
-        regroupExisting: form.regroupExisting.checked,
         protectBookmarkBar: form.protectBookmarkBar.checked,
         removeEmptyFolders: form.removeEmptyFolders.checked,
         protectedFolders: form.protectedFolders.value.split('\n').map((s) => s.trim()).filter(Boolean),

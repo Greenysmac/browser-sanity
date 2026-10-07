@@ -31,10 +31,11 @@ test('buildPlan with onlyTabIds keeps just those tabs and runs grouping over all
     { id: 3, url: 'https://c.com', windowId: 1, index: 2, groupId: -1 },
   ]);
   const seen = [];
-  const nativeClient = { request: async (m) => { seen.push(m.task); if (m.task === 'group') seen.push(m.payload.tabs.map((t) => t.tabId).sort()); return { groups: [], stale: [], important: [], moves: [] }; } };
+  const nativeClient = { request: async (m) => { if (m.task) seen.push(m.task); if (m.task === 'group') seen.push(m.payload.tabs.map((t) => t.tabId).sort()); return { groups: [], stale: [], important: [], moves: [] }; } };
   await buildPlan({ settings: SORT_SETTINGS, nativeClient, chromeApi, now: 1, onlyTabIds: [1, 2] });
   // Only the grouping phase ran, and it saw exactly tabs 1 and 2 (including the
-  // already-grouped tab 1, like regroupExisting).
+  // already-grouped tab 1, like regroupExisting). The index-read request (no
+  // task) that gathers parked names for single-tab joins is ignored here.
   assert.deepEqual(seen, ['group', [1, 2]]);
 });
 
@@ -44,10 +45,10 @@ test('buildPlan with onlyTabIds skips the stale/important/bookmark phases', asyn
     { id: 2, url: 'https://a.com', windowId: 1, index: 1, groupId: -1, lastAccessed: 0 }, // duplicate
   ]);
   const tasks = [];
-  const nativeClient = { request: async (m) => { tasks.push(m.task); return { groups: [], stale: [], important: [], moves: [] }; } };
+  const nativeClient = { request: async (m) => { if (m.task) tasks.push(m.task); return { groups: [], stale: [], important: [], moves: [] }; } };
   // now far in the future so both tabs would be "stale" if that phase ran
   const items = await buildPlan({ settings: SORT_SETTINGS, nativeClient, chromeApi, now: 100 * 86400000, onlyTabIds: [1, 2] });
-  assert.deepEqual(tasks, ['group']); // stale/important/organize-bookmarks never requested
+  assert.deepEqual(tasks, ['group']); // stale/important/organize-bookmarks never requested (index-read carries no task)
   assert.ok(!items.some((i) => i.action === 'closeTab'), 'no dupe-tab or stale close items produced');
 });
 
@@ -82,13 +83,15 @@ const sw = await import('../extension/background/service-worker.js');
 void sw;
 const swOnMessage = bootOnMessage.fns[0]; // the worker's registered onMessage listener
 
-function installSwChrome({ groupTabs = {}, highlighted = [] } = {}) {
+function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null } = {}) {
   const stored = { local: {}, sync: {} };
   const requests = [];
   // Every tab the mock knows about, so buildPlan's own tabs.query({}) sees them
-  // (it collects all tabs, then filters to onlyTabIds).
-  const allTabs = [...Object.values(groupTabs).flat(), ...highlighted]
-    .map((t, i) => ({ windowId: 1, index: i, ...t }));
+  // (it collects all tabs, then filters to onlyTabIds). `webTabs`, when given,
+  // is the full set tabs.query({}) returns (used by the analyze/close-dup paths).
+  const allTabs = webTabs
+    ? webTabs.map((t, i) => ({ windowId: 1, index: i, groupId: -1, ...t }))
+    : [...Object.values(groupTabs).flat(), ...highlighted].map((t, i) => ({ windowId: 1, index: i, ...t }));
   const area = (name) => ({
     async get(k) { return typeof k === 'string' ? { [k]: stored[name][k] } : (k == null ? { ...stored[name] } : Object.fromEntries(Object.keys(k).map((kk) => [kk, stored[name][kk] ?? k[kk]]))); },
     async set(o) { Object.assign(stored[name], o); },
@@ -162,4 +165,76 @@ test('sortGroup with an empty group returns a friendly message instead of runnin
   assert.deepEqual(res.items, []);
   assert.match(res.message, /no tabs/i);
   assert.equal(requests.length, 0);
+});
+
+// --- Analyze / grouping-choice / close-duplicates (TASK 3) -----------------
+
+test('Analyze counts loose and duplicate tabs and makes no helper call', async () => {
+  const { dispatch, requests } = installSwChrome({
+    webTabs: [
+      { id: 1, url: 'https://a.com', groupId: -1 },            // loose
+      { id: 2, url: 'https://b.com', groupId: -1 },            // loose
+      { id: 3, url: 'https://c.com', groupId: 7 },             // already grouped
+      { id: 4, url: 'https://a.com', groupId: -1, lastAccessed: 0 }, // duplicate of 1 (loose)
+    ],
+  });
+  const res = await dispatch({ cmd: 'analyze', windowId: null });
+  assert.equal(res.ok, true);
+  assert.equal(res.loose, 3);       // tabs 1, 2, 4 are ungrouped
+  assert.equal(res.duplicates, 1);  // 4 duplicates 1
+  assert.equal(requests.length, 0, 'Analyze never opens the native host');
+});
+
+test("the 'Put into my groups' choice runs the grouping in mode 'mine'", async () => {
+  const { dispatch, requests } = installSwChrome({
+    webTabs: [{ id: 1, url: 'https://a.com', groupId: -1 }, { id: 2, url: 'https://b.com', groupId: -1 }],
+  });
+  const res = await dispatch({ cmd: 'run', windowId: null, groupMode: 'mine', features: { groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false } });
+  assert.equal(res.ok, true);
+  const groupReq = requests.find((r) => r.task === 'group');
+  assert.ok(groupReq, 'a grouping request was made');
+  assert.equal(groupReq.payload.mode, 'mine');
+});
+
+test("the 'Suggest new groups' choice runs the grouping in mode 'suggest'", async () => {
+  const { dispatch, requests } = installSwChrome({
+    webTabs: [{ id: 1, url: 'https://a.com', groupId: -1 }, { id: 2, url: 'https://b.com', groupId: -1 }],
+  });
+  const res = await dispatch({ cmd: 'run', windowId: null, groupMode: 'suggest', features: { groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false } });
+  assert.equal(res.ok, true);
+  const groupReq = requests.find((r) => r.task === 'group');
+  assert.ok(groupReq, 'a grouping request was made');
+  assert.equal(groupReq.payload.mode, 'suggest');
+});
+
+test("Re-sort all groups sends every web tab in scope once, in mode 'mine'", async () => {
+  const { dispatch, requests } = installSwChrome({
+    webTabs: [
+      { id: 1, url: 'https://a.com', groupId: 7 },   // already grouped
+      { id: 2, url: 'https://b.com', groupId: -1 },
+      { id: 3, url: 'https://c.com', groupId: -1 },
+    ],
+  });
+  const res = await dispatch({ cmd: 'run', windowId: null, regroupAll: true, features: { groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false } });
+  assert.equal(res.ok, true);
+  const groupReqs = requests.filter((r) => r.task === 'group');
+  assert.equal(groupReqs.length, 1, 'exactly one grouping request');
+  assert.deepEqual(groupReqs[0].payload.tabs.map((t) => t.tabId).sort(), [1, 2, 3]); // grouped + loose
+  assert.equal(groupReqs[0].payload.mode, 'mine');
+});
+
+test('Close duplicates finds duplicate tabs without any helper call', async () => {
+  const { dispatch, requests } = installSwChrome({
+    webTabs: [
+      { id: 1, url: 'https://a.com', groupId: -1, lastAccessed: 10 },
+      { id: 2, url: 'https://a.com', groupId: -1, lastAccessed: 0 }, // duplicate of 1
+      { id: 3, url: 'https://b.com', groupId: -1 },
+    ],
+  });
+  const res = await dispatch({ cmd: 'closeDuplicates', windowId: null });
+  assert.equal(res.ok, true);
+  assert.equal(res.items.length, 1, 'one close item for the duplicate');
+  assert.equal(res.items[0].action, 'closeTab');
+  assert.equal(res.items[0].data.tabId, 2);
+  assert.equal(requests.length, 0, 'Close duplicates never opens the native host');
 });

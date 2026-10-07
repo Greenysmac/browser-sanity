@@ -55,11 +55,14 @@ export function buildOrganizePrompt(bookmarks, folders, mode = 'additive', rules
   ].join('\n');
 }
 
-export function buildGroupPrompt(tabs, rules = '', { maxGroups = 8 } = {}) {
+export function buildGroupPrompt(tabs, rules = '', { maxGroups = 8, mode = 'suggest' } = {}) {
   return [
     'You organize browser tabs into topical groups.',
     'Each data line is: tabId<TAB>title<TAB>url<TAB>group.',
     "The group column shows the tab's current group, if any. Reuse an existing group name when a tab fits it, so tabs consolidate into existing groups instead of new near-duplicates.",
+    ...(mode === 'mine'
+      ? ['Use only the group names listed in MY GROUPS or already shown in the group column; never invent a new name. A tab that fits none goes in Someday.']
+      : []),
     `Cluster them into 2 to ${maxGroups} meaningful groups by topic; every tabId in exactly one group; prefer fewer broader groups.`,
     `"color" must be one of: ${TAB_GROUP_COLORS.join(', ')}.`,
     'Respond with ONLY this JSON, no prose:',

@@ -61,6 +61,37 @@ test('mapGroupResult only emits a window when 2+ of the group tabs land there', 
   assert.equal(items.find((i) => i.data.windowId === 7), undefined);
 });
 
+test('mapGroupResult keeps a single-tab item only when the name matches an existing open or parked group', () => {
+  const tabs = [
+    { tabId: 1, title: 'A', url: 'https://a.com', windowId: 9, index: 0, pinned: false },
+    { tabId: 2, title: 'B', url: 'https://b.com', windowId: 9, index: 1, pinned: false },
+    { tabId: 3, title: 'C', url: 'https://c.com', windowId: 9, index: 2, pinned: false },
+  ];
+  const byId = indexById(tabs);
+  const groups = [
+    { name: 'Dev', color: 'blue', tabIds: [1] },      // matches an open group in window 9 → kept
+    { name: 'Reading', color: 'red', tabIds: [2] },    // matches a parked group → kept
+    { name: 'Brand New', color: 'green', tabIds: [3] },// no match → dropped (pointless single-tab group)
+  ];
+  const openNamesByWindow = new Map([[9, ['dev']]]); // case/space-insensitive match
+  const items = mapGroupResult(groups, byId, { openNamesByWindow, parkedNames: ['  Reading '] });
+  const names = items.map((i) => i.data.groupName).sort();
+  assert.deepEqual(names, ['Dev', 'Reading']);
+  // A single-tab join still carries its one tab.
+  const dev = items.find((i) => i.data.groupName === 'Dev');
+  assert.deepEqual(dev.data.tabIds, [1]);
+  assert.equal(dev.data.windowId, 9);
+});
+
+test('mapGroupResult drops a single-tab open-group match in the wrong window', () => {
+  const tabs = [{ tabId: 1, title: 'A', url: 'https://a.com', windowId: 5, index: 0, pinned: false }];
+  const byId = indexById(tabs);
+  // "Dev" is open in window 9, but the tab is in window 5 — the per-window match
+  // fails, so a lone tab is not kept.
+  const items = mapGroupResult([{ name: 'Dev', color: 'blue', tabIds: [1] }], byId, { openNamesByWindow: new Map([[9, ['Dev']]]) });
+  assert.deepEqual(items, []);
+});
+
 test('mapStaleResult resolves tab details and dedupes missing tabs', () => {
   const items = mapStaleResult([
     { tabId: 1, reason: 'old', suggestBookmark: true },

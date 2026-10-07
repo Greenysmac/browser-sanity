@@ -197,6 +197,23 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 }
 .modelsInUse { margin: 8px 0 0; font-size: 11px; color: var(--text-faint); }
 
+/* Analyze → counts → two grouping choices → muted occasional actions. */
+.analyzeCounts { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
+.analyzeCounts[hidden] { display: none; }
+.sortChoices { display: grid; gap: 6px; margin-top: 8px; }
+.sortChoices[hidden] { display: none; }
+.sortExtras { display: flex; gap: 12px; margin-top: 8px; }
+.linkBtn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkBtn:hover { color: var(--text); }
+
 /* ---------- Result card ---------- */
 .resultCard {
   border: 1px solid var(--border);

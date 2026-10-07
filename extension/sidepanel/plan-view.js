@@ -6,6 +6,7 @@ import { $, setStatus, flashStatus, send, fetchPlan, focusTab, currentScopeWindo
 import { startScanClock, stopScanClock, ensureScanPort } from './scan-clock.js';
 import { showUndoToast } from './undo.js';
 import { updateResultCard } from './main-panel.js';
+import { isSelectedMode } from './main-panel.js';
 import { ignoreKey } from '../lib/orchestrator.js';
 import { TAB_GROUP_COLORS as GROUP_COLORS } from '../lib/colors.js';
 import { STATUS_LABELS } from '../lib/labels.js';
@@ -286,12 +287,12 @@ async function ignoreItem(item) {
   setStatus('Won’t suggest that again.');
 }
 
-async function startScan(features) {
+async function startScan(features, { groupMode, regroupAll } = {}) {
   ensureScanPort();
   $('cancelRun').hidden = false;
   startScanClock('Analyzing… (running your local AI CLI)');
   const windowId = await currentScopeWindowId();
-  const res = await send({ cmd: 'run', features, windowId });
+  const res = await send({ cmd: 'run', features, windowId, groupMode, regroupAll });
   stopScanClock();
   $('cancelRun').hidden = true;
   if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
@@ -304,6 +305,60 @@ async function startScan(features) {
   // The "N suggestions." count now lives in the result card; clear the status
   // line on success so it isn't duplicated above the card.
   setStatus(plan.length ? '' : 'Nothing to do — your browser looks tidy.');
+}
+
+// Toggles the two grouping-choice buttons under the Analyze button.
+function showSortChoices(shown) {
+  const el = $('sortChoices');
+  if (el) el.hidden = !shown;
+}
+
+// "Analyze": count the loose and duplicate tabs in the chosen scope WITHOUT
+// calling the model, show the counts, and reveal the two grouping choices.
+async function analyze() {
+  showSortChoices(false);
+  const counts = $('analyzeCounts');
+  if (counts) counts.hidden = true;
+  setStatus('Analyzing…');
+  const selected = isSelectedMode();
+  const windowId = selected ? null : await currentScopeWindowId();
+  const res = await send({ cmd: 'analyze', windowId, selected });
+  if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
+  setStatus('');
+  if (counts) {
+    const loose = res.loose || 0;
+    const dupes = res.duplicates || 0;
+    counts.textContent = `${loose} loose tab${loose === 1 ? '' : 's'}, ${dupes} duplicate${dupes === 1 ? '' : 's'}`;
+    counts.hidden = false;
+  }
+  showSortChoices(true);
+}
+
+// A grouping choice ("Put into my groups" / "Suggest new groups"): run the
+// grouping over the scope's loose tabs with the given mode. In "Selected tabs"
+// scope the existing sortSelected path handles the highlighted tabs instead.
+async function groupLoose(groupMode) {
+  if (isSelectedMode()) { await sortSelectedTabs(); return; }
+  await startScan({ groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false }, { groupMode });
+}
+
+// "Re-sort all groups": regroup every web tab in scope (grouped or not) in mode
+// 'mine', for this run only — it replaces the old regroupExisting setting.
+async function resortAll() {
+  await startScan({ groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false }, { groupMode: 'mine', regroupAll: true });
+}
+
+// "Close duplicates": run only the duplicate-tab finder (no model) over scope.
+async function closeDuplicates() {
+  setStatus('Finding duplicate tabs…');
+  const selected = isSelectedMode();
+  const windowId = selected ? null : await currentScopeWindowId();
+  const res = await send({ cmd: 'closeDuplicates', windowId, selected });
+  if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
+  plan = res.items || [];
+  selection = new Set();
+  renderPlan(true);
+  setStatus(plan.length ? '' : 'No duplicate tabs found.');
 }
 
 // "Load agent suggestions": fetch proposals.json via the host, mapped to the
@@ -384,7 +439,11 @@ const ALL_FEATURES = ['groupTabs', 'staleTabs', 'importantBookmarks', 'cleanBook
 // Wire every control that reads or mutates the plan, load the panel-local
 // group-by-status pref, then paint the stored plan. Called once from the bootstrap.
 export async function initPlanView() {
-  $('run').addEventListener('click', () => startScan());
+  $('run').addEventListener('click', () => analyze());
+  $('putMine').addEventListener('click', () => groupLoose('mine'));
+  $('suggestGroups').addEventListener('click', () => groupLoose('suggest'));
+  $('resortAll').addEventListener('click', () => resortAll());
+  $('closeDuplicates').addEventListener('click', () => closeDuplicates());
   $('cancelRun').addEventListener('click', () => send({ cmd: 'cancel' }));
   $('updateIndex').addEventListener('click', async () => {
     setStatus('Updating index…');
