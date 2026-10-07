@@ -5,7 +5,7 @@ import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandR
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile, readGroups, writeGroupDescription } from './groups-file.js';
-import { writeIndex, parkGroup, readIndex } from './index-file.js';
+import { writeIndex, parkGroup, readIndex, listIndexHistory, restoreIndexHistory } from './index-file.js';
 import { loadProposals } from './proposals-file.js';
 
 // Fold the user's "my groups" file into the rules the model sees. When the file
@@ -28,7 +28,7 @@ function cleanSuggestion(text) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals', 'groups-read', 'groups-write', 'describe'],
+    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'describe'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -151,6 +151,23 @@ export async function handle(msg, deps = {}) {
   if (msg.type === 'index-read') {
     const read = deps.readIndex || readIndex;
     return read();
+  }
+
+  // List the dated copies of index.json kept in index-history, newest first,
+  // each as { name, time }. A missing folder yields an empty list (handled in
+  // index-file.js), never an error.
+  if (msg.type === 'index-history') {
+    const list = deps.listIndexHistory || listIndexHistory;
+    return { history: list() };
+  }
+
+  // Restore a dated copy as index.json (after snapshotting the current one) and
+  // rewrite index.md from it. payload.name must be a plain file name from the
+  // history folder; index-file.js rejects slashes and '..'.
+  if (msg.type === 'index-restore') {
+    const restore = deps.restoreIndexHistory || restoreIndexHistory;
+    const payload = msg.payload || {};
+    return restore(payload.name);
   }
 
   // Read the agent-written proposals.json (same directory as the index) and

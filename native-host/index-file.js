@@ -14,6 +14,47 @@ function groupKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+// How many dated copies of index.json to keep in the history folder.
+const HISTORY_LIMIT = 50;
+
+function historyDir(dir) {
+  return path.join(dir, 'index-history');
+}
+
+// Copy the current index.json, if one exists, into index-history as
+// index-<ISO time with ':' replaced by '-'>.json, then prune the folder down to
+// the newest HISTORY_LIMIT copies. A copy must never fail a write: any error is
+// logged and swallowed so the caller continues to write the fresh index.
+function snapshotIndex(dir, now, {
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+  mkdir = fs.mkdirSync,
+  readdir = fs.readdirSync,
+  unlink = fs.unlinkSync,
+} = {}) {
+  try {
+    let current;
+    try {
+      current = readFile(path.join(dir, 'index.json'), 'utf8');
+    } catch {
+      return; // no prior index.json — nothing to snapshot
+    }
+    const hdir = historyDir(dir);
+    mkdir(hdir, { recursive: true });
+    const name = `index-${String(now).replace(/:/g, '-')}.json`;
+    writeFile(path.join(hdir, name), current);
+    const copies = readdir(hdir)
+      .filter((f) => /^index-.*\.json$/.test(f))
+      .sort(); // ISO timestamps sort chronologically as strings
+    for (const old of copies.slice(0, Math.max(0, copies.length - HISTORY_LIMIT))) {
+      try { unlink(path.join(hdir, old)); } catch { /* ignore a failed prune */ }
+    }
+  } catch (err) {
+    // Never fail a write because the copy failed.
+    console.error(`index history snapshot failed: ${String((err && err.message) || err)}`);
+  }
+}
+
 // Read the previous index.json, tolerating a missing or broken file: either
 // case is treated as "no prior index", never an error.
 function readPrevious(file, readFile) {
@@ -109,6 +150,7 @@ export function writeIndex(payload = {}, {
     ? payload.ungrouped.map((t) => ({ title: t.title, url: t.url }))
     : [];
   mkdir(dir, { recursive: true });
+  snapshotIndex(dir, now, { readFile, writeFile, mkdir });
   writeFile(jsonPath, `${JSON.stringify({ updated: now, groups, ungrouped }, null, 2)}\n`);
   writeFile(mdPath, renderMarkdown(groups, ungrouped, now));
   return groups.length;
@@ -178,7 +220,65 @@ export function parkGroup(group = {}, {
     ? prev.ungrouped.map((t) => ({ title: t.title, url: t.url }))
     : [];
   mkdir(dir, { recursive: true });
+  snapshotIndex(dir, now, { readFile, writeFile, mkdir });
   writeFile(jsonPath, `${JSON.stringify({ updated: now, groups, ungrouped }, null, 2)}\n`);
   writeFile(mdPath, renderMarkdown(groups, ungrouped, now));
   return groups.length;
+}
+
+// List the dated copies kept in index-history, newest first. Each entry is
+// { name, time }, where name is the file name and time is the ISO timestamp
+// recovered from it (':' restored). A missing folder yields an empty list,
+// never an error.
+export function listIndexHistory({
+  env = process.env,
+  readdir = fs.readdirSync,
+} = {}) {
+  const hdir = historyDir(indexDir(env));
+  let files;
+  try {
+    files = readdir(hdir);
+  } catch {
+    return [];
+  }
+  return files
+    .filter((f) => /^index-.*\.json$/.test(f))
+    .sort()
+    .reverse()
+    .map((name) => ({
+      name,
+      // index-<ISO with ':' as '-'>.json → restore the two time colons.
+      time: name.slice('index-'.length, -'.json'.length).replace(/-(\d{2})-(\d{2})\.(\d{3}Z)$/, ':$1:$2.$3'),
+    }));
+}
+
+// Restore a dated copy as index.json, after first snapshotting the current one
+// into history, then rewrite index.md from the restored content. `name` must be
+// a plain file name from the history folder: no slashes and no '..', so a
+// caller can never read or write outside index-history. Returns { ok: true } on
+// success.
+export function restoreIndexHistory(name, {
+  env = process.env,
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+  mkdir = fs.mkdirSync,
+  readdir = fs.readdirSync,
+  unlink = fs.unlinkSync,
+  now = new Date().toISOString(),
+} = {}) {
+  const safe = String(name || '');
+  if (!safe || safe.includes('/') || safe.includes('\\') || safe.includes('..') || path.basename(safe) !== safe) {
+    throw new Error('Invalid history name');
+  }
+  const dir = indexDir(env);
+  const copyPath = path.join(historyDir(dir), safe);
+  const restored = readFile(copyPath, 'utf8');
+  const parsed = JSON.parse(String(restored));
+  const groups = Array.isArray(parsed.groups) ? parsed.groups : [];
+  const ungrouped = Array.isArray(parsed.ungrouped) ? parsed.ungrouped : [];
+  mkdir(dir, { recursive: true });
+  snapshotIndex(dir, now, { readFile, writeFile, mkdir, readdir, unlink });
+  writeFile(path.join(dir, 'index.json'), restored);
+  writeFile(path.join(dir, 'index.md'), renderMarkdown(groups, ungrouped, parsed.updated || now));
+  return { ok: true };
 }
