@@ -28,6 +28,29 @@ function labelFor(item) {
   return `${ACTION_LABELS[item.action] || item.action}: ${name}`.trim();
 }
 
+// Snapshot where each tab currently lives before groupTabs moves it, so undo can
+// put it back. For a grouped tab we record its groupId plus the group's title and
+// color (looked up once per group via tabGroups.get); an ungrouped tab records -1.
+// A vanished tab is skipped — there's nothing to restore.
+async function capturePrevGroups(tabIds, c) {
+  const groupInfo = new Map(); // groupId -> { title, color, windowId }
+  const prev = [];
+  for (const tabId of tabIds) {
+    const t = await c.tabs.get(tabId).catch(() => null);
+    if (!t) continue;
+    const groupId = t.groupId ?? -1;
+    if (groupId === -1) { prev.push({ tabId, groupId: -1 }); continue; }
+    if (!groupInfo.has(groupId)) {
+      let info = { title: '', color: undefined, windowId: t.windowId };
+      try { const g = await c.tabGroups.get(groupId); info = { title: g.title || '', color: g.color, windowId: g.windowId }; } catch { /* group gone */ }
+      groupInfo.set(groupId, info);
+    }
+    const info = groupInfo.get(groupId);
+    prev.push({ tabId, groupId, title: info.title, color: info.color, windowId: info.windowId });
+  }
+  return prev;
+}
+
 // Walk/create a folder path under `rootId` (default the bookmarks bar '1');
 // returns the leaf folder id.
 export async function ensureFolder(pathParts, chromeApi, rootId = '1') {
@@ -93,12 +116,14 @@ async function applyItemInner(item, c, deps = {}) {
         );
         const newcomers = liveIds.filter((id, i) => groupIds[i] !== existing.id);
         if (!newcomers.length) return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: null, skipped: true };
+        const prevGroups = await capturePrevGroups(newcomers, c);
         await c.tabs.group({ tabIds: newcomers, groupId: existing.id });
-        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: newcomers } };
+        return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: newcomers, prevGroups } };
       }
+      const prevGroups = await capturePrevGroups(liveIds, c);
       const groupId = await c.tabs.group({ tabIds: liveIds });
       await c.tabGroups.update(groupId, { title: groupName, color: COLORS.has(color) ? color : 'grey' });
-      return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: liveIds } };
+      return { undoId: undoId(), ts: Date.now(), action: 'groupTabs', reverse: { tabIds: liveIds, prevGroups } };
     }
     case 'createBookmark': {
       const { url, title, folderPath, rootId } = item.data;

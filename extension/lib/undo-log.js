@@ -62,9 +62,32 @@ export async function reverseEntry(entry, chromeApi = chrome, idRemap = new Map(
       if (savedBookmarkId) { try { await chromeApi.bookmarks.remove(savedBookmarkId); } catch { /* already gone */ } }
       return;
     }
-    case 'groupTabs':
-      await chromeApi.tabs.ungroup(entry.reverse.tabIds);
+    case 'groupTabs': {
+      // Old-style entries only recorded tabIds — just ungroup them, as before.
+      const prevGroups = entry.reverse.prevGroups;
+      if (!prevGroups) { await chromeApi.tabs.ungroup(entry.reverse.tabIds); return; }
+      // Tabs that were ungrouped before grouping go back to ungrouped.
+      const ungroupIds = prevGroups.filter((p) => p.groupId === -1).map((p) => p.tabId);
+      if (ungroupIds.length) await chromeApi.tabs.ungroup(ungroupIds);
+      // Tabs that came from a group return there: by groupId if it still exists,
+      // otherwise into a fresh group recreated with the recorded title/color.
+      const byGroup = new Map(); // original groupId -> { tabIds, title, color }
+      for (const p of prevGroups) {
+        if (p.groupId === -1) continue;
+        if (!byGroup.has(p.groupId)) byGroup.set(p.groupId, { tabIds: [], title: p.title, color: p.color });
+        byGroup.get(p.groupId).tabIds.push(p.tabId);
+      }
+      for (const [groupId, g] of byGroup) {
+        const exists = await chromeApi.tabGroups.get(groupId).then(() => true).catch(() => false);
+        if (exists) {
+          await chromeApi.tabs.group({ tabIds: g.tabIds, groupId });
+        } else {
+          const newId = await chromeApi.tabs.group({ tabIds: g.tabIds });
+          await chromeApi.tabGroups.update(newId, { title: g.title, color: g.color });
+        }
+      }
       return;
+    }
     case 'createBookmark':
       await chromeApi.bookmarks.remove(entry.reverse.bookmarkId);
       return;

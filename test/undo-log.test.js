@@ -79,6 +79,50 @@ test('reverseEntry handles discardTab as a no-op', async () => {
   assert.ok(true);
 });
 
+// Models tabGroups.get: resolves for ids in `existing`, rejects otherwise (vanished group).
+function makeGroupRestoreChrome(existing = []) {
+  const existset = new Set(existing);
+  const calls = [];
+  return {
+    _calls: calls,
+    tabs: {
+      async ungroup(ids) { calls.push(['ungroup', ids]); },
+      async group(arg) { calls.push(['group', arg]); return 999; },
+    },
+    tabGroups: {
+      async get(id) { if (!existset.has(id)) throw new Error('no such group'); return { id, title: 'live', color: 'blue' }; },
+      async update(id, props) { calls.push(['update', id, props]); },
+    },
+  };
+}
+
+test('reverseEntry groupTabs returns tabs to a still-existing group by id', async () => {
+  const chrome = makeGroupRestoreChrome([42]);
+  await reverseEntry({ action: 'groupTabs', reverse: { tabIds: [1, 2], prevGroups: [{ tabId: 1, groupId: 42, title: 'Work', color: 'blue' }, { tabId: 2, groupId: 42, title: 'Work', color: 'blue' }] } }, chrome);
+  assert.deepEqual(chrome._calls, [['group', { tabIds: [1, 2], groupId: 42 }]]);
+});
+
+test('reverseEntry groupTabs recreates a vanished group with its recorded title and color', async () => {
+  const chrome = makeGroupRestoreChrome([]); // group 42 is gone
+  await reverseEntry({ action: 'groupTabs', reverse: { tabIds: [1], prevGroups: [{ tabId: 1, groupId: 42, title: 'Work', color: 'red' }] } }, chrome);
+  assert.deepEqual(chrome._calls, [
+    ['group', { tabIds: [1] }],
+    ['update', 999, { title: 'Work', color: 'red' }],
+  ]);
+});
+
+test('reverseEntry groupTabs ungroups tabs that were previously ungrouped', async () => {
+  const chrome = makeGroupRestoreChrome([]);
+  await reverseEntry({ action: 'groupTabs', reverse: { tabIds: [1, 2], prevGroups: [{ tabId: 1, groupId: -1 }, { tabId: 2, groupId: -1 }] } }, chrome);
+  assert.deepEqual(chrome._calls, [['ungroup', [1, 2]]]);
+});
+
+test('reverseEntry groupTabs handles an old-style entry (only tabIds) by ungrouping', async () => {
+  const chrome = makeGroupRestoreChrome([]);
+  await reverseEntry({ action: 'groupTabs', reverse: { tabIds: [1, 2] } }, chrome);
+  assert.deepEqual(chrome._calls, [['ungroup', [1, 2]]]);
+});
+
 test('reverseEntry moveBookmark moves back; removeFolder recreates (and no-ops on skip)', async () => {
   const calls = [];
   const chrome = {

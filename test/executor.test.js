@@ -156,6 +156,30 @@ test('groupTabs groups and titles the group', async () => {
   assert.deepEqual(undo.reverse.tabIds, [1, 2]);
 });
 
+test('groupTabs records each moved tab\'s previous group (groupId, title, color) for undo', async () => {
+  const groupCalls = [];
+  const chrome = {
+    _groupCalls: groupCalls,
+    // tab 1 was in group 42; tab 2 was ungrouped.
+    tabs: {
+      async get(id) { return { id, windowId: 7, url: 'https://a.com', groupId: id === 1 ? 42 : -1 }; },
+      async group(arg) { groupCalls.push(arg); return 555; },
+    },
+    tabGroups: {
+      async get(id) { return { id, title: 'Research', color: 'green', windowId: 7 }; },
+      async query() { return []; }, // no existing group matches "Work" → create a new one
+      async update(id, props) { this._groupUpdate = { id, props }; },
+    },
+  };
+  const item = { action: 'groupTabs', data: { tabIds: [1, 2], groupName: 'Work', color: 'blue' } };
+  const undo = await applyItem(item, { chrome });
+  assert.deepEqual(undo.reverse.tabIds, [1, 2]); // kept for compatibility
+  assert.deepEqual(undo.reverse.prevGroups, [
+    { tabId: 1, groupId: 42, title: 'Research', color: 'green', windowId: 7 },
+    { tabId: 2, groupId: -1 },
+  ]);
+});
+
 // Mock focused on the groupTabs reuse path: the first tab reports a windowId,
 // tabGroups.query returns `groups`, and tabs.group records every call.
 function makeGroupChrome(groups) {
