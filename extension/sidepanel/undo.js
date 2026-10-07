@@ -37,6 +37,18 @@ export async function showUndoToast() {
   toast.onfocusout = () => scheduleDismiss(3000);
 }
 
+// Undo the most recent applied run through the existing undo log, reporting the
+// result in the status line. Reused by the header's "Restore before sort" button
+// and shares the same revert path as the undo-history dialog's per-run undo.
+export async function restoreLatestRun() {
+  const res = await send({ cmd: 'getUndo' });
+  const runs = res && res.ok ? groupUndoByRun(res.entries) : [];
+  if (!runs.length) { setStatus('Nothing to restore'); return; }
+  const latest = runs[0];
+  await send({ cmd: 'undo', undoIds: latest.entries.map((e) => e.undoId) });
+  setStatus('Restored');
+}
+
 // The undo-history dialog: every applied run, each expandable to its entries,
 // with per-run undo and a per-entry checked-subset undo button.
 export function initUndoHistory() {
@@ -93,5 +105,5 @@ export function initUndoHistory() {
     };
   };
   $('showUndo')?.addEventListener('click', openUndo);
-  $('headerUndoBtn')?.addEventListener('click', openUndo);
+  $('headerUndoBtn')?.addEventListener('click', restoreLatestRun);
 }
