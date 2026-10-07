@@ -481,6 +481,35 @@ async function handleOpenParked(m) {
   }
 }
 
+// Assemble the data the side-panel board renders: the open groups (from the
+// live tab strip, with per-group tab counts), the parked groups (from the
+// on-disk index via the host's 'index-read'), and the group descriptions the
+// model sees (via 'groups-read'). One native client covers both host reads.
+async function handleBoardData() {
+  const groups = await chrome.tabGroups.query({});
+  const open = [];
+  for (const g of groups) {
+    const tabs = await chrome.tabs.query({ groupId: g.id });
+    open.push({ groupId: g.id, name: g.title || '', color: g.color, windowId: g.windowId, tabCount: tabs.length });
+  }
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  let parked = [];
+  let descriptions = [];
+  try {
+    const index = await client.request({ type: 'index-read' });
+    const indexGroups = (index && Array.isArray(index.groups)) ? index.groups : [];
+    parked = indexGroups
+      .filter((g) => g.status !== 'open')
+      .map((g) => ({ name: g.name || '', color: g.color, tabCount: Array.isArray(g.tabs) ? g.tabs.length : 0, lastSeen: g.lastSeen }));
+    const read = await client.request({ type: 'groups-read', adapter: settings.adapter });
+    descriptions = (read && Array.isArray(read.groups)) ? read.groups : [];
+  } finally {
+    client.disconnect();
+  }
+  return { ok: true, open, parked, descriptions };
+}
+
 async function handleHealth() {  const settings = await getSettings();
   const client = await makeClient(settings);
   try { return { ok: true, health: await client.request({ type: 'health', adapter: settings.adapter }) }; }
@@ -541,6 +570,7 @@ const HANDLERS = {
   openParked: handleOpenParked,
   groupsRead: handleGroupsRead,
   groupsWrite: handleGroupsWrite,
+  boardData: handleBoardData,
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
