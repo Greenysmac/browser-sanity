@@ -160,6 +160,12 @@
             </select>
           </label>
           <p id="adapterNote" class="warnNote" role="note" hidden></p>
+          <label>Big-job model <span class="fieldHint">(full Analyze runs &amp; typed commands)</span>
+            <input type="text" name="bigModel" spellcheck="false" placeholder="(backend default)" />
+          </label>
+          <label>Quick-job model <span class="fieldHint">(sort selected/group, describe)</span>
+            <input type="text" name="quickModel" spellcheck="false" placeholder="(backend default)" />
+          </label>
           <div id="openaiConfig" hidden>
             <label>API key
               <input type="password" id="openaiApiKey" autocomplete="off" spellcheck="false" placeholder="sk-… (stored encrypted on this device)" />

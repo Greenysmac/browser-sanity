@@ -1,10 +1,10 @@
 export const DEFAULTS = {
   automationMode: 'review',            // 'review' | 'auto'
   enabledFeatures: {
-    staleTabs: true, groupTabs: true, importantBookmarks: true, cleanBookmarks: true, deadLinkScan: false, dupeTabs: true, organizeBookmarks: false,
+    staleTabs: false, groupTabs: true, importantBookmarks: false, cleanBookmarks: false, deadLinkScan: false, dupeTabs: true, organizeBookmarks: false,
   },
   organizeMode: 'additive',            // 'match' | 'additive' | 'full' (how aggressively to reorganize)
-  regroupExisting: false,              // re-sort tabs already in groups (send grouped tabs to the grouping phase too)
+  regroupExisting: true,               // re-sort tabs already in groups (send grouped tabs to the grouping phase too)
   protectBookmarkBar: true,            // never move/remove anything in the Bookmarks Bar
   protectedFolders: [],                // folder paths/names the organizer never touches (with their contents)
   removeEmptyFolders: false,           // propose removing folders left empty after organizing
@@ -19,6 +19,8 @@ export const DEFAULTS = {
   scanIntervalMinutes: 720,           // auto-run cadence (12h)
   openaiBaseUrl: '',                   // OpenAI-compatible endpoint (blank = host default). Key is in secret-store, not here.
   openaiModel: '',                     // OpenAI-compatible model (blank = host default)
+  bigModel: 'claude-sonnet-5-5',       // model slot for big jobs: full Analyze runs and typed commands
+  quickModel: 'claude-haiku-4-5',      // model slot for quick jobs: sortSelected, sortGroup, describe
   debugLogging: false,                 // verbose [organizer] logs in the service-worker console
   advancedCli: {                       // Advanced settings — power-user CLI control (see native-host/config.sanitizeCli)
     loadMcpServers: false,             // Claude: false → --strict-mcp-config (no MCP servers)

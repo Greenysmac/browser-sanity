@@ -63,6 +63,8 @@ export async function loadSettings() {
   updateAdapterNote(s.adapter);
   form.openaiBaseUrl.value = s.openaiBaseUrl || '';
   form.openaiModel.value = s.openaiModel || '';
+  form.bigModel.value = s.bigModel || '';
+  form.quickModel.value = s.quickModel || '';
   const hasKey = await hasSecret('openaiApiKey');
   $('openaiApiKey').value = '';
   $('openaiApiKey').placeholder = hasKey
@@ -166,6 +168,8 @@ export function initSettingsView() {
         adapter: form.adapter.value,
         openaiBaseUrl: form.openaiBaseUrl.value.trim(),
         openaiModel: form.openaiModel.value.trim(),
+        bigModel: form.bigModel.value.trim(),
+        quickModel: form.quickModel.value.trim(),
         enabledFeatures: {
           groupTabs: form.groupTabs.checked,
           staleTabs: form.staleTabs.checked,

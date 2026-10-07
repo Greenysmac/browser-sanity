@@ -10,7 +10,7 @@ import { setSettings, DEFAULTS } from '../extension/lib/storage.js';
 
 // Field names the settings form exposes; each is a stub with value/checked.
 const FORM_FIELDS = [
-  'adapter', 'openaiBaseUrl', 'openaiModel', 'groupTabs', 'regroupExisting', 'staleTabs',
+  'adapter', 'openaiBaseUrl', 'openaiModel', 'bigModel', 'quickModel', 'groupTabs', 'regroupExisting', 'staleTabs',
   'importantBookmarks', 'cleanBookmarks', 'dupeTabs', 'deadLinkScan', 'organizeBookmarks',
   'organizeMode', 'protectBookmarkBar', 'removeEmptyFolders', 'protectedFolders', 'staleTabDays',
   'staleBookmarkDays', 'scanIntervalHours', 'undoRetentionDays', 'autoMode', 'whitelist',

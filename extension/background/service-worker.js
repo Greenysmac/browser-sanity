@@ -30,10 +30,29 @@ function cliExtrasFor(settings) {
   };
 }
 
-async function makeClient(settings) {
+// The model to use for a job: 'big' (full Analyze runs, typed commands) picks
+// bigModel; 'quick' (sortSelected, sortGroup, describe) picks quickModel.
+function modelForJob(settings, job) {
+  return (job === 'quick' ? settings.quickModel : settings.bigModel) || '';
+}
+
+// The native messaging layer merges `requestExtras` into every outgoing message.
+// `job` ('big' | 'quick', default 'big') selects which model slot each request
+// carries, so big sorts and quick jobs can run on different models.
+async function makeClient(settings, job = 'big') {
   const extras = cliExtrasFor(settings);
+  const model = modelForJob(settings, job);
   if (settings.adapter === 'openai') {
-    extras.config = { apiKey: await getSecret('openaiApiKey'), baseUrl: settings.openaiBaseUrl || '', model: settings.openaiModel || '' };
+    // Per-slot model when set; otherwise keep the configured openaiModel default.
+    extras.config = { apiKey: await getSecret('openaiApiKey'), baseUrl: settings.openaiBaseUrl || '', model: model || settings.openaiModel || '' };
+  } else if (settings.adapter === 'claude' && model) {
+    // Add '--model <name>' to this request's claude flags unless the user's own
+    // extra flags already set --model (their explicit flag wins). The host's
+    // allowlist already accepts --model for claude.
+    const userArgs = extras.cli.extraArgs || '';
+    if (!/(^|\s)--model(\s|=)/.test(userArgs)) {
+      extras.cli.extraArgs = `${userArgs} --model ${model}`.trim();
+    }
   }
   return createNativeClient({ requestExtras: extras });
 }
@@ -401,7 +420,7 @@ async function handleProposals(m) {
 async function sortTabIds(tabIds, emptyMessage) {
   if (!Array.isArray(tabIds) || tabIds.length < 1) return { ok: true, items: [], message: emptyMessage };
   const settings = await getSettings();
-  const nativeClient = await makeClient(settings);
+  const nativeClient = await makeClient(settings, 'quick');
   try {
     const items = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds });
     await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
@@ -555,7 +574,7 @@ async function handleDescribe(m) {
     groups.push({ name: g.name || '', tabs: tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) });
   }
   const settings = await getSettings();
-  const client = await makeClient(settings);
+  const client = await makeClient(settings, 'quick');
   try {
     const res = await client.request({ type: 'describe', adapter: settings.adapter, payload: { groups } });
     return { ok: true, descriptions: (res && res.descriptions) || [], written: (res && res.written) || 0 };
