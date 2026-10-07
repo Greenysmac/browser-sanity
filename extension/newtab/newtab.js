@@ -26,6 +26,26 @@ export function filterCards(container, query) {
   }
 }
 
+// Open the side panel for the current window, keeping the chrome.sidePanel.open
+// call inside the user gesture so Chrome accepts it. Resolves true on success
+// and false when sidePanel is missing or open() throws, so the caller can show
+// the fallback note. The window id (or tab id) comes from the live APIs.
+export async function openSidePanel(api = (typeof chrome !== 'undefined' ? chrome : undefined)) {
+  if (!api || !api.sidePanel || typeof api.sidePanel.open !== 'function') return false;
+  try {
+    const win = api.windows && api.windows.getCurrent ? await api.windows.getCurrent() : undefined;
+    if (win && win.id != null) {
+      await api.sidePanel.open({ windowId: win.id });
+    } else {
+      const tab = api.tabs && api.tabs.getCurrent ? await api.tabs.getCurrent() : undefined;
+      await api.sidePanel.open({ tabId: tab && tab.id });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Query the live open groups straight from the tab strip, shaped like the
 // `open` entries boardData returns. Used as a fallback when the helper is down
 // so the open groups still render even though the parked ones can't be read.
@@ -45,21 +65,30 @@ async function openGroupsFallback() {
 // down, so send resolves with undefined; in that case we still show the open
 // groups by answering renderBoard's boardData request from the live tab strip.
 // document/send are injectable so the whole thing is unit-testable.
-export async function initNewtab({ container, note, search } = {}) {
+export async function initNewtab({ container, note, search, panelBtn, panelNote } = {}) {
   const doc = (typeof document !== 'undefined') ? document : undefined;
-  container = container || (doc && doc.getElementById('board'));
-  note = note || (doc && doc.getElementById('helperNote'));
-  search = search || (doc && doc.getElementById('search'));
+  const byId = (id) => (doc && typeof doc.getElementById === 'function') ? doc.getElementById(id) : undefined;
+  container = container || byId('board');
+  note = note || byId('helperNote');
+  search = search || byId('search');
+  panelBtn = panelBtn || byId('openPanel');
+  panelNote = panelNote || byId('panelNote');
 
   // Intercept the boardData request: ask the service worker first, and if it
   // doesn't answer (helper down), fall back to the open groups we can read
   // locally and record that the helper was unreachable so the note can show.
+  // Also, after a 'Sort this group' click sends sortGroup, open the side panel
+  // so the suggestions it produces are visible.
   let helperReachable = true;
   const observingSend = async (message) => {
     const res = await send(message);
     if (message && message.cmd === 'boardData' && !res) {
       helperReachable = false;
       return { ok: true, open: await openGroupsFallback(), parked: [], descriptions: [] };
+    }
+    if (message && message.cmd === 'sortGroup') {
+      const opened = await openSidePanel();
+      if (!opened && panelNote) panelNote.hidden = false;
     }
     return res;
   };
@@ -69,6 +98,13 @@ export async function initNewtab({ container, note, search } = {}) {
 
   if (search) {
     search.addEventListener('input', () => filterCards(container, search.value));
+  }
+
+  if (panelBtn) {
+    panelBtn.addEventListener('click', async () => {
+      const opened = await openSidePanel();
+      if (!opened && panelNote) panelNote.hidden = false;
+    });
   }
 }
 

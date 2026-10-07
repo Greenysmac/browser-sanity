@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { initNewtab, filterCards } from '../extension/newtab/newtab.js';
+import { initNewtab, filterCards, openSidePanel } from '../extension/newtab/newtab.js';
 
 const manifestPath = fileURLToPath(new URL('../extension/manifest.json', import.meta.url));
 
@@ -162,4 +162,62 @@ test('helper reachable keeps the note hidden', async () => {
   globalThis.chrome = { runtime: { sendMessage: (msg, cb) => cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }) } };
   await initNewtab({ container, note, search: makeEl('input') });
   assert.equal(note.hidden, true, 'the note stays hidden when the helper answered');
+});
+
+test('the Open side panel button opens the side panel for this window', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const panelBtn = makeEl('button');
+  const panelNote = makeEl('p');
+  panelNote.hidden = true;
+  const opened = [];
+  globalThis.chrome = {
+    runtime: { sendMessage: (msg, cb) => cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }) },
+    windows: { getCurrent: async () => ({ id: 42 }) },
+    sidePanel: { open: async (opts) => { opened.push(opts); } },
+  };
+  await initNewtab({ container, note: makeEl('p'), search: makeEl('input'), panelBtn, panelNote });
+  await panelBtn.dispatch('click');
+  assert.deepEqual(opened, [{ windowId: 42 }], 'sidePanel.open called with the window id');
+  assert.equal(panelNote.hidden, true, 'no fallback note on success');
+});
+
+test('Sort this group sends sortGroup then opens the side panel', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const sent = [];
+  const opened = [];
+  globalThis.chrome = {
+    runtime: { sendMessage: (msg, cb) => { sent.push(msg.cmd); cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }); } },
+    windows: { getCurrent: async () => ({ id: 5 }) },
+    sidePanel: { open: async (opts) => { opened.push(opts); } },
+  };
+  await initNewtab({ container, note: makeEl('p'), search: makeEl('input'), panelBtn: makeEl('button'), panelNote: makeEl('p') });
+
+  const sortBtn = walk(container).find((n) => n.textContent === 'Sort this group');
+  assert.ok(sortBtn, 'the sort button rendered');
+  await sortBtn.dispatch('click');
+  assert.ok(sent.includes('sortGroup'), 'sortGroup command was sent');
+  assert.deepEqual(opened, [{ windowId: 5 }], 'the side panel opened after sorting');
+});
+
+test('a side-panel open failure shows the fallback note', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const panelBtn = makeEl('button');
+  const panelNote = makeEl('p');
+  panelNote.hidden = true;
+  globalThis.chrome = {
+    runtime: { sendMessage: (msg, cb) => cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }) },
+    windows: { getCurrent: async () => ({ id: 1 }) },
+    sidePanel: { open: async () => { throw new Error('user gesture required'); } },
+  };
+  await initNewtab({ container, note: makeEl('p'), search: makeEl('input'), panelBtn, panelNote });
+  await panelBtn.dispatch('click');
+  assert.equal(panelNote.hidden, false, 'the fallback note is revealed');
+});
+
+test('openSidePanel returns false when sidePanel is missing', async () => {
+  assert.equal(await openSidePanel({}), false, 'no sidePanel API');
+  assert.equal(await openSidePanel({ sidePanel: {} }), false, 'no open()');
 });
