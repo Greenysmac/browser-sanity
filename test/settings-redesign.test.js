@@ -196,11 +196,10 @@ test('Load models fills both pickers from the listModels send', async () => {
 
   await els.loadModels.listeners.click();
 
-  // Each select gets a leading "(backend default)" blank plus one option per id.
+  // Each select gets a leading "(backend default)" blank, one option per id, and
+  // a trailing "Other…" sentinel that reveals the slot's custom-id field.
   const bigValues = els.bigModelSelect.children.map((o) => o.value);
   const quickValues = els.quickModelSelect.children.map((o) => o.value);
-  assert.deepEqual(bigValues, ['', 'model-a', 'model-b']);
-  assert.deepEqual(quickValues, ['', 'model-a', 'model-b']);
-  // The datalists mirror the ids (no blank).
-  assert.deepEqual(els.bigModelList.children.map((o) => o.value), ['model-a', 'model-b']);
+  assert.deepEqual(bigValues, ['', 'model-a', 'model-b', '__other__']);
+  assert.deepEqual(quickValues, ['', 'model-a', 'model-b', '__other__']);
 });

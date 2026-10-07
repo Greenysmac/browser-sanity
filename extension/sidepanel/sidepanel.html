@@ -70,6 +70,7 @@
 
     <section id="resultCard" class="resultCard" aria-label="Sort result" hidden>
       <p id="resultSummary" class="resultSummary"></p>
+      <p id="resultCount" class="resultCount" aria-live="polite"></p>
       <div class="resultActions">
         <button type="button" id="resultApply" class="apply-primary">Apply</button>
         <button type="button" id="reviewToggle" aria-expanded="false" aria-controls="plan">Review</button>
@@ -175,6 +176,9 @@
 
     <details id="settings">
       <summary data-i18n="settingsTitle">Settings</summary>
+      <div class="settingsViewHead">
+        <button type="button" id="settingsDone" class="primary">Done</button>
+      </div>
       <form id="settingsForm">
         <fieldset class="settingsGroup">
           <legend>AI</legend>
@@ -218,14 +222,16 @@
             </label>
           </div>
           <label>Big sorts: decides your groups
-            <input type="text" name="bigModel" list="bigModelList" spellcheck="false" placeholder="(backend default)" />
             <select id="bigModelSelect" aria-label="Big sorts model"></select>
-            <datalist id="bigModelList"></datalist>
+          </label>
+          <label id="bigModelOtherRow" hidden>Custom big-sorts model id
+            <input type="text" name="bigModel" spellcheck="false" placeholder="(backend default)" />
           </label>
           <label>Quick jobs: files a few tabs, names, descriptions
-            <input type="text" name="quickModel" list="quickModelList" spellcheck="false" placeholder="(backend default)" />
             <select id="quickModelSelect" aria-label="Quick jobs model"></select>
-            <datalist id="quickModelList"></datalist>
+          </label>
+          <label id="quickModelOtherRow" hidden>Custom quick-jobs model id
+            <input type="text" name="quickModel" spellcheck="false" placeholder="(backend default)" />
           </label>
           <button type="button" id="loadModels">Load models</button>
         </fieldset>

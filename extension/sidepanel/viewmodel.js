@@ -24,10 +24,24 @@ export function planSummaryLine(plan) {
   return parts.join(', ');
 }
 
+// Friendly display names for the known Claude model ids used by the two slots;
+// any other id (free-text/custom or a backend's own list) passes through as-is.
+const MODEL_DISPLAY_NAMES = {
+  'claude-opus-5-5': 'Opus 5.5',
+  'claude-sonnet-5-5': 'Sonnet 5.5',
+  'claude-haiku-4-5': 'Haiku 4.5',
+};
+
+export function modelDisplayName(id) {
+  const key = String(id || '').trim();
+  return MODEL_DISPLAY_NAMES[key] || key;
+}
+
 // The muted "models in use" line for the Sort card. Empty slots fall back to
-// "endpoint default", e.g. "Big sorts: claude-sonnet-5-5 · Quick jobs: endpoint default".
+// "endpoint default", and known Claude ids show their friendly name, e.g.
+// "Big sorts: Sonnet 5.5 · Quick jobs: endpoint default".
 export function modelsInUseLine(bigModel, quickModel) {
-  const name = (m) => (m && String(m).trim()) || 'endpoint default';
+  const name = (m) => (m && String(m).trim() ? modelDisplayName(m) : 'endpoint default');
   return `Big sorts: ${name(bigModel)} · Quick jobs: ${name(quickModel)}`;
 }
 

@@ -5,7 +5,7 @@
 import { $, setStatus, flashStatus, setSettings, send } from './dom.js';
 import { getSettings } from '../lib/storage.js';
 import { setSecret, hasSecret, clearSecret } from '../lib/secret-store.js';
-import { adapterNote } from './viewmodel.js';
+import { adapterNote, modelDisplayName } from './viewmodel.js';
 import { providerSettings, providerFor, EDITABLE_BASE, PROVIDERS } from '../lib/providers.js';
 import { checkHealth } from './health-view.js';
 
@@ -30,17 +30,22 @@ const BASE_PROVIDERS = new Set(['local']); // 'other' adds this only when its ad
 // without a round-trip. Opus is the heaviest option; the slot default is called
 // out as "(recommended)".
 const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-4-5'];
+// [selectId, slotName (hidden text input / saved value), recommended id, custom-field row id]
 const MODEL_SELECTS = [
-  ['bigModelSelect', 'bigModel', 'claude-sonnet-5-5'],
-  ['quickModelSelect', 'quickModel', 'claude-haiku-4-5'],
+  ['bigModelSelect', 'bigModel', 'claude-sonnet-5-5', 'bigModelOtherRow'],
+  ['quickModelSelect', 'quickModel', 'claude-haiku-4-5', 'quickModelOtherRow'],
 ];
+// Sentinel <option> value that reveals the slot's free-text "custom model id" field.
+const OTHER_MODEL = '__other__';
 
-// Label a model id for the picker: the slot's recommended Claude model gets
-// "(recommended)" and Opus "(most thorough, most usage)". Other ids pass through.
+// Label a model id for the picker: known Claude ids show their friendly name,
+// the slot's recommended model gets "(recommended)" and Opus "(most thorough,
+// most usage)". Other ids pass through unchanged.
 function modelOptionLabel(id, recommended) {
-  if (id === recommended) return `${id} (recommended)`;
-  if (id === 'claude-opus-5-5') return `${id} (most thorough, most usage)`;
-  return id;
+  const name = modelDisplayName(id);
+  if (id === recommended) return `${name} (recommended)`;
+  if (id === 'claude-opus-5-5') return `${name} (most thorough, most usage)`;
+  return name;
 }
 
 // Features gated behind an optional host permission, and the origin each needs.
@@ -90,43 +95,42 @@ function updateAdapterNote(value) {
   }
 }
 
-// Fill a model <select> and its paired <datalist> from a list of ids, built with
-// DOM nodes (no innerHTML). Selecting an option writes the id into the slot's
-// text input (name=bigModel/quickModel), which is what gets saved. Keeps the
-// current slot value selected when it's present. `recommended` drives the labels.
-function fillModelSelect(selectId, slotName, recommended, ids) {
+// Fill a model <select> from a list of ids (no innerHTML), ending with an
+// "Other…" option that reveals the slot's free-text input (name=bigModel/
+// quickModel), which is what gets saved. If the current slot value isn't one of
+// the listed ids (a custom id), "Other…" is selected and its field revealed;
+// otherwise the matching option is selected and the field hidden. `recommended`
+// drives the labels.
+function fillModelSelect(selectId, slotName, recommended, otherRowId, ids) {
   const sel = document.getElementById(selectId);
-  const list = document.getElementById(`${slotName}List`);
   const input = $('settingsForm') && $('settingsForm')[slotName];
   const current = input ? input.value : '';
-  if (sel) {
-    while (sel.firstChild) sel.removeChild(sel.firstChild);
-    const blank = document.createElement('option');
-    blank.value = '';
-    blank.textContent = '(backend default)';
-    sel.appendChild(blank);
-    for (const id of ids) {
-      const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = modelOptionLabel(id, recommended);
-      sel.appendChild(opt);
-    }
-    sel.value = ids.includes(current) ? current : '';
+  if (!sel) return;
+  while (sel.firstChild) sel.removeChild(sel.firstChild);
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = '(backend default)';
+  sel.appendChild(blank);
+  for (const id of ids) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = modelOptionLabel(id, recommended);
+    sel.appendChild(opt);
   }
-  if (list) {
-    while (list.firstChild) list.removeChild(list.firstChild);
-    for (const id of ids) {
-      const opt = document.createElement('option');
-      opt.value = id;
-      list.appendChild(opt);
-    }
-  }
+  const other = document.createElement('option');
+  other.value = OTHER_MODEL;
+  other.textContent = 'Other…';
+  sel.appendChild(other);
+  const isCustom = !!current && !ids.includes(current);
+  sel.value = isCustom ? OTHER_MODEL : (ids.includes(current) ? current : '');
+  const row = otherRowId && document.getElementById(otherRowId);
+  if (row) row.hidden = !isCustom;
 }
 
 // Fill both slots' pickers from the same id list (Claude's fixed set by default).
 function fillAllModelSelects(ids = CLAUDE_MODELS) {
-  for (const [selectId, slotName, recommended] of MODEL_SELECTS) {
-    fillModelSelect(selectId, slotName, recommended, ids);
+  for (const [selectId, slotName, recommended, otherRowId] of MODEL_SELECTS) {
+    fillModelSelect(selectId, slotName, recommended, otherRowId, ids);
   }
 }
 
@@ -197,17 +201,25 @@ export async function loadSettings() {
 }
 
 export function initSettingsView() {
-  // The top-row Settings button opens the (far-down) settings panel and scrolls
-  // it into view; Settings itself stays in place in the DOM.
+  // The gear opens Settings as its own view that replaces the main content:
+  // body[data-view="settings"] hides the main surfaces (CSS) and reveals the
+  // settings panel; "Done" clears it to return to the main view. Settings itself
+  // stays in place in the DOM (same form element names), so saving is unchanged.
+  const setView = (view) => {
+    if (document.body) document.body.dataset.view = view;
+    const settings = $('settings');
+    if (settings) settings.open = view === 'settings';
+  };
   const openSettings = document.getElementById('openSettings');
   if (openSettings) {
     openSettings.addEventListener('click', () => {
+      setView('settings');
       const settings = $('settings');
-      if (!settings) return;
-      settings.open = true;
-      settings.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (settings && settings.scrollIntoView) settings.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
+  const settingsDone = document.getElementById('settingsDone');
+  if (settingsDone) settingsDone.addEventListener('click', () => setView('main'));
   $('openaiKeyShow').addEventListener('change', (e) => { $('openaiApiKey').type = e.target.checked ? 'text' : 'password'; });
   $('openaiKeyClear').addEventListener('click', async () => {
     await clearSecret('openaiApiKey');
@@ -242,11 +254,23 @@ export function initSettingsView() {
     });
   }
 
-  // The model pickers write the chosen id into the slot's text input (which is
-  // what gets saved); the input stays editable for free-text model names.
-  for (const [selectId, slotName] of MODEL_SELECTS) {
+  // The model pickers write the chosen id into the slot's hidden text input
+  // (which is what gets saved). Picking "Other…" reveals that input as an
+  // editable "custom model id" field instead of overwriting it.
+  for (const [selectId, slotName, , otherRowId] of MODEL_SELECTS) {
     const sel = document.getElementById(selectId);
-    if (sel) sel.addEventListener('change', (e) => { form0[slotName].value = e.target.value; });
+    if (!sel) continue;
+    sel.addEventListener('change', (e) => {
+      const row = otherRowId && document.getElementById(otherRowId);
+      if (e.target.value === OTHER_MODEL) {
+        if (row) row.hidden = false;
+        const input = form0[slotName];
+        if (input && input.focus) input.focus();
+      } else {
+        if (row) row.hidden = true;
+        form0[slotName].value = e.target.value;
+      }
+    });
   }
 
   // "Load models" asks the host for the selected backend's model list and fills

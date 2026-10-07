@@ -301,7 +301,9 @@ async function startScan(features) {
   // Surface actionable warnings (e.g. an out-of-date helper) instead of the
   // misleading "looks tidy" when a phase couldn't run.
   if (res.warnings && res.warnings.length) { flashStatus(res.warnings[0]); return; }
-  setStatus(plan.length ? `${plan.length} suggestions.` : 'Nothing to do — your browser looks tidy.');
+  // The "N suggestions." count now lives in the result card; clear the status
+  // line on success so it isn't duplicated above the card.
+  setStatus(plan.length ? '' : 'Nothing to do — your browser looks tidy.');
 }
 
 // "Load agent suggestions": fetch proposals.json via the host, mapped to the
@@ -317,7 +319,8 @@ async function loadAgentSuggestions() {
   renderPlan(true);
   const note = res.note ? (res.from ? `${res.from}: ${res.note}` : res.note) : '';
   if (!plan.length) { setStatus(note || 'No agent suggestions matched your open tabs.'); return; }
-  setStatus(note ? `${note} — ${plan.length} suggestions.` : `${plan.length} suggestions.`);
+  // The count shows in the result card; the status line carries only the note.
+  setStatus(note);
 }
 
 // "Sort selected tabs": regroup just the tabs highlighted in the tab strip. The
@@ -331,7 +334,7 @@ async function sortSelectedTabs() {
   plan = res.items || [];
   selection = new Set();
   renderPlan(true);
-  setStatus(plan.length ? `${plan.length} suggestions.` : 'Nothing to sort.');
+  setStatus(plan.length ? '' : 'Nothing to sort.');
 }
 
 // Confirms a large destructive batch via a modal before applying. Resolves true
@@ -444,7 +447,7 @@ export async function initPlanView() {
     plan = res.items || [];
     selection = new Set();
     renderPlan(true);
-    setStatus(plan.length ? `${plan.length} suggestions.` : 'No matching tabs found.');
+    setStatus(plan.length ? '' : 'No matching tabs found.');
     input.value = '';
   });
 

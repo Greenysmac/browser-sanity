@@ -50,16 +50,20 @@ export function isSelectedMode() {
   return selectedMode;
 }
 
-// Update the result card from the current plan: one plain summary line, shown
-// only when there's something to apply. Called by plan-view after every render.
+// Update the result card from the current plan: one plain summary line plus the
+// "N suggestions." count (shown only here, not in the status line above). The
+// card is shown whenever there's a plan to apply.
 export function updateResultCard(plan) {
   const card = $('resultCard');
   if (!card) return;
-  const line = planSummaryLine(plan);
-  const hasResult = (plan && plan.length > 0) && !!line;
+  const items = plan || [];
+  const line = planSummaryLine(items);
+  const hasResult = items.length > 0;
   card.hidden = !hasResult;
   const summary = $('resultSummary');
   if (summary) summary.textContent = line;
+  const count = $('resultCount');
+  if (count) count.textContent = hasResult ? `${items.length} suggestion${items.length === 1 ? '' : 's'}.` : '';
 }
 
 // Review toggles the detailed suggestion list (and its toolbar/actions), which
