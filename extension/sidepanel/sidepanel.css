@@ -207,9 +207,9 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 /* Review toggle hides/shows the detailed suggestion list and its toolbar. */
 .reviewHidden { display: none !important; }
 
-/* The gear opens Settings as its own view: body[data-view="settings"] hides the
-   main surfaces and reveals only the settings panel; the "Done" head shows only
-   in that view and returns to the main view. */
+/* The gear opens Settings as its own view, and the ⋯ opens More as its own view:
+   body[data-view] hides the other surfaces and reveals only the active panel;
+   each view's "Done" head shows only in that view and returns to the main view. */
 .settingsViewHead { display: none; margin-bottom: 10px; }
 body[data-view="settings"] .settingsViewHead { display: block; }
 body[data-view="settings"] .heroControls,
@@ -217,6 +217,7 @@ body[data-view="settings"] #resultCard,
 body[data-view="settings"] #board,
 body[data-view="settings"] .boardActions,
 body[data-view="settings"] #moreTools,
+body[data-view="settings"] #moreView,
 body[data-view="settings"] #onboarding,
 body[data-view="settings"] #summary,
 body[data-view="settings"] #planTools,
@@ -227,6 +228,22 @@ body[data-view="settings"] #sessions,
 body[data-view="settings"] #mutedPanel,
 body[data-view="settings"] .toolsHead,
 body[data-view="settings"] .toolRow { display: none !important; }
+
+/* The More view: its head shows only in that view; everything else is hidden. */
+.moreViewHead { display: none; margin-bottom: 10px; }
+#moreView { display: none; }
+body[data-view="more"] #moreView { display: block; }
+body[data-view="more"] .moreViewHead { display: block; }
+body[data-view="more"] .heroControls,
+body[data-view="more"] #resultCard,
+body[data-view="more"] #board,
+body[data-view="more"] #onboarding,
+body[data-view="more"] #summary,
+body[data-view="more"] #planTools,
+body[data-view="more"] #planEmptyState,
+body[data-view="more"] #plan,
+body[data-view="more"] #planActions,
+body[data-view="more"] .tools { display: none !important; }
 
 /* ---------- Controls ---------- */
 button {

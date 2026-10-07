@@ -81,6 +81,14 @@ export function initMainPanel() {
   paintVersion();
   paintModelsInUse();
 
+  // The ⋯ opens the More view (board tools, sessions, muted) and "Done" returns,
+  // mirroring the Settings view: body[data-view="more"] swaps the main content.
+  const setView = (view) => { if (document.body) document.body.dataset.view = view; };
+  const openMore = $('openMore');
+  if (openMore) openMore.addEventListener('click', () => setView('more'));
+  const moreDone = $('moreDone');
+  if (moreDone) moreDone.addEventListener('click', () => setView('main'));
+
   const seg = $('scopeSegment');
   if (seg) {
     for (const btn of seg.querySelectorAll('button[data-scope]')) {

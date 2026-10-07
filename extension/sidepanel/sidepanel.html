@@ -24,6 +24,13 @@
             <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
           </svg>
         </button>
+        <button type="button" id="openMore" class="headerIconBtn" title="More" aria-label="Open more tools">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="5" cy="12" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="19" cy="12" r="1" />
+          </svg>
+        </button>
         <button type="button" id="openSettings" class="headerIconBtn" title="Settings" aria-label="Open settings">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3" />
@@ -82,48 +89,75 @@
       <div id="boardBody"></div>
     </details>
 
-    <div class="boardActions">
-      <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
-      <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
-    </div>
-
-    <details id="moreTools" class="moreTools" aria-label="Tools">
-      <summary>More tools</summary>
-
-      <details id="commandPanel">
-        <summary data-i18n="commandLabel">Type a command</summary>
-        <form id="commandForm" class="commandForm">
-          <input type="text" id="commandInput" aria-label="Natural-language command" placeholder="e.g. close everything about travel" />
-          <button type="submit" data-i18n="runCommand">Run command</button>
-        </form>
-        <p class="hint"><kbd>Ctrl+Shift+O</kbd> to analyze · type <kbd>org &lt;instruction&gt;</kbd> in the address bar.</p>
-      </details>
-
-      <details id="tabsPanel">
-        <summary data-i18n="openTabs">Open tabs</summary>
-        <div class="tabsToolbar">
-          <input type="text" id="tabFilter" aria-label="Filter open tabs by title, URL, or domain" placeholder="Filter by title, URL, or domain" />
-          <div class="tabsActions">
-            <button type="button" id="selectAllTabs">Select all</button>
-            <button type="button" id="selectNoneTabs">None</button>
-            <button type="button" id="closeTabsBtn" class="danger-btn" data-i18n="closeSelected">Close selected</button>
-          </div>
-          <span id="tabCount" class="hint" aria-live="polite"></span>
-        </div>
-        <ul id="tabList"></ul>
-      </details>
-
-      <div class="quickActions">
-        <span class="quickLabel">Run one</span>
-        <div id="runOne" class="runOne">
-          <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
-          <button type="button" data-feature="staleTabs" data-i18n="featStaleTabs">Find stale tabs</button>
-          <button type="button" data-feature="importantBookmarks" data-i18n="featBookmarkImportant">Bookmark important</button>
-          <button type="button" data-feature="cleanBookmarks" data-i18n="featCleanBookmarks">Clean bookmarks</button>
-          <button type="button" data-feature="organizeBookmarks" data-i18n="featOrganizeBookmarks">Sort bookmarks</button>
-        </div>
+    <section id="moreView" class="moreView" aria-label="More tools">
+      <div class="moreViewHead">
+        <button type="button" id="moreDone" class="primary">Done</button>
       </div>
-    </details>
+
+      <div class="boardActions">
+        <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
+        <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
+      </div>
+
+      <details id="moreTools" class="moreTools" aria-label="Tools">
+        <summary>More tools</summary>
+
+        <details id="commandPanel">
+          <summary data-i18n="commandLabel">Type a command</summary>
+          <form id="commandForm" class="commandForm">
+            <input type="text" id="commandInput" aria-label="Natural-language command" placeholder="e.g. close everything about travel" />
+            <button type="submit" data-i18n="runCommand">Run command</button>
+          </form>
+          <p class="hint"><kbd>Ctrl+Shift+O</kbd> to analyze · type <kbd>org &lt;instruction&gt;</kbd> in the address bar.</p>
+        </details>
+
+        <details id="tabsPanel">
+          <summary data-i18n="openTabs">Open tabs</summary>
+          <div class="tabsToolbar">
+            <input type="text" id="tabFilter" aria-label="Filter open tabs by title, URL, or domain" placeholder="Filter by title, URL, or domain" />
+            <div class="tabsActions">
+              <button type="button" id="selectAllTabs">Select all</button>
+              <button type="button" id="selectNoneTabs">None</button>
+              <button type="button" id="closeTabsBtn" class="danger-btn" data-i18n="closeSelected">Close selected</button>
+            </div>
+            <span id="tabCount" class="hint" aria-live="polite"></span>
+          </div>
+          <ul id="tabList"></ul>
+        </details>
+
+        <div class="quickActions">
+          <span class="quickLabel">Run one</span>
+          <div id="runOne" class="runOne">
+            <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
+            <button type="button" data-feature="staleTabs" data-i18n="featStaleTabs">Find stale tabs</button>
+            <button type="button" data-feature="importantBookmarks" data-i18n="featBookmarkImportant">Bookmark important</button>
+            <button type="button" data-feature="cleanBookmarks" data-i18n="featCleanBookmarks">Clean bookmarks</button>
+            <button type="button" data-feature="organizeBookmarks" data-i18n="featOrganizeBookmarks">Sort bookmarks</button>
+          </div>
+        </div>
+      </details>
+
+      <details id="sessions">
+        <summary data-i18n="sessionsTitle">Sessions</summary>
+        <form id="saveSessionForm">
+          <input type="text" id="sessionName" placeholder="Session name (optional)" />
+          <label class="inlineCheck"><input type="checkbox" id="keepTabsOpen" /> Keep tabs open</label>
+          <button type="submit">Save window as session</button>
+        </form>
+        <ul id="sessionList"></ul>
+        <button id="exportSessions">Export sessions (JSON)</button>
+      </details>
+
+      <details id="mutedPanel">
+        <summary data-i18n="mutedTitle">Muted &amp; learned</summary>
+        <ul id="mutedList"></ul>
+        <button id="resetLearning">Reset learning</button>
+      </details>
+
+      <div class="toolRow">
+        <button id="showUndo" data-i18n="undoHistory">Undo history</button>
+      </div>
+    </section>
 
     <section id="onboarding" hidden>
       <h2 data-i18n="onboardingTitle">Connect your AI CLI</h2>
@@ -171,8 +205,8 @@
       <button id="clearPlan" data-i18n="clearList">Clear list</button>
     </div>
 
-    <section class="tools" aria-label="More">
-      <div class="toolsHead">More</div>
+    <section class="tools" aria-label="Settings">
+      <div class="toolsHead">Settings</div>
 
     <details id="settings">
       <summary data-i18n="settingsTitle">Settings</summary>
@@ -306,27 +340,6 @@
         <button type="submit" class="primary">Save settings</button>
       </form>
     </details>
-
-    <details id="sessions">
-      <summary data-i18n="sessionsTitle">Sessions</summary>
-      <form id="saveSessionForm">
-        <input type="text" id="sessionName" placeholder="Session name (optional)" />
-        <label class="inlineCheck"><input type="checkbox" id="keepTabsOpen" /> Keep tabs open</label>
-        <button type="submit">Save window as session</button>
-      </form>
-      <ul id="sessionList"></ul>
-      <button id="exportSessions">Export sessions (JSON)</button>
-    </details>
-
-    <details id="mutedPanel">
-      <summary data-i18n="mutedTitle">Muted &amp; learned</summary>
-      <ul id="mutedList"></ul>
-      <button id="resetLearning">Reset learning</button>
-    </details>
-
-      <div class="toolRow">
-        <button id="showUndo" data-i18n="undoHistory">Undo history</button>
-      </div>
     </section>
 
     <dialog id="undoDialog" aria-labelledby="undoDialogTitle">

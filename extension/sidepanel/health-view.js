@@ -16,6 +16,9 @@ export async function checkHealth() {
   el.textContent = text;
   el.classList.toggle('healthOk', ok);
   el.classList.toggle('healthBad', !ok);
+  // Show the connection status line only when something is wrong; a healthy
+  // backend needs no banner, so hide it when connected.
+  el.hidden = ok;
   $('run').disabled = !ok;
   // Gate every backend-dependent control on health, not just Analyze, so the CLI
   // being down surfaces the onboarding guidance instead of a raw error.
