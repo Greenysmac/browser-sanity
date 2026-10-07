@@ -38,6 +38,24 @@ test('organize/stale returns parsed close list', async () => {
   assert.deepEqual(r.stale, [{ tabId: 2, reason: 'old', suggestBookmark: true, action: 'close' }]);
 });
 
+test('organize/group lifts the group cap to 15 only when a groups file is present', async () => {
+  const out = '{"groups":[]}';
+  function run(groupsText) {
+    let seenPrompt = null;
+    const getAdapter = () => ({ name: 'fake', async run(p) { seenPrompt = p; return out; } });
+    return handle(
+      { type: 'organize', task: 'group', payload: { tabs: [{ tabId: 1, title: 't', url: 'https://a' }] } },
+      { getAdapter, loadGroups: () => groupsText },
+    ).then(() => seenPrompt);
+  }
+
+  const withFile = await run('Work\nPersonal');
+  assert.match(withFile, /Cluster them into 2 to 15 meaningful groups/);
+
+  const withoutFile = await run('');
+  assert.match(withoutFile, /Cluster them into 2 to 8 meaningful groups/);
+});
+
 test('unknown type rejects', async () => {
   await assert.rejects(() => handle({ type: 'wat' }, { getAdapter: fakeGetAdapter('') }), /Unknown message type/);
 });

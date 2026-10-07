@@ -70,9 +70,13 @@ export async function handle(msg, deps = {}) {
     const { task } = msg;
     const payload = msg.payload || {};
     const loadGroups = deps.loadGroups || loadGroupsFile;
-    const rules = withGroups(payload.rules || '', loadGroups());
+    const groupsText = loadGroups();
+    const rules = withGroups(payload.rules || '', groupsText);
     if (task === 'group') {
-      const out = await adapter.run(buildGroupPrompt(payload.tabs, rules), opts);
+      // A loaded groups file can define many named buckets, so lift the cap.
+      const out = groupsText
+        ? await adapter.run(buildGroupPrompt(payload.tabs, rules, { maxGroups: 15 }), opts)
+        : await adapter.run(buildGroupPrompt(payload.tabs, rules), opts);
       return { task, groups: parseGroupResult(out) };
     }
     if (task === 'stale') {

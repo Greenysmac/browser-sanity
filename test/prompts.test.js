@@ -28,6 +28,16 @@ test('group prompt includes tab ids/urls and asks for JSON groups', () => {
   assert.match(p, /tabIds/);
 });
 
+test('group prompt defaults to a 2 to 8 group cap', () => {
+  const p = buildGroupPrompt(tabs);
+  assert.match(p, /Cluster them into 2 to 8 meaningful groups/);
+});
+
+test('group prompt lifts the cap when maxGroups is given', () => {
+  const p = buildGroupPrompt(tabs, '', { maxGroups: 15 });
+  assert.match(p, /Cluster them into 2 to 15 meaningful groups/);
+});
+
 test('group prompt describes the group column and tells the model to reuse existing groups', () => {
   const p = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev', groupName: 'Dev' }]);
   assert.match(p, /Each data line is: tabId<TAB>title<TAB>url<TAB>group\./);
