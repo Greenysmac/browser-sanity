@@ -42,14 +42,33 @@ export async function buildIndexPayload(chromeApi = chrome) {
 
 // Build the payload and hand it to the native host. Never throws: on any error
 // it logs and returns { ok: false } so callers (apply flow, the button) can keep
-// going. On success returns the host's { ok, groups } reply.
-export async function syncIndex({ chromeApi = chrome, nativeClient } = {}) {
+// going. On success returns the host's { ok, groups } reply. When `dissolved` is
+// given (group titles that existed before an apply and are gone after), it rides
+// along so the host drops them from the index instead of parking them.
+export async function syncIndex({ chromeApi = chrome, nativeClient, dissolved } = {}) {
   try {
     const payload = await buildIndexPayload(chromeApi);
+    if (Array.isArray(dissolved) && dissolved.length) payload.dissolved = dissolved;
     const res = await nativeClient.request({ type: 'index', payload });
     return res || { ok: false };
   } catch (err) {
     console.error('[organizer] index sync failed:', err);
     return { ok: false };
+  }
+}
+
+// Collect the titles of the currently open tab groups, deduped. Used around an
+// apply to compute which groups a re-sort emptied (existed before, gone after).
+export async function openGroupTitles(chromeApi = chrome) {
+  try {
+    const groups = await chromeApi.tabGroups.query({});
+    const titles = new Set();
+    for (const g of groups) {
+      const title = String((g && g.title) || '').trim();
+      if (title) titles.add(title);
+    }
+    return [...titles];
+  } catch {
+    return [];
   }
 }

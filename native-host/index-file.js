@@ -27,11 +27,14 @@ function readPrevious(file, readFile) {
 
 // Merge the incoming payload groups with the previous index. Every group in the
 // payload is 'open' with lastSeen set to now; a previously-seen group missing
-// from the payload stays as 'closed' with its old tabs and lastSeen (the memory
-// of groups the user closed). A closed group reappearing becomes open again.
-function mergeGroups(payloadGroups, previousGroups, now) {
+// from the payload stays as 'parked' with its old tabs and lastSeen (the memory
+// of groups the user closed). A parked group reappearing becomes open again. A
+// previously-known group whose name is in `dissolved` is dropped entirely
+// instead of becoming parked.
+function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
   const incoming = Array.isArray(payloadGroups) ? payloadGroups : [];
   const previous = Array.isArray(previousGroups) ? previousGroups : [];
+  const dissolved = new Set((Array.isArray(dissolvedNames) ? dissolvedNames : []).map(groupKey));
   const merged = [];
   const seen = new Set();
   for (const g of incoming) {
@@ -49,35 +52,36 @@ function mergeGroups(payloadGroups, previousGroups, now) {
   for (const p of previous) {
     const key = groupKey(p.name);
     if (seen.has(key)) continue; // already carried forward as 'open'
+    if (dissolved.has(key)) continue; // explicitly dissolved — drop from the index
     merged.push({
       name: String(p.name || ''),
       color: p.color,
       windowId: p.windowId,
       tabs: Array.isArray(p.tabs) ? p.tabs.map((t) => ({ title: t.title, url: t.url })) : [],
-      status: 'closed',
+      status: 'parked',
       lastSeen: p.lastSeen,
     });
   }
   return merged;
 }
 
-// Render the human/agent-readable markdown: open groups first, then closed ones
+// Render the human/agent-readable markdown: open groups first, then parked ones
 // with the tabs they had when last seen, and finally the ungrouped tabs.
 function renderMarkdown(groups, ungrouped, now) {
   const lines = [];
   lines.push('# Tab Sanity index');
-  lines.push(`Updated: ${now}. Open groups come first; closed groups keep the tabs they had when last seen.`);
+  lines.push(`Updated: ${now}. Open groups come first; parked groups keep the tabs they had when last seen.`);
   const open = groups.filter((g) => g.status === 'open');
-  const closed = groups.filter((g) => g.status === 'closed');
+  const parked = groups.filter((g) => g.status !== 'open');
   for (const g of open) {
     lines.push('');
     lines.push(`## ${g.name} (open, ${g.tabs.length} tabs)`);
     for (const t of g.tabs) lines.push(`- [${t.title}](${t.url})`);
   }
-  for (const g of closed) {
+  for (const g of parked) {
     lines.push('');
     const day = String(g.lastSeen || '').slice(0, 10);
-    lines.push(`## ${g.name} (closed, last seen ${day}, ${g.tabs.length} tabs)`);
+    lines.push(`## ${g.name} (parked, last seen ${day}, ${g.tabs.length} tabs)`);
     for (const t of g.tabs) lines.push(`- [${t.title}](${t.url})`);
   }
   lines.push('');
@@ -99,7 +103,7 @@ export function writeIndex(payload = {}, {
   const jsonPath = path.join(dir, 'index.json');
   const mdPath = path.join(dir, 'index.md');
   const previous = readPrevious(jsonPath, readFile);
-  const groups = mergeGroups(payload.groups, previous, now);
+  const groups = mergeGroups(payload.groups, previous, now, payload.dissolved);
   const ungrouped = Array.isArray(payload.ungrouped)
     ? payload.ungrouped.map((t) => ({ title: t.title, url: t.url }))
     : [];

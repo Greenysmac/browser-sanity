@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildIndexPayload, syncIndex } from '../extension/lib/index-sync.js';
+import { buildIndexPayload, syncIndex, openGroupTitles } from '../extension/lib/index-sync.js';
 
 // A fake chrome.* with a fixed list of tabs and tab groups. tabs.query({})
 // returns them in the order given (window + tab order, as Chrome does), and
@@ -108,4 +108,47 @@ test('syncIndex returns { ok: false } when the client reply is empty', async () 
   const client = fakeClient(() => undefined);
   const res = await syncIndex({ chromeApi, nativeClient: client });
   assert.deepEqual(res, { ok: false });
+});
+
+test('syncIndex forwards a non-empty dissolved list on the payload', async () => {
+  const chromeApi = fakeChrome([{ id: 1, windowId: 1, groupId: 1, title: 'T', url: 'https://t' }], { 1: { title: 'G', color: 'blue' } });
+  const client = fakeClient(() => ({ ok: true, groups: 1 }));
+  await syncIndex({ chromeApi, nativeClient: client, dissolved: ['Old'] });
+  assert.deepEqual(client._sent[0].payload.dissolved, ['Old']);
+});
+
+test('syncIndex omits an empty or absent dissolved list from the payload', async () => {
+  const chromeApi = fakeChrome([{ id: 1, windowId: 1, groupId: 1, title: 'T', url: 'https://t' }], { 1: { title: 'G' } });
+  const emptyClient = fakeClient(() => ({ ok: true, groups: 1 }));
+  await syncIndex({ chromeApi, nativeClient: emptyClient, dissolved: [] });
+  assert.equal('dissolved' in emptyClient._sent[0].payload, false);
+  const noneClient = fakeClient(() => ({ ok: true, groups: 1 }));
+  await syncIndex({ chromeApi, nativeClient: noneClient });
+  assert.equal('dissolved' in noneClient._sent[0].payload, false);
+});
+
+test('openGroupTitles returns deduped, trimmed, non-empty group titles', async () => {
+  const chromeApi = {
+    tabGroups: {
+      async query() {
+        return [{ title: 'Work' }, { title: '  Work  ' }, { title: '' }, { title: 'Play' }];
+      },
+    },
+  };
+  const titles = await openGroupTitles(chromeApi);
+  assert.deepEqual(titles, ['Work', 'Play']);
+});
+
+test('openGroupTitles returns [] when the query fails', async () => {
+  const chromeApi = { tabGroups: { async query() { throw new Error('no'); } } };
+  assert.deepEqual(await openGroupTitles(chromeApi), []);
+});
+
+// The apply flow computes dissolved as the open group titles that existed
+// before an apply and are gone after it. Mirror that computation here.
+test('dissolved is the set of titles present before an apply and gone after', () => {
+  const before = ['Work', 'Play', 'Reading'];
+  const after = new Set(['Play']);
+  const dissolved = before.filter((t) => !after.has(t));
+  assert.deepEqual(dissolved, ['Work', 'Reading']);
 });

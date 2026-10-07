@@ -11,7 +11,7 @@ import { digestText } from '../lib/plan-summary.js';
 import { withLock } from '../lib/mutex.js';
 import { uniqueId } from '../lib/ids.js';
 import { getSecret } from '../lib/secret-store.js';
-import { syncIndex } from '../lib/index-sync.js';
+import { syncIndex, openGroupTitles } from '../lib/index-sync.js';
 
 // Creates the native client, attaching the openai adapter's UI-entered config
 // (key decrypted from secret-store here, base/model from settings) so the host
@@ -301,6 +301,9 @@ async function handleUpdatePlan(m) {
 }
 
 async function handleApply(m) {
+  // Snapshot the open group titles before applying so we can tell which groups a
+  // re-sort emptied (existed before, gone after) and report them as dissolved.
+  const beforeTitles = await openGroupTitles(chrome);
   // Serialize the read-modify-write on currentPlan so a double-clicked Apply
   // (or an auto-scan writing the plan concurrently) can't double-execute an
   // item or clobber the stored plan.
@@ -319,18 +322,23 @@ async function handleApply(m) {
     return { ok: true, ...applyRes };
   });
   // Refresh the on-disk index to match the now-applied tab state. Best-effort:
-  // syncIndex never throws, and a failed sync must not fail the apply.
-  await syncCurrentIndex();
+  // syncIndex never throws, and a failed sync must not fail the apply. Groups
+  // present before but gone after are reported as dissolved so the index drops
+  // them rather than parking them.
+  const afterTitles = await openGroupTitles(chrome);
+  const afterSet = new Set(afterTitles);
+  const dissolved = beforeTitles.filter((t) => !afterSet.has(t));
+  await syncCurrentIndex({ dissolved });
   return res;
 }
 
 // Open a native client, push the current index through it, and tear it down.
 // Delegates to syncIndex (which swallows errors) so this is always safe to call.
-async function syncCurrentIndex() {
+async function syncCurrentIndex({ dissolved } = {}) {
   const settings = await getSettings();
   const nativeClient = await makeClient(settings);
   try {
-    return await syncIndex({ chromeApi: chrome, nativeClient });
+    return await syncIndex({ chromeApi: chrome, nativeClient, dissolved });
   } finally {
     nativeClient.disconnect();
   }
