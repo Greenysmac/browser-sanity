@@ -3,6 +3,15 @@ import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandP
 import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
+import { loadGroupsFile } from './groups-file.js';
+
+// Fold the user's "my groups" file into the rules the model sees. When the file
+// is empty this returns the incoming rules unchanged, so prompts stay identical
+// to today unless a groups file exists.
+function withGroups(rules, groupsText) {
+  if (!groupsText) return rules;
+  return [rules, `MY GROUPS (when a tab fits one of these, use that exact group name): ${groupsText}`].filter(Boolean).join('\n');
+}
 
 // What this host can do, so the extension can feature-detect instead of probing
 // by catching "Unknown task" errors. `passthrough` is the generic `prompt` task
@@ -60,7 +69,8 @@ export async function handle(msg, deps = {}) {
   if (msg.type === 'organize') {
     const { task } = msg;
     const payload = msg.payload || {};
-    const rules = payload.rules || '';
+    const loadGroups = deps.loadGroups || loadGroupsFile;
+    const rules = withGroups(payload.rules || '', loadGroups());
     if (task === 'group') {
       const out = await adapter.run(buildGroupPrompt(payload.tabs, rules), opts);
       return { task, groups: parseGroupResult(out) };
@@ -82,7 +92,9 @@ export async function handle(msg, deps = {}) {
 
   if (msg.type === 'command') {
     const payload = msg.payload || {};
-    const out = await adapter.run(buildCommandPrompt(payload.instruction, payload.tabs, payload.rules || ''), opts);
+    const loadGroups = deps.loadGroups || loadGroupsFile;
+    const rules = withGroups(payload.rules || '', loadGroups());
+    const out = await adapter.run(buildCommandPrompt(payload.instruction, payload.tabs, rules), opts);
     return parseCommandResult(out);
   }
 
