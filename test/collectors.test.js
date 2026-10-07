@@ -79,6 +79,47 @@ test('collectTabs filters to a window when windowId is given', async () => {
   assert.equal(tabs[0].windowId, 9);
 });
 
+test('toSnapshot defaults groupName to empty for existing callers', () => {
+  const s = toSnapshot({ id: 1, url: 'https://a.com', groupId: -1 }, {}, 0);
+  assert.equal(s.groupName, '');
+});
+
+test('collectTabs looks up the group title once per group and caches it', async () => {
+  let calls = 0;
+  const chromeApi = {
+    tabs: { async query() {
+      return [
+        { id: 1, url: 'https://a.com', windowId: 1, index: 0, groupId: 5 },
+        { id: 2, url: 'https://b.com', windowId: 1, index: 1, groupId: 5 },
+        { id: 3, url: 'https://c.com', windowId: 1, index: 2, groupId: -1 },
+      ];
+    } },
+    tabGroups: { async get(id) { calls += 1; assert.equal(id, 5); return { id, title: 'Dev' }; } },
+  };
+  const tabs = await collectTabs(chromeApi, {}, 0);
+  assert.equal(tabs.find((t) => t.tabId === 1).groupName, 'Dev');
+  assert.equal(tabs.find((t) => t.tabId === 2).groupName, 'Dev');
+  assert.equal(tabs.find((t) => t.tabId === 3).groupName, '');
+  assert.equal(calls, 1); // one lookup for the shared group, cached for the second tab
+});
+
+test('collectTabs uses empty groupName when tabGroups is missing', async () => {
+  const chromeApi = { tabs: { async query() {
+    return [{ id: 1, url: 'https://a.com', windowId: 1, index: 0, groupId: 5 }];
+  } } };
+  const tabs = await collectTabs(chromeApi, {}, 0);
+  assert.equal(tabs[0].groupName, '');
+});
+
+test('collectTabs falls back to empty groupName when the lookup fails', async () => {
+  const chromeApi = {
+    tabs: { async query() { return [{ id: 1, url: 'https://a.com', windowId: 1, index: 0, groupId: 5 }]; } },
+    tabGroups: { async get() { throw new Error('no such group'); } },
+  };
+  const tabs = await collectTabs(chromeApi, {}, 0);
+  assert.equal(tabs[0].groupName, '');
+});
+
 test('flattenBookmarks yields leaves with folder path', () => {
   const tree = [{ id: '0', children: [
     { id: '1', title: 'Bar', children: [

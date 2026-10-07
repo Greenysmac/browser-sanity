@@ -58,14 +58,15 @@ export function buildOrganizePrompt(bookmarks, folders, mode = 'additive', rules
 export function buildGroupPrompt(tabs, rules = '') {
   return [
     'You organize browser tabs into topical groups.',
-    'Each data line is: tabId<TAB>title<TAB>url.',
+    'Each data line is: tabId<TAB>title<TAB>url<TAB>group.',
+    "The group column shows the tab's current group, if any. Reuse an existing group name when a tab fits it, so tabs consolidate into existing groups instead of new near-duplicates.",
     'Cluster them into 2 to 8 meaningful groups by topic; every tabId in exactly one group; prefer fewer broader groups.',
     `"color" must be one of: ${TAB_GROUP_COLORS.join(', ')}.`,
     'Respond with ONLY this JSON, no prose:',
     '{"groups":[{"name":"Short label","color":"blue","tabIds":[1,2]}]}',
     ...rulesLines(rules),
     '',
-    wrap(tabTable(tabs)),
+    wrap(tabTable(tabs, (t) => `\t${clip(t.groupName, 120)}`)),
   ].join('\n');
 }
 
@@ -88,12 +89,12 @@ export function buildCommandPrompt(instruction, tabs, rules = '') {
   return [
     'You act on a user instruction over their open browser tabs.',
     `User instruction: ${clip(instruction, 300)}`,
-    'Each data line is: tabId<TAB>title<TAB>url<TAB>idleDays. Only reference tabIds present in the data.',
+    'Each data line is: tabId<TAB>title<TAB>url<TAB>idleDays<TAB>group. Only reference tabIds present in the data.',
     'Choose actions that satisfy the instruction. Respond with ONLY this JSON:',
     '{"close":[{"tabId":1,"reason":"why","suggestBookmark":false}],"groups":[{"name":"X","color":"blue","tabIds":[2,3]}],"important":[{"tabId":4,"folderPath":["Ref"],"reason":"why"}]}',
     ...rulesLines(rules),
     '',
-    wrap(tabTable(tabs, (t) => `\t${t.idleDays ?? 0}`)),
+    wrap(tabTable(tabs, (t) => `\t${t.idleDays ?? 0}\t${clip(t.groupName, 120)}`)),
   ].join('\n');
 }
 

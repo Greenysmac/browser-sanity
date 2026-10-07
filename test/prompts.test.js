@@ -28,6 +28,19 @@ test('group prompt includes tab ids/urls and asks for JSON groups', () => {
   assert.match(p, /tabIds/);
 });
 
+test('group prompt describes the group column and tells the model to reuse existing groups', () => {
+  const p = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev', groupName: 'Dev' }]);
+  assert.match(p, /Each data line is: tabId<TAB>title<TAB>url<TAB>group\./);
+  assert.match(p, /The group column shows the tab's current group/);
+  assert.match(p, /Reuse an existing group name/);
+  assert.match(p, /1\tMDN\thttps:\/\/mdn\.dev\tDev/);
+});
+
+test('group prompt leaves the group column empty for ungrouped tabs', () => {
+  const p = buildGroupPrompt([{ tabId: 1, title: 'MDN', url: 'https://mdn.dev' }]);
+  assert.match(p, /1\tMDN\thttps:\/\/mdn\.dev\t\n/);
+});
+
 test('stale prompt embeds the threshold and idle info', () => {
   const p = buildStalePrompt(tabs, 14);
   assert.match(p, /14/);
@@ -56,10 +69,12 @@ test('stale prompt clips very long urls', () => {
 });
 
 test('command prompt embeds the instruction and wraps tab data', () => {
-  const p = buildCommandPrompt('close travel tabs', [{ tabId: 1, title: 'Flights', url: 'https://x', idleDays: 1 }]);
+  const p = buildCommandPrompt('close travel tabs', [{ tabId: 1, title: 'Flights', url: 'https://x', idleDays: 1, groupName: 'Trip' }]);
   assert.match(p, /close travel tabs/);
   assert.match(p, /BEGIN TAB DATA/);
   assert.match(p, /"close"/);
+  assert.match(p, /Each data line is: tabId<TAB>title<TAB>url<TAB>idleDays<TAB>group\./);
+  assert.match(p, /1\tFlights\thttps:\/\/x\t1\tTrip/);
 });
 
 test('group prompt includes rules when provided', () => {

@@ -123,6 +123,15 @@ test('projectTabsForHost coarsens private/localhost URLs to origin only', () => 
   assert.equal(out[2].url, 'http://localhost:8080');    // localhost: origin only
 });
 
+test('projectTabsForHost passes groupName through, defaulting to empty', () => {
+  const out = projectTabsForHost([
+    { tabId: 1, title: 'a', url: 'https://a.com', idleDays: 1, groupName: 'Dev' },
+    { tabId: 2, title: 'b', url: 'https://b.com', idleDays: 1 },
+  ]);
+  assert.equal(out[0].groupName, 'Dev');
+  assert.equal(out[1].groupName, '');
+});
+
 test('buildPlan preserves free/local results when an AI phase throws', async () => {
   const stored = {};
   const chromeApi = {

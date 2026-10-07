@@ -31,7 +31,7 @@ function safeUrlForModel(url) {
 }
 
 export function projectTabsForHost(tabs) {
-  return tabs.map((t) => ({ tabId: t.tabId, title: t.title, url: safeUrlForModel(t.url), idleDays: t.idleDays, pinned: !!t.pinned }));
+  return tabs.map((t) => ({ tabId: t.tabId, title: t.title, url: safeUrlForModel(t.url), idleDays: t.idleDays, pinned: !!t.pinned, groupName: t.groupName || '' }));
 }
 
 // match/additive only touch bookmarks that aren't in a folder (directly under a
