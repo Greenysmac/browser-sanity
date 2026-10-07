@@ -34,34 +34,58 @@ function descriptionFor(descriptions, name) {
   return (found && found.description) || '';
 }
 
+// Find a stored model suggestion for a group name in the suggestions map
+// ({ "<name-lowercased>": { description, date } }), or '' when none is kept.
+function suggestionFor(suggestions, name) {
+  const entry = (suggestions || {})[String(name || '').trim().toLowerCase()];
+  return (entry && entry.description) || '';
+}
+
 // The <details> "Description" fold-out shared by open and parked cards: a
 // textarea prefilled from the group's saved description and a Save button that
 // writes it back through 'groupsWrite'. On save the status line confirms. Takes
 // a setStatus callback so the board can show its own status without importing
 // dom.js (keeping this module testable with a bare fake document).
-function descriptionFold({ name, description, send, setStatus }) {
+//
+// When `suggested` is a non-empty string, the group has no saved description
+// and the model proposed one: the textarea is prefilled with that suggestion, a
+// small "Suggested" label shows next to the fold-out, and the fold-out stays
+// closed. Nothing is saved until the user clicks Save, which sends 'groupsWrite'
+// as usual and then removes the "Suggested" label (the text is now the user's).
+function descriptionFold({ name, description, suggested, send, setStatus }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'boardDescWrap';
   const details = document.createElement('details');
   details.className = 'boardDesc';
   const summary = document.createElement('summary');
   summary.textContent = 'Description';
+  const label = document.createElement('span');
+  label.className = 'boardSuggested';
+  if (suggested) label.textContent = 'Suggested';
   const textarea = document.createElement('textarea');
   textarea.rows = 2;
-  textarea.value = description || '';
+  textarea.value = description || suggested || '';
   const save = document.createElement('button');
   save.type = 'button';
   save.textContent = 'Save';
   save.addEventListener('click', async () => {
     await send({ cmd: 'groupsWrite', name, description: textarea.value });
+    label.textContent = '';
     setStatus(`Saved description for "${name}".`);
   });
   details.append(summary, textarea, save);
-  return details;
+  // The label sits beside the fold-out (not inside it) so it stays visible
+  // while the fold-out is closed, which is how a suggested card first appears.
+  wrap.append(details, label);
+  return wrap;
 }
 
 // A single open-group card: color dot, name, "<n> tabs", a Sort and a Park
 // button, and the description fold-out. After Sort or Park the board re-renders
-// so the card list reflects the new state.
-function openCard({ group, descriptions, send, setStatus, rerender }) {
+// so the card list reflects the new state. `suggestions` is the stored map of
+// model suggestions by group name; an open group with no saved description shows
+// its suggestion prefilled with a "Suggested" label (fold-out closed).
+function openCard({ group, descriptions, suggestions, send, setStatus, rerender }) {
   const card = document.createElement('div');
   card.className = 'boardCard';
   const head = document.createElement('div');
@@ -90,7 +114,11 @@ function openCard({ group, descriptions, send, setStatus, rerender }) {
     await rerender();
   });
   head.append(dot, name, count, sortBtn, parkBtn);
-  card.append(head, descriptionFold({ name: group.name, description: descriptionFor(descriptions, group.name), send, setStatus }));
+  const description = descriptionFor(descriptions, group.name);
+  // Only surface a stored suggestion when nothing is saved yet; a saved
+  // description is never replaced by a suggestion.
+  const suggested = description ? '' : suggestionFor(suggestions, group.name);
+  card.append(head, descriptionFold({ name: group.name, description, suggested, send, setStatus }));
   return card;
 }
 
@@ -127,6 +155,11 @@ function parkedCard({ group, descriptions, send, setStatus, rerender }) {
 // again and again.
 const ASKED_KEY = 'boardDescribeAsked';
 
+// The chrome.storage.local key holding the model's suggested descriptions, kept
+// as { "<name-lowercased>": { description, date } } so the board can show a
+// suggestion again on later renders without calling the model.
+const SUGGESTIONS_KEY = 'boardDescribeSuggestions';
+
 // Today's date as YYYY-MM-DD (local), the granularity of the once-a-day memory.
 function todayStr(now = new Date()) {
   return new Date(now).toISOString().slice(0, 10);
@@ -151,36 +184,66 @@ async function writeAsked(storage, asked) {
   await storage.set({ [ASKED_KEY]: asked });
 }
 
-// Pick the open groups that have a name, lack a saved description, and haven't
-// been asked about today (per the memory). Returns [{ groupId, name }].
-function groupsNeedingDescription(open, descriptions, asked, today) {
+// Read/write the stored suggestions map. A missing store (tests) reads {} and
+// writes nothing.
+async function readSuggestions(storage) {
+  if (!storage) return {};
+  const got = await storage.get(SUGGESTIONS_KEY);
+  return (got && got[SUGGESTIONS_KEY]) || {};
+}
+
+async function writeSuggestions(storage, suggestions) {
+  if (!storage) return;
+  await storage.set({ [SUGGESTIONS_KEY]: suggestions });
+}
+
+// Pick the open groups that have a name, lack a saved description, lack a stored
+// suggestion (which the board shows without re-asking), and haven't been asked
+// about today (per the memory). Returns [{ groupId, name }].
+function groupsNeedingDescription(open, descriptions, suggestions, asked, today) {
   return open
     .filter((g) => {
       const name = String(g.name || '').trim();
       if (!name) return false;
       if (descriptionFor(descriptions, name)) return false;
+      if (suggestionFor(suggestions, name)) return false;
       return asked[name.toLowerCase()] !== today;
     })
     .map((g) => ({ groupId: g.groupId, name: g.name }));
 }
 
-// In the background (never blocking the board), fill in any missing open-group
-// descriptions: ask at most once a day per group, send one 'describe' request,
-// then re-render and report how many were written. Does nothing when nothing
-// needs asking. storage/today are injectable so the view is testable.
-async function autoDescribe({ open, descriptions, send, setStatus, rerender, storage, today }) {
+// In the background (never blocking the board), ask the model to suggest
+// descriptions for open groups that have none: ask at most once a day per
+// group, send one 'describe' request, then remember each suggestion (with its
+// date) and re-render so the board shows them prefilled with a "Suggested"
+// label. Nothing is saved to the groups file here — the host writes nothing and
+// a suggestion for a group that now has a saved description is ignored. Does
+// nothing when nothing needs asking. storage/today are injectable so the view
+// is testable.
+async function autoDescribe({ open, descriptions, suggestions, send, setStatus, rerender, storage, today }) {
   const asked = await readAsked(storage);
-  const needing = groupsNeedingDescription(open, descriptions, asked, today);
+  const needing = groupsNeedingDescription(open, descriptions, suggestions, asked, today);
   if (!needing.length) return;
   // Mark them asked before sending so a re-render (or new tabs) won't ask again.
   for (const g of needing) asked[String(g.name).trim().toLowerCase()] = today;
   await writeAsked(storage, asked);
   const res = await send({ cmd: 'describe', groups: needing });
-  const written = (res && res.written) || 0;
-  if (written > 0) {
-    await rerender();
-    setStatus(`Wrote descriptions for ${written} ${written === 1 ? 'group' : 'groups'}`);
+  const suggested = (res && Array.isArray(res.descriptions)) ? res.descriptions : [];
+  if (!suggested.length) return;
+  const next = { ...suggestions };
+  let added = 0;
+  for (const d of suggested) {
+    const name = String(d.name || '').trim();
+    if (!name || !d.description) continue;
+    // A suggestion for a group that now has a saved description is ignored.
+    if (descriptionFor(descriptions, name)) continue;
+    next[name.toLowerCase()] = { description: d.description, date: today };
+    added += 1;
   }
+  if (!added) return;
+  await writeSuggestions(storage, next);
+  await rerender();
+  setStatus(`Suggested descriptions for ${added} ${added === 1 ? 'group' : 'groups'}`);
 }
 
 // Build (or rebuild) the board inside `container`: an "Open now" section and a
@@ -193,6 +256,9 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   const open = (res && res.open) || [];
   const parkedRaw = (res && res.parked) || [];
   const descriptions = (res && res.descriptions) || [];
+  // Stored model suggestions, shown on open cards that have no saved
+  // description (prefilled with a "Suggested" label) without re-asking.
+  const suggestions = await readSuggestions(storage);
   // Drop any parked card whose name matches an open group (trimmed, case-
   // insensitive): a reopened group is "open now", so it shouldn't also appear
   // under "Parked, from the index".
@@ -212,7 +278,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'No open groups';
     openSection.appendChild(empty);
   } else {
-    for (const group of open) openSection.appendChild(openCard({ group, descriptions, send, setStatus, rerender }));
+    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, send, setStatus, rerender }));
   }
 
   const parkedSection = document.createElement('details');
@@ -232,8 +298,8 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
 
   container.append(openSection, parkedSection);
 
-  // After painting, fill in any missing open-group descriptions in the
-  // background — this never blocks the board above, and re-renders itself when
-  // the model answers.
-  autoDescribe({ open, descriptions, send, setStatus, rerender, storage, today });
+  // After painting, ask the model to suggest descriptions for any open groups
+  // that lack both a saved description and a stored suggestion — this never
+  // blocks the board above, and re-renders itself when the model answers.
+  autoDescribe({ open, descriptions, suggestions, send, setStatus, rerender, storage, today });
 }

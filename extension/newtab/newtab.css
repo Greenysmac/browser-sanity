@@ -121,3 +121,8 @@ body {
 }
 .boardDesc textarea { width: 100%; margin-top: 6px; }
 .boardDesc button { margin-top: 6px; }
+.boardSuggested:not(:empty) {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}

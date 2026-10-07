@@ -273,20 +273,70 @@ test('board skips open groups that already have a description', async () => {
   assert.ok(!sent.some((m) => m.cmd === 'describe'), 'no describe for already-described groups');
 });
 
-test('board re-renders and reports a count after descriptions are written', async () => {
+test('a suggestion fills the textarea and shows the Suggested label on re-render', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const storage = makeStorage();
-  let fixture = NO_DESC;
-  const described = { ...NO_DESC, descriptions: [{ name: 'Work', description: 'day job stuff' }] };
-  const { send } = makeDescribeSend(() => fixture, { descriptions: [{ name: 'Work', description: 'day job stuff' }], written: 1 });
+  const { send } = makeDescribeSend(() => NO_DESC, { descriptions: [{ name: 'Work', description: 'day job stuff' }], written: 0 });
   const statuses = [];
   await renderBoard(container, { send, setStatus: (t) => statuses.push(t), storage, today: '2026-01-05' });
-  // Simulate the host having written the description so the re-render shows it.
-  fixture = described;
   await flush();
-  assert.ok(statuses.some((s) => s === 'Wrote descriptions for 1 group'), 'status reports the written count');
-  // The re-render picked up the now-present description for the open card.
+  assert.ok(statuses.some((s) => s === 'Suggested descriptions for 1 group'), 'status reports the suggested count');
+  // The suggestion is remembered with its date so later renders don't re-ask.
+  assert.deepEqual(storage.peek().boardDescribeSuggestions.work, { description: 'day job stuff', date: '2026-01-05' });
+  // The re-render prefilled the open card's textarea with the suggestion and
+  // showed the "Suggested" label.
   const textarea = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
-  assert.ok(textarea, 'board re-rendered with the written description');
+  assert.ok(textarea, 'board re-rendered with the suggestion prefilled');
+  assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown');
+});
+
+test('a stored suggestion renders without a describe call', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage({ boardDescribeSuggestions: { work: { description: 'day job stuff', date: '2026-01-05' } } });
+  const { send, sent } = makeDescribeSend(() => NO_DESC, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-06' });
+  await flush();
+  assert.ok(!sent.some((m) => m.cmd === 'describe'), 'no describe sent when a suggestion is already stored');
+  const textarea = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
+  assert.ok(textarea, 'the stored suggestion is prefilled');
+  assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown for the stored suggestion');
+});
+
+test('Save on a suggested card sends groupsWrite and clears the Suggested label', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage({ boardDescribeSuggestions: { work: { description: 'day job stuff', date: '2026-01-05' } } });
+  const { send, sent } = makeDescribeSend(() => NO_DESC, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-06' });
+  await flush();
+  assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown before saving');
+  await findByText(container, 'Save').click();
+  const req = sent.find((m) => m.cmd === 'groupsWrite');
+  assert.ok(req, 'a groupsWrite command was sent');
+  assert.equal(req.name, 'Work');
+  assert.equal(req.description, 'day job stuff');
+  assert.ok(!findByText(container, 'Suggested'), 'the Suggested label is cleared after saving');
+});
+
+test('a saved description is never replaced by a suggestion', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  // The open 'Work' group has a saved description; a stale suggestion also
+  // exists for it. The saved description must win and no Suggested label shows.
+  const fixture = {
+    open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 3 }],
+    parked: [],
+    descriptions: [{ name: 'Work', description: 'day job stuff' }],
+  };
+  storage.peek().boardDescribeSuggestions = { work: { description: 'a stale suggestion', date: '2026-01-05' } };
+  const { send } = makeDescribeSend(() => fixture, { descriptions: [], written: 0 });
+  await renderBoard(container, { send, storage, today: '2026-01-06' });
+  await flush();
+  const saved = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
+  assert.ok(saved, 'the saved description is shown');
+  assert.ok(!walk(container).some((n) => n.tagName === 'TEXTAREA' && n.value === 'a stale suggestion'), 'the suggestion did not replace it');
+  assert.ok(!findByText(container, 'Suggested'), 'no Suggested label when a description is saved');
 });

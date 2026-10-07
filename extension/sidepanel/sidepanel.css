@@ -391,6 +391,11 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 }
 .boardDesc textarea { width: 100%; margin-top: 5px; }
 .boardDesc button { margin-top: 5px; }
+.boardSuggested:not(:empty) {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
 
 /* ---------- Plan ---------- */
 .group { margin-bottom: 16px; }
