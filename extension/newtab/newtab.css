@@ -2,14 +2,27 @@
    side panel's stylesheet), so the board row/menu classes renderBoard emits are
    styled here too. Kept intentionally light so the page paints fast. */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-2: #eef0f3;
+  /* Follow the OS theme for form controls (buttons, inputs, scrollbars) so
+     they never paint as white system defaults in dark mode. */
+  color-scheme: light dark;
+
+  /* Light theme (default) — every piece styles through these tokens so the
+     dark block below only has to re-point the same names. */
+  --bg: #f6f7f9;              /* page background */
+  --surface: #ffffff;        /* row/input/button surface */
+  --surface-2: #eef0f3;      /* raised surface (notes, hover fills) */
+  --surface-hover: #e3e6ea;  /* hover fill on buttons and menu items */
   --border: #d7dbe0;
   --border-strong: #b4bac2;
-  --text: #1f2328;
-  --text-muted: #5a6069;
+  --text: #1f2328;           /* primary text */
+  --text-muted: #5a6069;     /* muted text */
   --text-faint: #8a9099;
+  --accent: #16a34a;         /* accent */
+  --accent-fg: #ffffff;      /* accent text (on an accent fill) */
+  --menu-bg: #ffffff;        /* ⋯ menu background */
+  --menu-hover: #eef0f3;     /* ⋯ menu item hover */
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.05);
+  --ring: rgba(22, 163, 74, 0.35);
   --r: 8px;
   --r-pill: 999px;
 }
@@ -18,11 +31,18 @@
     --bg: #1b1d21;
     --surface: #24272c;
     --surface-2: #2b2f35;
+    --surface-hover: #343941;
     --border: #3a3f46;
     --border-strong: #4c525a;
     --text: #e7e9ec;
     --text-muted: #a7adb5;
     --text-faint: #80868f;
+    --accent: #22c55e;
+    --accent-fg: #052e16;
+    --menu-bg: #24272c;
+    --menu-hover: #343941;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --ring: rgba(34, 197, 94, 0.45);
   }
 }
 
@@ -32,6 +52,34 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+/* Base controls — styled only through the theme tokens so nothing (least of
+   all the "Open side panel" button) falls back to a white system default. */
+button {
+  font: inherit;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  padding: 8px 12px;
+}
+button:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+textarea, input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 6px 9px;
+}
+
+/* Keep the focus ring visible in both light and dark modes. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .page {
@@ -154,7 +202,8 @@ body {
   margin: 2px 0 0;
   padding: 4px;
   min-width: 180px;
-  background: var(--surface);
+  color: var(--text);
+  background: var(--menu-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--r);
   box-shadow: var(--shadow-1);
@@ -164,10 +213,12 @@ body {
   display: block;
   width: 100%;
   text-align: left;
+  color: var(--text);
   border-color: transparent;
   background: transparent;
 }
-.boardMenu button:hover { background: var(--surface-hover); }
+.boardMenu button:hover { background: var(--menu-hover); }
+.boardMenu button:focus-visible { background: var(--menu-hover); }
 .boardDescEditor {
   flex: 1 1 100%;
   margin-top: 8px;

@@ -10,6 +10,8 @@
   --surface: #ffffff;
   --surface-2: #f1f5f9;
   --surface-hover: #f1f5f9;
+  --menu-bg: #ffffff;        /* ⋯ menu background */
+  --menu-hover: #f1f5f9;     /* ⋯ menu item hover */
   --text: #0f172a;
   --text-muted: #475569; /* WCAG AA: 7.2:1 on --bg */
   --text-faint: #5b6472; /* WCAG AA: 5.7:1 on --bg (was 2.5:1) */
@@ -44,6 +46,8 @@
     --surface: #111a2e;
     --surface-2: #172136;
     --surface-hover: #1c2942;
+    --menu-bg: #111a2e;
+    --menu-hover: #1c2942;
     --text: #e8eef7;
     --text-muted: #94a3b8; /* WCAG AA: 7.3:1 on --bg */
     --text-faint: #7e8ca1; /* WCAG AA: 5.5:1 on --bg (was 4.0:1) */
@@ -451,7 +455,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   margin: 2px 0 0;
   padding: 4px;
   min-width: 160px;
-  background: var(--surface);
+  color: var(--text);
+  background: var(--menu-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--r);
   box-shadow: var(--shadow-1);
@@ -462,10 +467,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   width: 100%;
   text-align: left;
   font-size: 12px;
+  color: var(--text);
   border-color: transparent;
   background: transparent;
 }
-.boardMenu button:hover { background: var(--surface-hover); }
+.boardMenu button:hover { background: var(--menu-hover); }
+.boardMenu button:focus-visible { background: var(--menu-hover); }
 /* The inline description editor opened from the ⋯ menu, under its row. */
 .boardDescEditor {
   flex: 1 1 100%;
