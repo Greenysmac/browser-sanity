@@ -20,6 +20,7 @@ function makeEl(tag) {
     open: false,
     style: {},
     listeners: {},
+    parent: null,
     _text: '',
     get textContent() { return this._text; },
     set textContent(v) {
@@ -28,8 +29,9 @@ function makeEl(tag) {
       this._text = String(v);
       if (v === '') this.children = [];
     },
-    append(...kids) { this.children.push(...kids); },
-    appendChild(kid) { this.children.push(kid); return kid; },
+    append(...kids) { for (const k of kids) { if (k) k.parent = this; } this.children.push(...kids); },
+    appendChild(kid) { if (kid) kid.parent = this; this.children.push(kid); return kid; },
+    remove() { if (this.parent) { this.parent.children = this.parent.children.filter((c) => c !== this); this.parent = null; } },
     addEventListener(ev, fn) { this.listeners[ev] = fn; },
     click() { if (this.listeners.click) return this.listeners.click(); },
   };
@@ -37,7 +39,15 @@ function makeEl(tag) {
 }
 
 function installFakeDocument() {
-  globalThis.document = { createElement: (tag) => makeEl(tag) };
+  const docListeners = {};
+  globalThis.document = {
+    createElement: (tag) => makeEl(tag),
+    addEventListener(ev, fn) { (docListeners[ev] = docListeners[ev] || new Set()).add(fn); },
+    removeEventListener(ev, fn) { if (docListeners[ev]) docListeners[ev].delete(fn); },
+    // Test-only: trip every listener registered for an event, mirroring a real
+    // dispatch so the menu's Escape/outside-click handlers can be exercised.
+    _fire(ev, arg) { for (const fn of (docListeners[ev] || [])) fn(arg); },
+  };
 }
 
 // Recursively collect every descendant element (plus the node itself).
@@ -54,6 +64,16 @@ function allText(el) {
 
 function findByText(el, text) {
   return walk(el).find((n) => n.textContent === text);
+}
+
+// Open the ⋯ menu on the row that contains the given group name, returning the
+// row element. The menu's items (buttons) then live inside that row.
+function openRowMenu(container, name) {
+  const nameEl = walk(container).find((n) => n.className === 'boardName' && n.textContent === name);
+  const row = nameEl && nameEl.parent;
+  const menuBtn = (row.children || []).find((c) => c.className === 'boardMenuBtn');
+  menuBtn.click();
+  return row;
 }
 
 // A fake send that records dispatched messages and answers 'boardData' with the
@@ -80,8 +100,8 @@ test('renderBoard draws both sections with their summaries', async () => {
   const { send } = makeSend(FIXTURE);
   await renderBoard(container, { send });
   const texts = allText(container);
-  assert.ok(texts.includes('Open now'), 'Open now section header');
-  assert.ok(texts.includes('Parked, from the index'), 'Parked section header');
+  assert.ok(texts.includes('Open now · 1'), 'Open now section header with count');
+  assert.ok(texts.includes('Parked · 1'), 'Parked section header with count');
 });
 
 test('renderBoard shows an open card with name and tab count', async () => {
@@ -126,6 +146,7 @@ test('Sort this group sends sortGroup with the group id', async () => {
   const container = makeEl('div');
   const { send, sent } = makeSend(FIXTURE);
   await renderBoard(container, { send });
+  openRowMenu(container, 'Work');
   await findByText(container, 'Sort this group').click();
   const req = sent.find((m) => m.cmd === 'sortGroup');
   assert.ok(req, 'a sortGroup command was sent');
@@ -137,6 +158,7 @@ test('Park sends parkGroup with the group id', async () => {
   const container = makeEl('div');
   const { send, sent } = makeSend(FIXTURE);
   await renderBoard(container, { send });
+  openRowMenu(container, 'Work');
   await findByText(container, 'Park').click();
   const req = sent.find((m) => m.cmd === 'parkGroup');
   assert.ok(req, 'a parkGroup command was sent');
@@ -148,23 +170,26 @@ test('Open sends openParked with the parked group name', async () => {
   const container = makeEl('div');
   const { send, sent } = makeSend(FIXTURE);
   await renderBoard(container, { send });
+  openRowMenu(container, 'Travel');
   await findByText(container, 'Open').click();
   const req = sent.find((m) => m.cmd === 'openParked');
   assert.ok(req, 'an openParked command was sent');
   assert.equal(req.name, 'Travel');
 });
 
-test('Save in a card description fold sends groupsWrite with the edited text and confirms', async () => {
+test('Save in a row description editor sends groupsWrite with the edited text and confirms', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const { send, sent } = makeSend(FIXTURE);
   const statuses = [];
   await renderBoard(container, { send, setStatus: (t) => statuses.push(t) });
-  // The open card's textarea is prefilled from the matching description.
+  // Open the open (Work) row's menu and choose Description… to reveal the editor.
+  openRowMenu(container, 'Work');
+  await findByText(container, 'Description…').click();
+  // The editor's textarea is prefilled from the matching saved description.
   const textarea = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
   assert.ok(textarea, 'description textarea prefilled from descriptions');
   textarea.value = 'updated note';
-  // The first Save button belongs to the open (Work) card.
   await findByText(container, 'Save').click();
   const req = sent.find((m) => m.cmd === 'groupsWrite');
   assert.ok(req, 'a groupsWrite command was sent');
@@ -273,7 +298,7 @@ test('board skips open groups that already have a description', async () => {
   assert.ok(!sent.some((m) => m.cmd === 'describe'), 'no describe for already-described groups');
 });
 
-test('a suggestion fills the textarea and shows the Suggested label on re-render', async () => {
+test('a suggestion shows the waiting dot and fills the editor with a Suggested label', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const storage = makeStorage();
@@ -284,11 +309,16 @@ test('a suggestion fills the textarea and shows the Suggested label on re-render
   assert.ok(statuses.some((s) => s === 'Suggested descriptions for 1 group'), 'status reports the suggested count');
   // The suggestion is remembered with its date so later renders don't re-ask.
   assert.deepEqual(storage.peek().boardDescribeSuggestions.work, { description: 'day job stuff', date: '2026-01-05' });
-  // The re-render prefilled the open card's textarea with the suggestion and
-  // showed the "Suggested" label.
+  // The row carries the small waiting dot but no description text or Suggested
+  // label until the editor is opened.
+  assert.ok(walk(container).some((n) => n.className === 'boardSuggestDot'), 'the waiting dot shows on the row');
+  assert.ok(!findByText(container, 'Suggested'), 'no Suggested label on the row itself');
+  // Opening the editor prefills the suggestion and shows the Suggested label.
+  openRowMenu(container, 'Work');
+  await findByText(container, 'Description…').click();
   const textarea = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
-  assert.ok(textarea, 'board re-rendered with the suggestion prefilled');
-  assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown');
+  assert.ok(textarea, 'the editor is prefilled with the suggestion');
+  assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown in the editor');
 });
 
 test('a stored suggestion renders without a describe call', async () => {
@@ -299,25 +329,31 @@ test('a stored suggestion renders without a describe call', async () => {
   await renderBoard(container, { send, storage, today: '2026-01-06' });
   await flush();
   assert.ok(!sent.some((m) => m.cmd === 'describe'), 'no describe sent when a suggestion is already stored');
+  assert.ok(walk(container).some((n) => n.className === 'boardSuggestDot'), 'the waiting dot shows for the stored suggestion');
+  openRowMenu(container, 'Work');
+  await findByText(container, 'Description…').click();
   const textarea = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
-  assert.ok(textarea, 'the stored suggestion is prefilled');
+  assert.ok(textarea, 'the stored suggestion is prefilled in the editor');
   assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown for the stored suggestion');
 });
 
-test('Save on a suggested card sends groupsWrite and clears the Suggested label', async () => {
+test('Save on a suggested row sends groupsWrite and closes the editor', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const storage = makeStorage({ boardDescribeSuggestions: { work: { description: 'day job stuff', date: '2026-01-05' } } });
   const { send, sent } = makeDescribeSend(() => NO_DESC, { descriptions: [], written: 0 });
   await renderBoard(container, { send, storage, today: '2026-01-06' });
   await flush();
+  openRowMenu(container, 'Work');
+  await findByText(container, 'Description…').click();
   assert.ok(findByText(container, 'Suggested'), 'the Suggested label is shown before saving');
   await findByText(container, 'Save').click();
   const req = sent.find((m) => m.cmd === 'groupsWrite');
   assert.ok(req, 'a groupsWrite command was sent');
   assert.equal(req.name, 'Work');
   assert.equal(req.description, 'day job stuff');
-  assert.ok(!findByText(container, 'Suggested'), 'the Suggested label is cleared after saving');
+  // Saving removes the editor, so the Suggested label is gone with it.
+  assert.ok(!findByText(container, 'Suggested'), 'the editor (and its Suggested label) is closed after saving');
 });
 
 test('a saved description is never replaced by a suggestion', async () => {
@@ -325,7 +361,8 @@ test('a saved description is never replaced by a suggestion', async () => {
   const container = makeEl('div');
   const storage = makeStorage();
   // The open 'Work' group has a saved description; a stale suggestion also
-  // exists for it. The saved description must win and no Suggested label shows.
+  // exists for it. The saved description must win, no waiting dot shows, and the
+  // editor prefills from the saved text with no Suggested label.
   const fixture = {
     open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 3 }],
     parked: [],
@@ -335,8 +372,11 @@ test('a saved description is never replaced by a suggestion', async () => {
   const { send } = makeDescribeSend(() => fixture, { descriptions: [], written: 0 });
   await renderBoard(container, { send, storage, today: '2026-01-06' });
   await flush();
+  assert.ok(!walk(container).some((n) => n.className === 'boardSuggestDot'), 'no waiting dot when a description is saved');
+  openRowMenu(container, 'Work');
+  await findByText(container, 'Description…').click();
   const saved = walk(container).find((n) => n.tagName === 'TEXTAREA' && n.value === 'day job stuff');
-  assert.ok(saved, 'the saved description is shown');
+  assert.ok(saved, 'the saved description is shown in the editor');
   assert.ok(!walk(container).some((n) => n.tagName === 'TEXTAREA' && n.value === 'a stale suggestion'), 'the suggestion did not replace it');
   assert.ok(!findByText(container, 'Suggested'), 'no Suggested label when a description is saved');
 });
@@ -456,7 +496,8 @@ test('an open group with no web pages reads "no web pages" and offers Close grou
   await renderBoard(container, { send });
   const texts = allText(container);
   assert.ok(texts.includes('no web pages'), 'the no-web-pages count text');
-  assert.ok(findByText(container, 'Close group'), 'a Close group button is offered');
+  openRowMenu(container, 'Scratch');
+  assert.ok(findByText(container, 'Close group'), 'a Close group item is offered');
   assert.ok(!findByText(container, 'Park'), 'Park is not offered for a group with no web pages');
   await findByText(container, 'Close group').click();
   const req = sent.find((m) => m.cmd === 'closeGroup');
@@ -464,26 +505,128 @@ test('an open group with no web pages reads "no web pages" and offers Close grou
   assert.equal(req.groupId, 7);
 });
 
-test('an open card whose name matches a parked record shows "Also parked" and an Add-them-back button', async () => {
+test('an open row whose name matches a parked record offers an "Add back <n> parked tabs" menu item', async () => {
   installFakeDocument();
   const container = makeEl('div');
   // 'Work' is open and also has a parked record under the same name (differing
-  // only by case/space): the open card offers to add those parked tabs back.
+  // only by case/space): the open row's menu offers to add those parked tabs back.
   const { send, sent } = makeSend({
     open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 3, webTabCount: 3 }],
     parked: [{ name: '  work  ', color: 'blue', tabCount: 4, lastSeen: '2026-01-02T10:00:00.000Z' }],
     descriptions: [],
   });
   await renderBoard(container, { send });
-  const texts = allText(container);
-  assert.ok(texts.includes('Also parked: 4 tabs'), 'the also-parked line names the parked tab count');
-  // The same-named parked record is not shown as its own parked card.
-  assert.ok(texts.includes('Nothing parked yet'), 'the parked section stays empty for the same-named record');
-  const addBtn = findByText(container, 'Add them back');
-  assert.ok(addBtn, 'an Add them back button is offered');
-  await addBtn.click();
+  // The same-named parked record is not shown as its own parked row.
+  assert.ok(allText(container).includes('Nothing parked yet'), 'the parked section stays empty for the same-named record');
+  openRowMenu(container, 'Work');
+  const addItem = findByText(container, 'Add back 4 parked tabs');
+  assert.ok(addItem, 'an Add back <n> parked tabs item is offered');
+  await addItem.click();
   const req = sent.find((m) => m.cmd === 'openParked');
   assert.ok(req, 'an openParked command was sent');
   assert.equal(req.name, 'Work', 'it opens the parked record by the open group name');
   assert.equal(req.groupId, 7, 'it folds the tabs into the existing open group');
+});
+
+// --- compact rows, per-row ⋯ menus, and section-header counts --------------
+
+// Collect the labels of the buttons inside the menu currently open under a row.
+function menuLabels(row) {
+  const menu = (row.children || []).find((c) => c.className === 'boardMenu');
+  if (!menu) return [];
+  return walk(menu).filter((n) => n.tagName === 'BUTTON').map((n) => n.textContent);
+}
+
+test('each group renders as a single compact row with dot, name, count and a ⋯ button', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  // One row per group: one open ('Work'), one parked ('Travel').
+  const rows = walk(container).filter((n) => n.className === 'boardRow');
+  assert.equal(rows.length, 2, 'exactly one row per group');
+  const openRow = rows.find((r) => (r.children || []).some((c) => c.className === 'boardName' && c.textContent === 'Work'));
+  assert.ok(openRow, 'the open group has a row');
+  // The row carries its parts: a color dot, the name, a muted count, and a ⋯ button.
+  assert.ok((openRow.children || []).some((c) => c.className === 'boardDot'), 'row has a color dot');
+  assert.ok((openRow.children || []).some((c) => c.className === 'boardName' && c.textContent === 'Work'), 'row has the name');
+  assert.ok((openRow.children || []).some((c) => c.className === 'boardCount' && c.textContent === '3 tabs'), 'row has the muted count');
+  assert.ok((openRow.children || []).some((c) => c.className === 'boardMenuBtn' && c.textContent === '⋯'), 'row has a ⋯ button');
+  // Nothing about the description shows on the row (Work has a saved description).
+  assert.ok(!(openRow.children || []).some((c) => c.tagName === 'TEXTAREA'), 'no inline editor until opened');
+  assert.ok(!(openRow.children || []).some((c) => c.className === 'boardSuggestDot'), 'no waiting dot when a description is saved');
+});
+
+test('the ⋯ menu lists the open-row actions (Sort, Park, Description…)', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = openRowMenu(container, 'Work');
+  assert.deepEqual(menuLabels(row), ['Sort this group', 'Park', 'Description…']);
+});
+
+test('the ⋯ menu lists the parked-row actions (Open, Description…)', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = openRowMenu(container, 'Travel');
+  assert.deepEqual(menuLabels(row), ['Open', 'Description…']);
+});
+
+test('Description… opens an inline editor with Save and Cancel under the row', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = openRowMenu(container, 'Work');
+  await findByText(container, 'Description…').click();
+  const editor = (row.children || []).find((c) => c.className === 'boardDescEditor');
+  assert.ok(editor, 'the editor is appended under the row');
+  assert.ok(walk(editor).some((n) => n.tagName === 'TEXTAREA'), 'the editor has a textarea');
+  assert.ok(walk(editor).some((n) => n.textContent === 'Save'), 'the editor has a Save button');
+  assert.ok(walk(editor).some((n) => n.textContent === 'Cancel'), 'the editor has a Cancel button');
+  // Cancel removes the editor again.
+  await findByText(container, 'Cancel').click();
+  assert.ok(!(row.children || []).some((c) => c.className === 'boardDescEditor'), 'Cancel closes the editor');
+});
+
+test('Escape closes an open ⋯ menu', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = openRowMenu(container, 'Work');
+  assert.ok((row.children || []).some((c) => c.className === 'boardMenu'), 'the menu is open');
+  // Pressing Escape anywhere closes it.
+  document._fire('keydown', { key: 'Escape' });
+  assert.ok(!(row.children || []).some((c) => c.className === 'boardMenu'), 'the menu is closed after Escape');
+});
+
+test('a click outside the ⋯ menu closes it', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = openRowMenu(container, 'Work');
+  assert.ok((row.children || []).some((c) => c.className === 'boardMenu'), 'the menu is open');
+  // A document click on something that isn't the menu closes it.
+  document._fire('click', { target: makeEl('div') });
+  assert.ok(!(row.children || []).some((c) => c.className === 'boardMenu'), 'the menu is closed after an outside click');
+});
+
+test('section headers show the group counts, e.g. "Open now · 5" and "Parked · 10"', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const mk = (n, prefix) => Array.from({ length: n }, (_, i) => ({ groupId: i + 1, name: `${prefix}${i + 1}`, color: 'blue', windowId: 1, tabCount: 1 }));
+  const { send } = makeSend({
+    open: mk(5, 'Open'),
+    parked: Array.from({ length: 10 }, (_, i) => ({ name: `Park${i + 1}`, color: 'green', tabCount: 1, lastSeen: '2026-01-02T10:00:00.000Z' })),
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const texts = allText(container);
+  assert.ok(texts.includes('Open now · 5'), 'open header shows its count');
+  assert.ok(texts.includes('Parked · 10'), 'parked header shows its count');
 });

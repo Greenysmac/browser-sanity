@@ -15,12 +15,12 @@ export function send(message) {
   return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
 }
 
-// Show the cards whose group name contains `query` (case-insensitive, trimmed),
-// hide the rest. An empty query shows every card. Matching is by the .boardName
-// text inside each .boardCard, so it tracks whatever renderBoard drew.
+// Show the rows whose group name contains `query` (case-insensitive, trimmed),
+// hide the rest. An empty query shows every row. Matching is by the .boardName
+// text inside each .boardRow, so it tracks whatever renderBoard drew.
 export function filterCards(container, query) {
   const wanted = String(query || '').trim().toLowerCase();
-  for (const card of container.querySelectorAll('.boardCard')) {
+  for (const card of container.querySelectorAll('.boardRow')) {
     const nameEl = card.querySelector('.boardName');
     const name = (nameEl && nameEl.textContent) ? nameEl.textContent.toLowerCase() : '';
     card.hidden = wanted !== '' && !name.includes(wanted);

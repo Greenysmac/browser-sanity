@@ -1,7 +1,8 @@
 // The board: a quick at-a-glance view of the user's tab groups, split into the
 // ones open right now (from the live tab strip) and the ones parked in the
-// on-disk index. Each card can be acted on (sort/park an open group, open a
-// parked one) and carries a fold-out to edit the description the model sees.
+// on-disk index. Each group is a single compact row; a '⋯' menu on the row
+// holds its actions (sort/park an open group, open a parked one) and a
+// "Description…" item opens an inline editor for the description the model sees.
 // All DOM is built with createElement/textContent — never innerHTML with data —
 // so group names and descriptions can't inject markup (the repo lints for it).
 
@@ -41,27 +42,33 @@ function suggestionFor(suggestions, name) {
   return (entry && entry.description) || '';
 }
 
-// The <details> "Description" fold-out shared by open and parked cards: a
-// textarea prefilled from the group's saved description and a Save button that
-// writes it back through 'groupsWrite'. On save the status line confirms. Takes
-// a setStatus callback so the board can show its own status without importing
-// dom.js (keeping this module testable with a bare fake document).
+// Remove an element from the DOM when it supports .remove() (the real DOM and
+// the richer test fakes do); a bare fake element without it is simply left in
+// place, which keeps the view importable with a minimal fake document.
+function detach(el) {
+  if (el && typeof el.remove === 'function') el.remove();
+}
+
+// The inline "Description" editor opened from a row's ⋯ menu: a textarea
+// prefilled from the group's saved description, a Save button that writes it
+// back through 'groupsWrite', and a Cancel button that removes the editor. On
+// save the status line confirms. Takes a setStatus callback so the board can
+// show its own status without importing dom.js (keeping this module testable
+// with a bare fake document).
 //
 // When `suggested` is a non-empty string, the group has no saved description
-// and the model proposed one: the textarea is prefilled with that suggestion, a
-// small "Suggested" label shows next to the fold-out, and the fold-out stays
-// closed. Nothing is saved until the user clicks Save, which sends 'groupsWrite'
-// as usual and then removes the "Suggested" label (the text is now the user's).
-function descriptionFold({ name, description, suggested, send, setStatus }) {
+// and the model proposed one: the textarea is prefilled with that suggestion
+// and a small "Suggested" label shows inside the editor. Nothing is saved until
+// the user clicks Save, which sends 'groupsWrite' as usual.
+function descriptionEditor({ name, description, suggested, send, setStatus }) {
   const wrap = document.createElement('div');
-  wrap.className = 'boardDescWrap';
-  const details = document.createElement('details');
-  details.className = 'boardDesc';
-  const summary = document.createElement('summary');
-  summary.textContent = 'Description';
-  const label = document.createElement('span');
-  label.className = 'boardSuggested';
-  if (suggested) label.textContent = 'Suggested';
+  wrap.className = 'boardDescEditor';
+  if (suggested) {
+    const label = document.createElement('span');
+    label.className = 'boardSuggested';
+    label.textContent = 'Suggested';
+    wrap.appendChild(label);
+  }
   const textarea = document.createElement('textarea');
   textarea.rows = 2;
   textarea.value = description || suggested || '';
@@ -70,14 +77,61 @@ function descriptionFold({ name, description, suggested, send, setStatus }) {
   save.textContent = 'Save';
   save.addEventListener('click', async () => {
     await send({ cmd: 'groupsWrite', name, description: textarea.value });
-    label.textContent = '';
     setStatus(`Saved description for "${name}".`);
+    detach(wrap);
   });
-  details.append(summary, textarea, save);
-  // The label sits beside the fold-out (not inside it) so it stays visible
-  // while the fold-out is closed, which is how a suggested card first appears.
-  wrap.append(details, label);
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => { detach(wrap); });
+  wrap.append(textarea, save, cancel);
   return wrap;
+}
+
+// A small pop-up menu, built with createElement as a positioned <ul> of
+// buttons. Each item is { label, onChoose }. The menu closes after a choice, on
+// Escape, or on a click outside it; whichever happens first detaches the shared
+// document listeners. Appended to the given host element so it sits under the
+// row's ⋯ button.
+function openMenu(host, items) {
+  const menu = document.createElement('ul');
+  menu.className = 'boardMenu';
+  let close = () => {};
+  const onKey = (e) => { if (e && e.key === 'Escape') close(); };
+  const onDocClick = (e) => {
+    const target = e && e.target;
+    // A click on the menu itself (or its items) shouldn't close it from here;
+    // choosing an item closes the menu explicitly.
+    if (target && (target === menu || (menu.children || []).includes(target))) return;
+    close();
+  };
+  close = () => {
+    detach(menu);
+    const doc = (typeof document !== 'undefined') ? document : undefined;
+    if (doc && doc.removeEventListener) {
+      doc.removeEventListener('keydown', onKey);
+      doc.removeEventListener('click', onDocClick);
+    }
+  };
+  for (const item of items) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = item.label;
+    btn.addEventListener('click', async () => {
+      close();
+      await item.onChoose();
+    });
+    li.appendChild(btn);
+    menu.appendChild(li);
+  }
+  host.appendChild(menu);
+  const doc = (typeof document !== 'undefined') ? document : undefined;
+  if (doc && doc.addEventListener) {
+    doc.addEventListener('keydown', onKey);
+    doc.addEventListener('click', onDocClick);
+  }
+  return close;
 }
 
 // The number of web pages in a group: the host-supplied web-tab count when
@@ -95,22 +149,23 @@ function parkedMatch(parked, name) {
   return (parked || []).find((g) => String(g.name || '').trim().toLowerCase() === wanted);
 }
 
-// A single open-group card: color dot, name, "<n> tabs", a Sort and a Park
-// button, and the description fold-out. After Sort or Park the board re-renders
-// so the card list reflects the new state. `suggestions` is the stored map of
-// model suggestions by group name; an open group with no saved description shows
-// its suggestion prefilled with a "Suggested" label (fold-out closed).
+// A single open-group row: a compact line of color dot, name, web-tab count in
+// muted text, a small dot when a suggested description is waiting, and a '⋯'
+// button that opens the row's action menu. The description editor (opened from
+// the menu) appears inline right under the row. After an action the board
+// re-renders so the row list reflects the new state. `suggestions` is the
+// stored map of model suggestions by group name; an open group with no saved
+// description has its waiting suggestion flagged with the small dot and
+// prefilled (with a "Suggested" label) once the editor opens.
 //
 // The count reflects web pages only. A group with no web pages reads "no web
-// pages" and offers "Close group" (close its tabs) instead of Park, since
-// there's nothing worth parking. When a parked record carries the same name,
-// an "Also parked: <n> tabs" line with an "Add them back" button opens those
-// parked tabs straight into this open group.
+// pages" and the menu offers "Close group" (close its tabs) instead of Park,
+// since there's nothing worth parking. When a parked record carries the same
+// name, the menu offers "Add back <n> parked tabs", opening those parked tabs
+// straight into this open group.
 function openCard({ group, descriptions, suggestions, parked, send, setStatus, rerender }) {
-  const card = document.createElement('div');
-  card.className = 'boardCard';
-  const head = document.createElement('div');
-  head.className = 'boardCardHead';
+  const row = document.createElement('div');
+  row.className = 'boardRow';
   const dot = document.createElement('span');
   dot.className = 'boardDot';
   dot.style.backgroundColor = DOT_COLORS[group.color] || DOT_COLORS.grey;
@@ -121,69 +176,58 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
   const count = document.createElement('span');
   count.className = 'boardCount';
   count.textContent = webCount ? `${webCount} tabs` : 'no web pages';
-  const sortBtn = document.createElement('button');
-  sortBtn.type = 'button';
-  sortBtn.textContent = 'Sort this group';
-  sortBtn.addEventListener('click', async () => {
-    await send({ cmd: 'sortGroup', groupId: group.groupId });
-    await rerender();
-  });
-  head.append(dot, name, count, sortBtn);
-  if (webCount) {
-    const parkBtn = document.createElement('button');
-    parkBtn.type = 'button';
-    parkBtn.textContent = 'Park';
-    parkBtn.addEventListener('click', async () => {
-      await send({ cmd: 'parkGroup', groupId: group.groupId });
-      await rerender();
-    });
-    head.append(parkBtn);
-  } else {
-    // Nothing worth parking: offer to close the group's tabs instead.
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = 'Close group';
-    closeBtn.addEventListener('click', async () => {
-      await send({ cmd: 'closeGroup', groupId: group.groupId });
-      await rerender();
-    });
-    head.append(closeBtn);
-  }
+  row.append(dot, name, count);
+
   const description = descriptionFor(descriptions, group.name);
   // Only surface a stored suggestion when nothing is saved yet; a saved
   // description is never replaced by a suggestion.
   const suggested = description ? '' : suggestionFor(suggestions, group.name);
-  card.append(head, descriptionFold({ name: group.name, description, suggested, send, setStatus }));
+  if (suggested) {
+    const flag = document.createElement('span');
+    flag.className = 'boardSuggestDot';
+    row.appendChild(flag);
+  }
 
+  // Opening the editor replaces any editor already open on this row.
+  const openEditor = () => {
+    const existing = (row.children || []).find((c) => c && c.className === 'boardDescEditor');
+    if (existing) return;
+    row.appendChild(descriptionEditor({ name: group.name, description, suggested, send, setStatus }));
+  };
+
+  const items = [
+    { label: 'Sort this group', onChoose: async () => { await send({ cmd: 'sortGroup', groupId: group.groupId }); await rerender(); } },
+  ];
+  if (webCount) {
+    items.push({ label: 'Park', onChoose: async () => { await send({ cmd: 'parkGroup', groupId: group.groupId }); await rerender(); } });
+  } else {
+    // Nothing worth parking: offer to close the group's tabs instead.
+    items.push({ label: 'Close group', onChoose: async () => { await send({ cmd: 'closeGroup', groupId: group.groupId }); await rerender(); } });
+  }
   // A parked record with the same name holds tabs that aren't open here yet;
   // offer to add them back into this open group.
   const alsoParked = parkedMatch(parked, group.name);
   const parkedCount = alsoParked ? (alsoParked.tabCount || 0) : 0;
   if (parkedCount) {
-    const also = document.createElement('div');
-    also.className = 'boardAlsoParked';
-    const line = document.createElement('span');
-    line.textContent = `Also parked: ${parkedCount} tabs`;
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.textContent = 'Add them back';
-    addBtn.addEventListener('click', async () => {
-      await send({ cmd: 'openParked', name: group.name, groupId: group.groupId });
-      await rerender();
-    });
-    also.append(line, addBtn);
-    card.append(also);
+    items.push({ label: `Add back ${parkedCount} parked tabs`, onChoose: async () => { await send({ cmd: 'openParked', name: group.name, groupId: group.groupId }); await rerender(); } });
   }
-  return card;
+  items.push({ label: 'Description…', onChoose: openEditor });
+
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = 'boardMenuBtn';
+  menuBtn.textContent = '⋯';
+  menuBtn.addEventListener('click', () => { openMenu(row, items); });
+  row.append(menuBtn);
+  return row;
 }
 
-// A single parked-group card: color dot, name, "<n> tabs · last seen <date>",
-// an Open button, and the description fold-out. After Open the board re-renders.
+// A single parked-group row: color dot, name, "<n> tabs · last seen <date>" in
+// muted text, and a '⋯' button whose menu offers "Open" and "Description…".
+// After Open the board re-renders.
 function parkedCard({ group, descriptions, send, setStatus, rerender }) {
-  const card = document.createElement('div');
-  card.className = 'boardCard';
-  const head = document.createElement('div');
-  head.className = 'boardCardHead';
+  const row = document.createElement('div');
+  row.className = 'boardRow';
   const dot = document.createElement('span');
   dot.className = 'boardDot';
   dot.style.backgroundColor = DOT_COLORS[group.color] || DOT_COLORS.grey;
@@ -193,16 +237,25 @@ function parkedCard({ group, descriptions, send, setStatus, rerender }) {
   const meta = document.createElement('span');
   meta.className = 'boardCount';
   meta.textContent = `${group.tabCount} tabs · ${lastSeenText(group.lastSeen)}`;
-  const openBtn = document.createElement('button');
-  openBtn.type = 'button';
-  openBtn.textContent = 'Open';
-  openBtn.addEventListener('click', async () => {
-    await send({ cmd: 'openParked', name: group.name });
-    await rerender();
-  });
-  head.append(dot, name, meta, openBtn);
-  card.append(head, descriptionFold({ name: group.name, description: descriptionFor(descriptions, group.name), send, setStatus }));
-  return card;
+  row.append(dot, name, meta);
+
+  const description = descriptionFor(descriptions, group.name);
+  const openEditor = () => {
+    const existing = (row.children || []).find((c) => c && c.className === 'boardDescEditor');
+    if (existing) return;
+    row.appendChild(descriptionEditor({ name: group.name, description, send, setStatus }));
+  };
+  const items = [
+    { label: 'Open', onChoose: async () => { await send({ cmd: 'openParked', name: group.name }); await rerender(); } },
+    { label: 'Description…', onChoose: openEditor },
+  ];
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = 'boardMenuBtn';
+  menuBtn.textContent = '⋯';
+  menuBtn.addEventListener('click', () => { openMenu(row, items); });
+  row.append(menuBtn);
+  return row;
 }
 
 // The chrome.storage.local key holding the "last asked" dates, so we describe a
@@ -332,7 +385,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   openSection.open = true;
   openSection.className = 'boardSection';
   const openSummary = document.createElement('summary');
-  openSummary.textContent = 'Open now';
+  openSummary.textContent = `Open now · ${open.length}`;
   openSection.appendChild(openSummary);
   if (!open.length) {
     const empty = document.createElement('p');
@@ -347,7 +400,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   parkedSection.open = true;
   parkedSection.className = 'boardSection';
   const parkedSummary = document.createElement('summary');
-  parkedSummary.textContent = 'Parked, from the index';
+  parkedSummary.textContent = `Parked · ${parked.length}`;
   parkedSection.appendChild(parkedSummary);
   if (!parked.length) {
     const empty = document.createElement('p');

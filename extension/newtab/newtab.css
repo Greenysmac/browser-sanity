@@ -1,5 +1,5 @@
 /* Full-page board for the new-tab override. Standalone (it doesn't share the
-   side panel's stylesheet), so the board card classes renderBoard emits are
+   side panel's stylesheet), so the board row/menu classes renderBoard emits are
    styled here too. Kept intentionally light so the page paints fast. */
 :root {
   --bg: #f6f7f9;
@@ -86,20 +86,18 @@ body {
   margin-bottom: 8px;
 }
 .boardEmpty { color: var(--text-muted); margin: 4px 0 0; }
-.boardCard {
+.boardRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r);
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
 }
-.boardCard:hover { border-color: var(--border-strong); }
-.boardCardHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
+.boardRow:hover { border-color: var(--border-strong); }
 .boardDot {
   width: 10px;
   height: 10px;
@@ -113,16 +111,56 @@ body {
   font-variant-numeric: tabular-nums;
   margin-right: auto;
 }
-.boardDesc { margin-top: 8px; }
-.boardDesc > summary {
-  font-size: 12px;
-  color: var(--text-muted);
-  cursor: pointer;
+.boardSuggestDot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  flex: none;
+  margin-right: 2px;
 }
-.boardDesc textarea { width: 100%; margin-top: 6px; }
-.boardDesc button { margin-top: 6px; }
-.boardSuggested:not(:empty) {
-  margin-left: 6px;
+.boardMenuBtn {
+  flex: none;
+  padding: 2px 10px;
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+.boardMenuBtn:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border); }
+.boardMenu {
+  position: absolute;
+  top: 100%;
+  right: 10px;
+  z-index: 5;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 4px;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-1);
+}
+.boardMenu li { margin: 0; }
+.boardMenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+.boardMenu button:hover { background: var(--surface-hover); }
+.boardDescEditor {
+  flex: 1 1 100%;
+  margin-top: 8px;
+}
+.boardDescEditor textarea { width: 100%; }
+.boardDescEditor button { margin-top: 6px; margin-right: 6px; }
+.boardSuggested {
+  display: block;
+  margin-bottom: 4px;
   font-size: 11px;
   color: var(--text-muted);
 }

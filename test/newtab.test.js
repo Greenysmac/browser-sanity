@@ -1,9 +1,10 @@
 // New-tab board tests. Like the board/settings-view tests, the page has no
 // jsdom harness, so this installs a tiny fake document covering just the DOM
 // surface the newtab module and renderBoard touch: createElement, textContent/
-// value/style/hidden, append(Child), addEventListener, and querySelector(All)
-// with the handful of selectors used ('.boardCard', '.boardName'). A fake send
-// answers 'boardData' and records dispatched commands.
+// value/style/hidden, append(Child), remove, addEventListener, and
+// querySelector(All) with the handful of selectors used ('.boardRow',
+// '.boardName', '.boardMenuBtn'). A fake send answers 'boardData' and records
+// dispatched commands.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -36,14 +37,16 @@ function makeEl(tag) {
     hidden: false,
     style: {},
     listeners: {},
+    parent: null,
     _text: '',
     get textContent() { return this._text; },
     set textContent(v) {
       this._text = String(v);
       if (v === '') this.children = [];
     },
-    append(...kids) { this.children.push(...kids); },
-    appendChild(kid) { this.children.push(kid); return kid; },
+    append(...kids) { for (const k of kids) { if (k) k.parent = this; } this.children.push(...kids); },
+    appendChild(kid) { if (kid) kid.parent = this; this.children.push(kid); return kid; },
+    remove() { if (this.parent) { this.parent.children = this.parent.children.filter((c) => c !== this); this.parent = null; } },
     addEventListener(ev, fn) { this.listeners[ev] = fn; },
     dispatch(ev) { if (this.listeners[ev]) return this.listeners[ev](); },
     querySelectorAll(sel) { return walk(this).filter((n) => matches(n, sel)); },
@@ -94,12 +97,12 @@ test('initNewtab renders the board into its container with a fake send', async (
   globalThis.chrome = { runtime: { sendMessage: (msg, cb) => cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }) } };
   await initNewtab({ container, note: makeEl('p'), search: makeEl('input') });
   const texts = walk(container).map((n) => n.textContent);
-  assert.ok(texts.includes('Open now'), 'open section rendered');
+  assert.ok(texts.includes('Open now · 2'), 'open section rendered with its count');
   assert.ok(texts.includes('Work'), 'open group name rendered');
   assert.ok(texts.includes('Reading'), 'parked group name rendered');
 });
 
-test('the filter hides non-matching cards and restores them when cleared', async () => {
+test('the filter hides non-matching rows and restores them when cleared', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const note = makeEl('p');
@@ -109,28 +112,28 @@ test('the filter hides non-matching cards and restores them when cleared', async
 
   search.value = 'travel';
   search.dispatch('input');
-  const cards = container.querySelectorAll('.boardCard');
+  const cards = container.querySelectorAll('.boardRow');
   const byName = (n) => cards.find((c) => c.querySelector('.boardName').textContent === n);
-  assert.equal(byName('Travel plans').hidden, false, 'matching card stays visible');
-  assert.equal(byName('Work').hidden, true, 'non-matching card is hidden');
-  assert.equal(byName('Reading').hidden, true, 'non-matching parked card is hidden');
+  assert.equal(byName('Travel plans').hidden, false, 'matching row stays visible');
+  assert.equal(byName('Work').hidden, true, 'non-matching row is hidden');
+  assert.equal(byName('Reading').hidden, true, 'non-matching parked row is hidden');
 
   search.value = '';
   search.dispatch('input');
-  assert.ok(cards.every((c) => c.hidden === false), 'clearing the filter shows every card');
+  assert.ok(cards.every((c) => c.hidden === false), 'clearing the filter shows every row');
 });
 
 test('filterCards matches on group name case-insensitively', () => {
   installFakeDocument();
   const container = makeEl('div');
   const mk = (name) => {
-    const card = makeEl('div'); card.className = 'boardCard';
+    const card = makeEl('div'); card.className = 'boardRow';
     const nm = makeEl('span'); nm.className = 'boardName'; nm.textContent = name;
     card.append(nm); return card;
   };
   container.append(mk('Work'), mk('Travel plans'));
   filterCards(container, 'WORK');
-  const [work, travel] = container.querySelectorAll('.boardCard');
+  const [work, travel] = container.querySelectorAll('.boardRow');
   assert.equal(work.hidden, false);
   assert.equal(travel.hidden, true);
 });
@@ -194,6 +197,11 @@ test('Sort this group sends sortGroup then opens the side panel', async () => {
   };
   await initNewtab({ container, note: makeEl('p'), search: makeEl('input'), panelBtn: makeEl('button'), panelNote: makeEl('p') });
 
+  // 'Sort this group' now lives in the row's ⋯ menu; open it on the Work row first.
+  const workName = walk(container).find((n) => n.className === 'boardName' && n.textContent === 'Work');
+  const row = workName && workName.parent;
+  const menuBtn = (row.children || []).find((c) => c.className === 'boardMenuBtn');
+  menuBtn.dispatch('click');
   const sortBtn = walk(container).find((n) => n.textContent === 'Sort this group');
   assert.ok(sortBtn, 'the sort button rendered');
   await sortBtn.dispatch('click');

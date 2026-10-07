@@ -376,20 +376,18 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   margin-bottom: 6px;
 }
 .boardEmpty { color: var(--text-muted); font-size: 12px; margin: 4px 0 0; }
-.boardCard {
+.boardRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r);
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
 }
-.boardCard:hover { border-color: var(--border-strong); }
-.boardCardHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 7px;
-}
+.boardRow:hover { border-color: var(--border-strong); }
 .boardDot {
   width: 10px;
   height: 10px;
@@ -403,17 +401,61 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   font-variant-numeric: tabular-nums;
   margin-right: auto;
 }
-.boardCardHead button { font-size: 12px; }
-.boardDesc { margin-top: 7px; }
-.boardDesc > summary {
-  font-size: 11px;
-  color: var(--text-muted);
-  cursor: pointer;
+/* The small dot flagging a waiting suggested description. */
+.boardSuggestDot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  flex: none;
+  margin-right: 2px;
 }
-.boardDesc textarea { width: 100%; margin-top: 5px; }
-.boardDesc button { margin-top: 5px; }
-.boardSuggested:not(:empty) {
-  margin-left: 6px;
+/* The compact ⋯ button that opens a row's action menu. */
+.boardMenuBtn {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+.boardMenuBtn:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border); }
+/* The pop-up list of row actions, positioned under the ⋯ button. */
+.boardMenu {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  z-index: 5;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 4px;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-1);
+}
+.boardMenu li { margin: 0; }
+.boardMenu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+  border-color: transparent;
+  background: transparent;
+}
+.boardMenu button:hover { background: var(--surface-hover); }
+/* The inline description editor opened from the ⋯ menu, under its row. */
+.boardDescEditor {
+  flex: 1 1 100%;
+  margin-top: 7px;
+}
+.boardDescEditor textarea { width: 100%; }
+.boardDescEditor button { margin-top: 5px; margin-right: 5px; font-size: 12px; }
+.boardSuggested {
+  display: block;
+  margin-bottom: 4px;
   font-size: 10px;
   color: var(--text-muted);
 }
