@@ -52,6 +52,20 @@ test('buildIndexPayload groups tabs by group, in window + tab order', async () =
   assert.deepEqual(chromeApi._getCalls, [100, 200]);
 });
 
+test('buildIndexPayload indexes a tab that has only pendingUrl under its group', async () => {
+  // A freshly reopened tab has no url yet, only pendingUrl. It must still be
+  // indexed (under its group) so the group reads as open, not parked.
+  const chromeApi = fakeChrome(
+    [{ id: 1, windowId: 1, groupId: 1, title: 'Reopened', pendingUrl: 'https://reopened' }],
+    { 1: { title: 'Work', color: 'blue' } },
+  );
+  const payload = await buildIndexPayload(chromeApi);
+  assert.deepEqual(payload.groups, [
+    { name: 'Work', color: 'blue', windowId: 1, tabs: [{ title: 'Reopened', url: 'https://reopened' }] },
+  ]);
+  assert.deepEqual(payload.ungrouped, []);
+});
+
 test('buildIndexPayload skips non-http(s) tabs', async () => {
   const chromeApi = fakeChrome(
     [

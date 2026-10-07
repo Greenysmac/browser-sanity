@@ -191,8 +191,13 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   const rerender = () => renderBoard(container, { send, setStatus, storage, today });
   const res = await send({ cmd: 'boardData' });
   const open = (res && res.open) || [];
-  const parked = (res && res.parked) || [];
+  const parkedRaw = (res && res.parked) || [];
   const descriptions = (res && res.descriptions) || [];
+  // Drop any parked card whose name matches an open group (trimmed, case-
+  // insensitive): a reopened group is "open now", so it shouldn't also appear
+  // under "Parked, from the index".
+  const openNames = new Set(open.map((g) => String(g.name || '').trim().toLowerCase()).filter(Boolean));
+  const parked = parkedRaw.filter((g) => !openNames.has(String(g.name || '').trim().toLowerCase()));
   container.textContent = '';
 
   const openSection = document.createElement('details');

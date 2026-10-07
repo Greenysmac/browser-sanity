@@ -24,8 +24,11 @@ export async function buildIndexPayload(chromeApi = chrome) {
   const byGroupId = new Map(); // groupId -> group object in `groups`
   const ungrouped = [];
   for (const t of tabs) {
-    if (!isHttpUrl(t.url)) continue;
-    const entry = { title: t.title || '', url: t.url };
+    // A freshly reopened tab has only pendingUrl (no url yet); treat that as
+    // its url so the group it belongs to is indexed as open, not left parked.
+    const url = t.url || t.pendingUrl;
+    if (!isHttpUrl(url)) continue;
+    const entry = { title: t.title || '', url };
     const groupId = t.groupId ?? -1;
     if (groupId === -1 || !chromeApi.tabGroups) { ungrouped.push(entry); continue; }
     let group = byGroupId.get(groupId);

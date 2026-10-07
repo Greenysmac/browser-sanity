@@ -104,6 +104,23 @@ test('renderBoard shows a parked card with count and last-seen date', async () =
   assert.ok(texts.some((t) => t === '5 tabs · last seen 2026-01-02'), 'parked meta line with date');
 });
 
+test('a parked entry with the same name as an open group is not rendered', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  // Same name as the open 'Work' group, differing only by surrounding space and
+  // case — it should be dropped from the parked list.
+  const { send } = makeSend({
+    open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 3 }],
+    parked: [{ name: '  work  ', color: 'green', tabCount: 2, lastSeen: '2026-01-02T10:00:00.000Z' }],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const texts = allText(container);
+  assert.ok(texts.includes('Nothing parked yet'), 'parked section is empty');
+  // No Open button, since the one parked entry was dropped.
+  assert.ok(!findByText(container, 'Open'), 'no parked card rendered');
+});
+
 test('Sort this group sends sortGroup with the group id', async () => {
   installFakeDocument();
   const container = makeEl('div');
