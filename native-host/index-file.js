@@ -135,9 +135,12 @@ export function readIndex({
 }
 
 // Park a single group into the index with status 'parked' and lastSeen now,
-// replacing any existing entry with the same name (matched trimmed and
-// case-insensitively). Rewrites index.json and index.md, leaving every other
-// group and the ungrouped list untouched. Only those two files are touched.
+// merging into any existing entry with the same name (matched trimmed and
+// case-insensitively): the existing tabs are kept and incoming tabs whose url
+// isn't already present are appended. A park with zero tabs therefore never
+// removes or shrinks an existing entry. Rewrites index.json and index.md,
+// leaving every other group and the ungrouped list untouched. Only those two
+// files are touched.
 export function parkGroup(group = {}, {
   env = process.env,
   readFile = fs.readFileSync,
@@ -150,11 +153,22 @@ export function parkGroup(group = {}, {
   const mdPath = path.join(dir, 'index.md');
   const prev = readIndex({ env, readFile });
   const key = groupKey(group.name);
+  const existing = prev.groups.find((g) => groupKey(g.name) === key);
+  const incoming = Array.isArray(group.tabs) ? group.tabs.map((t) => ({ title: t.title, url: t.url })) : [];
+  const tabs = existing && Array.isArray(existing.tabs)
+    ? existing.tabs.map((t) => ({ title: t.title, url: t.url }))
+    : [];
+  const haveUrls = new Set(tabs.map((t) => t.url));
+  for (const t of incoming) {
+    if (haveUrls.has(t.url)) continue;
+    haveUrls.add(t.url);
+    tabs.push(t);
+  }
   const parked = {
-    name: String(group.name || ''),
-    color: group.color,
-    windowId: group.windowId,
-    tabs: Array.isArray(group.tabs) ? group.tabs.map((t) => ({ title: t.title, url: t.url })) : [],
+    name: existing ? existing.name : String(group.name || ''),
+    color: group.color !== undefined ? group.color : (existing && existing.color),
+    windowId: group.windowId !== undefined ? group.windowId : (existing && existing.windowId),
+    tabs,
     status: 'parked',
     lastSeen: now,
   };

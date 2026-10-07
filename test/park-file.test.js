@@ -37,7 +37,7 @@ test('parkGroup writes a parked group with status parked and lastSeen now', () =
   assert.match(md, /## Work \(parked, last seen 2026-10-07, 2 tabs\)/);
 });
 
-test('parkGroup replaces an existing entry with the same name (trimmed, case-insensitive)', () => {
+test('parkGroup merges into an existing entry with the same name (trimmed, case-insensitive)', () => {
   const dir = tempDir();
   const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
   // Seed an open Work group plus a Play group via writeIndex.
@@ -46,18 +46,37 @@ test('parkGroup replaces an existing entry with the same name (trimmed, case-ins
     { env, now: '2026-10-01T00:00:00.000Z' },
   );
   const count = parkGroup(
-    { name: '  WORK  ', color: 'red', tabs: [{ title: 'New', url: 'https://new' }] },
+    // One already-known url (kept, not duplicated) and one new one (appended).
+    { name: '  WORK  ', color: 'red', tabs: [{ title: 'Old', url: 'https://old' }, { title: 'New', url: 'https://new' }] },
     { env, now: '2026-10-07T00:00:00.000Z' },
   );
-  assert.equal(count, 2); // Work replaced (not duplicated), Play kept
+  assert.equal(count, 2); // Work merged (not duplicated), Play kept
   const json = readJson(dir);
   const work = json.groups.filter((g) => g.name.trim().toLowerCase() === 'work');
   assert.equal(work.length, 1);
   assert.equal(work[0].status, 'parked');
-  assert.deepEqual(work[0].tabs, [{ title: 'New', url: 'https://new' }]);
+  assert.equal(work[0].lastSeen, '2026-10-07T00:00:00.000Z');
+  // Old tab kept, new tab appended, no duplicate for the shared url.
+  assert.deepEqual(work[0].tabs, [{ title: 'Old', url: 'https://old' }, { title: 'New', url: 'https://new' }]);
   // Other groups and the ungrouped list are untouched.
   assert.ok(json.groups.find((g) => g.name === 'Play'));
   assert.deepEqual(json.ungrouped, [{ title: 'U', url: 'https://u' }]);
+});
+
+test('parkGroup with zero tabs leaves an existing entry untouched', () => {
+  const dir = tempDir();
+  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  writeIndex(
+    { groups: [{ name: 'Work', color: 'blue', tabs: [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }] }], ungrouped: [] },
+    { env, now: '2026-10-01T00:00:00.000Z' },
+  );
+  const count = parkGroup({ name: 'Work', tabs: [] }, { env, now: '2026-10-07T00:00:00.000Z' });
+  assert.equal(count, 1); // not removed, not duplicated
+  const json = readJson(dir);
+  const work = json.groups.filter((g) => g.name.trim().toLowerCase() === 'work');
+  assert.equal(work.length, 1);
+  // The existing tabs survive a zero-tab park.
+  assert.deepEqual(work[0].tabs, [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }]);
 });
 
 test('readIndex returns the parsed index.json shape', () => {

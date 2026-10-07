@@ -1,9 +1,11 @@
 // Park an open tab group into the on-disk index and reopen it later. Parking
 // hands the group's title, color and http(s) tabs to the native host (which
-// records it as 'parked') and only closes those tabs once the host confirms, so
-// a host failure never loses the tabs. Reopening reads the index, recreates the
-// tabs in a window, regroups them under the saved title/color, then syncs the
-// index so the group shows as open again.
+// records it as 'parked') and only closes the group's tabs once the host
+// confirms, so a host failure never loses the tabs. After a successful save the
+// whole group is closed — including non-web tabs like new-tab pages, which
+// aren't saved — so the group really goes away. Reopening reads the index,
+// recreates the tabs in a window, regroups them under the saved title/color,
+// then syncs the index so the group shows as open again.
 import { isHttpUrl } from './url-utils.js';
 import { TAB_GROUP_COLORS } from './colors.js';
 import { syncIndex } from './index-sync.js';
@@ -11,9 +13,11 @@ import { syncIndex } from './index-sync.js';
 const COLORS = new Set(TAB_GROUP_COLORS);
 
 // Collect a group's title, color and its http(s) tabs (in tab order), send a
-// 'park' message, and only after the host answers ok close those tabs. If the
-// host fails nothing is closed, so the group is never lost. Returns the host
-// reply, or throws if the host rejects.
+// 'park' message, and only after the host answers ok close every tab in the
+// group — web or not. Non-web tabs (like new-tab pages) aren't saved, just
+// closed, so the group really goes away. If the host fails nothing is closed,
+// so the group is never lost. Returns the host reply, or throws if the host
+// rejects.
 export async function parkGroup({ chromeApi = chrome, nativeClient, groupId } = {}) {
   let name = '';
   let color;
@@ -26,9 +30,9 @@ export async function parkGroup({ chromeApi = chrome, nativeClient, groupId } = 
   const tabs = [];
   const closeIds = [];
   for (const t of groupTabs) {
+    if (t.id != null) closeIds.push(t.id);
     if (!isHttpUrl(t.url)) continue;
     tabs.push({ title: t.title || '', url: t.url });
-    if (t.id != null) closeIds.push(t.id);
   }
   const res = await nativeClient.request({ type: 'park', payload: { group: { name, color, tabs } } });
   if (!res || !res.ok) throw new Error((res && res.error) || 'Park failed');

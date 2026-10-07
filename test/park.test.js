@@ -38,13 +38,13 @@ function fakeClient(responder) {
   };
 }
 
-test('parkGroup sends park then closes the group\'s http(s) tabs', async () => {
+test('parkGroup sends park then closes every tab in the group, web or not', async () => {
   const chromeApi = fakeChrome({
     group: { title: 'Work', color: 'blue' },
     groupTabs: [
       { id: 1, url: 'https://a', title: 'A' },
       { id: 2, url: 'https://b', title: 'B' },
-      { id: 3, url: 'chrome://settings', title: 'S' }, // skipped
+      { id: 3, url: 'chrome-extension://x/newtab.html', title: 'New Tab' }, // not saved, still closed
     ],
   });
   const client = fakeClient(() => ({ ok: true }));
@@ -52,11 +52,12 @@ test('parkGroup sends park then closes the group\'s http(s) tabs', async () => {
   assert.equal(res.ok, true);
   assert.equal(client._sent.length, 1);
   assert.equal(client._sent[0].type, 'park');
+  // Only the http(s) tabs are saved.
   assert.deepEqual(client._sent[0].payload.group, {
     name: 'Work', color: 'blue', tabs: [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }],
   });
-  // Only the http(s) tabs are closed.
-  assert.deepEqual(chromeApi._removed, [1, 2]);
+  // Every tab in the group is closed, including the non-web new-tab page.
+  assert.deepEqual(chromeApi._removed, [1, 2, 3]);
 });
 
 test('parkGroup closes nothing when the helper fails', async () => {
