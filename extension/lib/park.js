@@ -45,7 +45,16 @@ export async function parkGroup({ chromeApi = chrome, nativeClient, groupId } = 
 // restore the saved title and color. Then sync the index so it shows as open.
 // Returns { ok: true, opened } on success. An unknown name returns
 // { ok: false, error } without throwing.
-export async function openParked({ chromeApi = chrome, nativeClient, name, windowId } = {}) {
+// Read the index, find the parked group by name (trimmed, case-insensitive),
+// open its URLs as new background tabs in `windowId` in order, group them, and
+// restore the saved title and color. Then sync the index so it shows as open.
+// Returns { ok: true, opened } on success. An unknown name returns
+// { ok: false, error } without throwing.
+//
+// When `groupId` names an existing open group, the opened tabs join that group
+// instead of forming a new one — this is the board's "Add them back" path,
+// folding a same-named parked record's tabs into the group that's already open.
+export async function openParked({ chromeApi = chrome, nativeClient, name, windowId, groupId } = {}) {
   const index = await nativeClient.request({ type: 'index-read' });
   const groups = (index && Array.isArray(index.groups)) ? index.groups : [];
   const wanted = String(name || '').trim().toLowerCase();
@@ -58,11 +67,16 @@ export async function openParked({ chromeApi = chrome, nativeClient, name, windo
     if (created && created.id != null) tabIds.push(created.id);
   }
   if (tabIds.length) {
-    const newGroupId = await chromeApi.tabs.group({ tabIds });
-    await chromeApi.tabGroups.update(newGroupId, {
-      title: group.name,
-      color: COLORS.has(group.color) ? group.color : 'grey',
-    });
+    if (groupId != null) {
+      // Fold the tabs into the group that's already open under this name.
+      await chromeApi.tabs.group({ groupId, tabIds });
+    } else {
+      const newGroupId = await chromeApi.tabs.group({ tabIds });
+      await chromeApi.tabGroups.update(newGroupId, {
+        title: group.name,
+        color: COLORS.has(group.color) ? group.color : 'grey',
+      });
+    }
   }
   await syncIndex({ chromeApi, nativeClient });
   return { ok: true, opened: tabIds.length };

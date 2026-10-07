@@ -20,7 +20,7 @@ function fakeChrome({ group = {}, groupTabs = [], failRemove = false } = {}) {
       async query() { return groupTabs; },
       async create(opts) { const t = { id: nextId++, ...opts }; created.push(t); return t; },
       async remove(ids) { if (failRemove) throw new Error('remove failed'); removed.push(...(Array.isArray(ids) ? ids : [ids])); },
-      async group({ tabIds }) { const id = nextId++; grouped.push({ tabIds, groupId: id }); return id; },
+      async group({ tabIds, groupId }) { if (groupId != null) { grouped.push({ tabIds, groupId }); return groupId; } const id = nextId++; grouped.push({ tabIds, groupId: id }); return id; },
     },
     tabGroups: {
       async get() { if (!group) throw new Error('no group'); return group; },
@@ -118,4 +118,20 @@ test('openParked returns an error result for an unknown name without throwing', 
   assert.equal(res.ok, false);
   assert.match(res.error, /Missing/);
   assert.deepEqual(chromeApi._created, []); // nothing opened
+});
+
+test('openParked with a groupId folds the tabs into that open group (no new group, no retitle)', async () => {
+  const chromeApi = fakeChrome({});
+  const client = fakeClient((msg) => (msg.type === 'index-read'
+    ? { groups: [{ name: 'Work', color: 'red', tabs: [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }] }], ungrouped: [] }
+    : { ok: true }));
+  const res = await openParked({ chromeApi, nativeClient: client, name: 'Work', windowId: 7, groupId: 99 });
+  assert.deepEqual(res, { ok: true, opened: 2 });
+  // The tabs joined the existing group id, not a freshly minted one.
+  assert.equal(chromeApi._grouped.length, 1);
+  assert.equal(chromeApi._grouped[0].groupId, 99, 'folded into the given group id');
+  // An existing open group keeps its own title/color, so no update is issued.
+  assert.deepEqual(chromeApi._groupUpdates, [], 'the open group is not retitled or recolored');
+  // Index synced afterwards.
+  assert.ok(client._sent.some((m) => m.type === 'index'));
 });

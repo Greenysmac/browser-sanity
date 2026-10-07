@@ -13,6 +13,7 @@ import { uniqueId } from '../lib/ids.js';
 import { getSecret } from '../lib/secret-store.js';
 import { syncIndex, openGroupTitles } from '../lib/index-sync.js';
 import { parkGroup, openParked } from '../lib/park.js';
+import { isHttpUrl } from '../lib/url-utils.js';
 import { apiKeyForProvider } from '../lib/providers.js';
 
 // Creates the native client, attaching the openai adapter's UI-entered config
@@ -494,14 +495,25 @@ async function handleParkGroup(m) {
 }
 
 // Reopen a parked group by name into the given window, then sync the index.
+// When a groupId is given (the board's "Add them back"), the tabs join that
+// open group instead of forming a new one.
 async function handleOpenParked(m) {
   const settings = await getSettings();
   const nativeClient = await makeClient(settings);
   try {
-    return await openParked({ chromeApi: chrome, nativeClient, name: m.name, windowId: m.windowId });
+    return await openParked({ chromeApi: chrome, nativeClient, name: m.name, windowId: m.windowId, groupId: m.groupId });
   } finally {
     nativeClient.disconnect();
   }
+}
+
+// Close an open tab group outright: remove its tabs. Used by the board for a
+// group with no web pages worth parking.
+async function handleCloseGroup(m) {
+  const tabs = await chrome.tabs.query({ groupId: m.groupId });
+  const tabIds = tabs.map((t) => t.id).filter((id) => id != null);
+  if (tabIds.length) await chrome.tabs.remove(tabIds);
+  return { ok: true, closed: tabIds.length };
 }
 
 // Assemble the data the side-panel board renders: the open groups (from the
@@ -513,7 +525,10 @@ async function handleBoardData() {
   const open = [];
   for (const g of groups) {
     const tabs = await chrome.tabs.query({ groupId: g.id });
-    open.push({ groupId: g.id, name: g.title || '', color: g.color, windowId: g.windowId, tabCount: tabs.length });
+    // webTabCount counts only http(s) pages — the ones worth parking — so the
+    // board can show "<n> tabs" (web pages) and flag a group with none.
+    const webTabCount = tabs.filter((t) => isHttpUrl(t.url)).length;
+    open.push({ groupId: g.id, name: g.title || '', color: g.color, windowId: g.windowId, tabCount: tabs.length, webTabCount });
   }
   const settings = await getSettings();
   const client = await makeClient(settings);
@@ -629,6 +644,7 @@ const HANDLERS = {
   syncIndex: handleSyncIndex,
   parkGroup: handleParkGroup,
   openParked: handleOpenParked,
+  closeGroup: handleCloseGroup,
   groupsRead: handleGroupsRead,
   groupsWrite: handleGroupsWrite,
   describe: handleDescribe,

@@ -6,6 +6,7 @@
 // the helper. A search box at the top filters the cards by group name as the
 // user types.
 import { renderBoard } from '../board/board.js';
+import { isHttpUrl } from '../lib/url-utils.js';
 
 // One request/response round-trip to the service worker, same as the panel's
 // dom.js send: resolves with whatever the handler returned, or undefined if the
@@ -54,7 +55,8 @@ async function openGroupsFallback() {
   const groups = await chrome.tabGroups.query({});
   for (const g of groups) {
     const tabs = await chrome.tabs.query({ groupId: g.id });
-    out.push({ groupId: g.id, name: g.title || '', color: g.color, windowId: g.windowId, tabCount: tabs.length });
+    const webTabCount = tabs.filter((t) => isHttpUrl(t.url)).length;
+    out.push({ groupId: g.id, name: g.title || '', color: g.color, windowId: g.windowId, tabCount: tabs.length, webTabCount });
   }
   return out;
 }

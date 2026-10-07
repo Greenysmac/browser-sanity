@@ -340,3 +340,150 @@ test('a saved description is never replaced by a suggestion', async () => {
   assert.ok(!walk(container).some((n) => n.tagName === 'TEXTAREA' && n.value === 'a stale suggestion'), 'the suggestion did not replace it');
   assert.ok(!findByText(container, 'Suggested'), 'no Suggested label when a description is saved');
 });
+
+// --- live updates, web-tab counts, no-web-pages and also-parked ------------
+
+// A fake chrome.tabGroups/tabs with just the event surface renderBoard wires:
+// each event is an object with add/removeListener and a fire() to trip it. The
+// board also reads chrome.storage.local via defaultStorage, so none is set here
+// and the tests pass an explicit storage.
+function makeChromeEvents() {
+  const mkEvent = () => {
+    const fns = new Set();
+    return {
+      addListener: (fn) => fns.add(fn),
+      removeListener: (fn) => fns.delete(fn),
+      fire: (...args) => { for (const fn of fns) fn(...args); },
+      count: () => fns.size,
+    };
+  };
+  return {
+    tabGroups: {
+      onCreated: mkEvent(), onUpdated: mkEvent(), onRemoved: mkEvent(), onMoved: mkEvent(),
+    },
+    tabs: {
+      onCreated: mkEvent(), onRemoved: mkEvent(), onUpdated: mkEvent(),
+      onAttached: mkEvent(), onDetached: mkEvent(),
+    },
+  };
+}
+
+test('a tab-group event triggers one debounced re-render', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  let boardCalls = 0;
+  const send = (msg) => {
+    if (msg.cmd === 'boardData') { boardCalls += 1; return Promise.resolve({ ok: true, ...FIXTURE }); }
+    return Promise.resolve({ ok: true });
+  };
+  const chromeApi = makeChromeEvents();
+  await renderBoard(container, { send, storage, chromeApi, debounceMs: 10 });
+  assert.equal(boardCalls, 1, 'the initial render requested boardData once');
+
+  // A burst of events within the debounce window collapses into one re-render.
+  chromeApi.tabGroups.onCreated.fire();
+  chromeApi.tabs.onRemoved.fire();
+  chromeApi.tabGroups.onMoved.fire();
+  assert.equal(boardCalls, 1, 'no re-render has fired yet (still debouncing)');
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(boardCalls, 2, 'the burst produced exactly one debounced re-render');
+});
+
+test('tabs.onUpdated only re-renders when groupId or url changed', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  let boardCalls = 0;
+  const send = (msg) => {
+    if (msg.cmd === 'boardData') { boardCalls += 1; return Promise.resolve({ ok: true, ...FIXTURE }); }
+    return Promise.resolve({ ok: true });
+  };
+  const chromeApi = makeChromeEvents();
+  await renderBoard(container, { send, storage, chromeApi, debounceMs: 10 });
+
+  // A title/favicon change is ignored.
+  chromeApi.tabs.onUpdated.fire(1, { title: 'new title' });
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(boardCalls, 1, 'an unrelated change does not re-render');
+
+  // A groupId change re-renders.
+  chromeApi.tabs.onUpdated.fire(1, { groupId: 9 });
+  await new Promise((r) => setTimeout(r, 25));
+  assert.equal(boardCalls, 2, 'a groupId change re-renders');
+});
+
+test('the teardown removes every live-update listener', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const storage = makeStorage();
+  const { send } = makeSend(FIXTURE);
+  const chromeApi = makeChromeEvents();
+  const teardown = await renderBoard(container, { send, storage, chromeApi, debounceMs: 10 });
+  const events = [
+    chromeApi.tabGroups.onCreated, chromeApi.tabGroups.onUpdated, chromeApi.tabGroups.onRemoved,
+    chromeApi.tabGroups.onMoved, chromeApi.tabs.onCreated, chromeApi.tabs.onRemoved,
+    chromeApi.tabs.onUpdated, chromeApi.tabs.onAttached, chromeApi.tabs.onDetached,
+  ];
+  assert.ok(events.every((e) => e.count() === 1), 'each event has one listener attached');
+  teardown();
+  assert.ok(events.every((e) => e.count() === 0), 'teardown removed every listener');
+});
+
+test('open-card counts show web tabs only (webTabCount), not the raw tab count', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend({
+    // 5 tabs in the group but only 3 are web pages.
+    open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 5, webTabCount: 3 }],
+    parked: [],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const texts = allText(container);
+  assert.ok(texts.includes('3 tabs'), 'the card shows the web-tab count');
+  assert.ok(!texts.includes('5 tabs'), 'the raw tab count is not shown');
+});
+
+test('an open group with no web pages reads "no web pages" and offers Close group', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send, sent } = makeSend({
+    open: [{ groupId: 7, name: 'Scratch', color: 'grey', windowId: 1, tabCount: 2, webTabCount: 0 }],
+    parked: [],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const texts = allText(container);
+  assert.ok(texts.includes('no web pages'), 'the no-web-pages count text');
+  assert.ok(findByText(container, 'Close group'), 'a Close group button is offered');
+  assert.ok(!findByText(container, 'Park'), 'Park is not offered for a group with no web pages');
+  await findByText(container, 'Close group').click();
+  const req = sent.find((m) => m.cmd === 'closeGroup');
+  assert.ok(req, 'a closeGroup command was sent');
+  assert.equal(req.groupId, 7);
+});
+
+test('an open card whose name matches a parked record shows "Also parked" and an Add-them-back button', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  // 'Work' is open and also has a parked record under the same name (differing
+  // only by case/space): the open card offers to add those parked tabs back.
+  const { send, sent } = makeSend({
+    open: [{ groupId: 7, name: 'Work', color: 'blue', windowId: 1, tabCount: 3, webTabCount: 3 }],
+    parked: [{ name: '  work  ', color: 'blue', tabCount: 4, lastSeen: '2026-01-02T10:00:00.000Z' }],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const texts = allText(container);
+  assert.ok(texts.includes('Also parked: 4 tabs'), 'the also-parked line names the parked tab count');
+  // The same-named parked record is not shown as its own parked card.
+  assert.ok(texts.includes('Nothing parked yet'), 'the parked section stays empty for the same-named record');
+  const addBtn = findByText(container, 'Add them back');
+  assert.ok(addBtn, 'an Add them back button is offered');
+  await addBtn.click();
+  const req = sent.find((m) => m.cmd === 'openParked');
+  assert.ok(req, 'an openParked command was sent');
+  assert.equal(req.name, 'Work', 'it opens the parked record by the open group name');
+  assert.equal(req.groupId, 7, 'it folds the tabs into the existing open group');
+});

@@ -80,12 +80,33 @@ function descriptionFold({ name, description, suggested, send, setStatus }) {
   return wrap;
 }
 
+// The number of web pages in a group: the host-supplied web-tab count when
+// present (http(s) tabs only), else the raw tab count. The count on a card
+// reflects web pages, not scratch tabs like the new-tab page.
+function webTabCount(group) {
+  return (group && typeof group.webTabCount === 'number') ? group.webTabCount : (group.tabCount || 0);
+}
+
+// Find the parked record (if any) whose name matches an open group's name
+// (trimmed, case-insensitive), so an open card can offer to add its tabs back.
+function parkedMatch(parked, name) {
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return undefined;
+  return (parked || []).find((g) => String(g.name || '').trim().toLowerCase() === wanted);
+}
+
 // A single open-group card: color dot, name, "<n> tabs", a Sort and a Park
 // button, and the description fold-out. After Sort or Park the board re-renders
 // so the card list reflects the new state. `suggestions` is the stored map of
 // model suggestions by group name; an open group with no saved description shows
 // its suggestion prefilled with a "Suggested" label (fold-out closed).
-function openCard({ group, descriptions, suggestions, send, setStatus, rerender }) {
+//
+// The count reflects web pages only. A group with no web pages reads "no web
+// pages" and offers "Close group" (close its tabs) instead of Park, since
+// there's nothing worth parking. When a parked record carries the same name,
+// an "Also parked: <n> tabs" line with an "Add them back" button opens those
+// parked tabs straight into this open group.
+function openCard({ group, descriptions, suggestions, parked, send, setStatus, rerender }) {
   const card = document.createElement('div');
   card.className = 'boardCard';
   const head = document.createElement('div');
@@ -96,9 +117,10 @@ function openCard({ group, descriptions, suggestions, send, setStatus, rerender 
   const name = document.createElement('span');
   name.className = 'boardName';
   name.textContent = group.name || '(unnamed)';
+  const webCount = webTabCount(group);
   const count = document.createElement('span');
   count.className = 'boardCount';
-  count.textContent = `${group.tabCount} tabs`;
+  count.textContent = webCount ? `${webCount} tabs` : 'no web pages';
   const sortBtn = document.createElement('button');
   sortBtn.type = 'button';
   sortBtn.textContent = 'Sort this group';
@@ -106,19 +128,52 @@ function openCard({ group, descriptions, suggestions, send, setStatus, rerender 
     await send({ cmd: 'sortGroup', groupId: group.groupId });
     await rerender();
   });
-  const parkBtn = document.createElement('button');
-  parkBtn.type = 'button';
-  parkBtn.textContent = 'Park';
-  parkBtn.addEventListener('click', async () => {
-    await send({ cmd: 'parkGroup', groupId: group.groupId });
-    await rerender();
-  });
-  head.append(dot, name, count, sortBtn, parkBtn);
+  head.append(dot, name, count, sortBtn);
+  if (webCount) {
+    const parkBtn = document.createElement('button');
+    parkBtn.type = 'button';
+    parkBtn.textContent = 'Park';
+    parkBtn.addEventListener('click', async () => {
+      await send({ cmd: 'parkGroup', groupId: group.groupId });
+      await rerender();
+    });
+    head.append(parkBtn);
+  } else {
+    // Nothing worth parking: offer to close the group's tabs instead.
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = 'Close group';
+    closeBtn.addEventListener('click', async () => {
+      await send({ cmd: 'closeGroup', groupId: group.groupId });
+      await rerender();
+    });
+    head.append(closeBtn);
+  }
   const description = descriptionFor(descriptions, group.name);
   // Only surface a stored suggestion when nothing is saved yet; a saved
   // description is never replaced by a suggestion.
   const suggested = description ? '' : suggestionFor(suggestions, group.name);
   card.append(head, descriptionFold({ name: group.name, description, suggested, send, setStatus }));
+
+  // A parked record with the same name holds tabs that aren't open here yet;
+  // offer to add them back into this open group.
+  const alsoParked = parkedMatch(parked, group.name);
+  const parkedCount = alsoParked ? (alsoParked.tabCount || 0) : 0;
+  if (parkedCount) {
+    const also = document.createElement('div');
+    also.className = 'boardAlsoParked';
+    const line = document.createElement('span');
+    line.textContent = `Also parked: ${parkedCount} tabs`;
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.textContent = 'Add them back';
+    addBtn.addEventListener('click', async () => {
+      await send({ cmd: 'openParked', name: group.name, groupId: group.groupId });
+      await rerender();
+    });
+    also.append(line, addBtn);
+    card.append(also);
+  }
   return card;
 }
 
@@ -250,8 +305,14 @@ async function autoDescribe({ open, descriptions, suggestions, send, setStatus, 
 // "Parked, from the index" section, each a foldable <details open>. Data comes
 // from the service worker's 'boardData' command. setStatus is optional (defaults
 // to a no-op) so the module stays importable without the panel's dom.js.
-export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr() } = {}) {
-  const rerender = () => renderBoard(container, { send, setStatus, storage, today });
+//
+// The board stays live: it listens to the tab-group and tab events that change
+// what's open (a parked/opened/applied group, or the user dragging tabs around)
+// and re-requests boardData, debounced to ~400ms so a burst of events paints
+// once. The listeners are attached once (tracked on the container) and removed
+// by the teardown function this returns, so re-renders don't stack them.
+export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr(), chromeApi = (typeof chrome !== 'undefined' ? chrome : undefined), debounceMs = 400 } = {}) {
+  const rerender = () => renderBoard(container, { send, setStatus, storage, today, chromeApi, debounceMs });
   const res = await send({ cmd: 'boardData' });
   const open = (res && res.open) || [];
   const parkedRaw = (res && res.parked) || [];
@@ -261,7 +322,8 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   const suggestions = await readSuggestions(storage);
   // Drop any parked card whose name matches an open group (trimmed, case-
   // insensitive): a reopened group is "open now", so it shouldn't also appear
-  // under "Parked, from the index".
+  // under "Parked, from the index". The full parkedRaw is still passed to open
+  // cards so one can offer to add a same-named parked record's tabs back.
   const openNames = new Set(open.map((g) => String(g.name || '').trim().toLowerCase()).filter(Boolean));
   const parked = parkedRaw.filter((g) => !openNames.has(String(g.name || '').trim().toLowerCase()));
   container.textContent = '';
@@ -278,7 +340,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'No open groups';
     openSection.appendChild(empty);
   } else {
-    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, send, setStatus, rerender }));
+    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, parked: parkedRaw, send, setStatus, rerender }));
   }
 
   const parkedSection = document.createElement('details');
@@ -298,8 +360,79 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
 
   container.append(openSection, parkedSection);
 
+  // Attach the live-update listeners once per container; a re-render reuses the
+  // ones already wired. Returns the teardown that removes them.
+  const teardown = attachLiveUpdates(container, { rerender, chromeApi, debounceMs });
+
   // After painting, ask the model to suggest descriptions for any open groups
   // that lack both a saved description and a stored suggestion — this never
   // blocks the board above, and re-renders itself when the model answers.
   autoDescribe({ open, descriptions, suggestions, send, setStatus, rerender, storage, today });
+
+  return teardown;
+}
+
+// The tab-group and tab events that change what the board shows. tabs.onUpdated
+// fires on every title/favicon/status change too, so its handler only re-renders
+// when groupId or url changed — the fields a card actually reflects.
+//
+// Listeners are attached once per container (tracked via a WeakMap) with a
+// single debounced re-render shared across every event, so a burst (parking a
+// group fires many) paints once after ~debounceMs. Returns a teardown that
+// clears any pending timer and detaches every listener; calling renderBoard
+// again returns the same teardown without re-attaching.
+const liveUpdates = new WeakMap();
+
+function attachLiveUpdates(container, { rerender, chromeApi, debounceMs }) {
+  const existing = liveUpdates.get(container);
+  if (existing) return existing.teardown;
+  const tabGroups = chromeApi && chromeApi.tabGroups;
+  const tabs = chromeApi && chromeApi.tabs;
+  // Need the full event surface; a bare { query } stub (some tests) can't carry
+  // listeners, so there's nothing live to attach.
+  const hasEvents = tabGroups && tabGroups.onCreated && tabGroups.onUpdated
+    && tabGroups.onRemoved && tabGroups.onMoved
+    && tabs && tabs.onCreated && tabs.onRemoved && tabs.onUpdated
+    && tabs.onAttached && tabs.onDetached;
+  if (!hasEvents) {
+    const noop = () => {};
+    return noop;
+  }
+
+  let timer;
+  const schedule = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => { timer = undefined; rerender(); }, debounceMs);
+  };
+  // tabs.onUpdated carries changeInfo; only groupId/url changes matter here.
+  const onTabUpdated = (_tabId, changeInfo) => {
+    if (changeInfo && ('groupId' in changeInfo || 'url' in changeInfo)) schedule();
+  };
+
+  tabGroups.onCreated.addListener(schedule);
+  tabGroups.onUpdated.addListener(schedule);
+  tabGroups.onRemoved.addListener(schedule);
+  tabGroups.onMoved.addListener(schedule);
+  tabs.onCreated.addListener(schedule);
+  tabs.onRemoved.addListener(schedule);
+  tabs.onUpdated.addListener(onTabUpdated);
+  tabs.onAttached.addListener(schedule);
+  tabs.onDetached.addListener(schedule);
+
+  const teardown = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+    tabGroups.onCreated.removeListener(schedule);
+    tabGroups.onUpdated.removeListener(schedule);
+    tabGroups.onRemoved.removeListener(schedule);
+    tabGroups.onMoved.removeListener(schedule);
+    tabs.onCreated.removeListener(schedule);
+    tabs.onRemoved.removeListener(schedule);
+    tabs.onUpdated.removeListener(onTabUpdated);
+    tabs.onAttached.removeListener(schedule);
+    tabs.onDetached.removeListener(schedule);
+    liveUpdates.delete(container);
+  };
+  liveUpdates.set(container, { teardown });
+  return teardown;
 }
