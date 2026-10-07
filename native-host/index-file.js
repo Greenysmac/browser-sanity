@@ -112,3 +112,58 @@ export function writeIndex(payload = {}, {
   writeFile(mdPath, renderMarkdown(groups, ungrouped, now));
   return groups.length;
 }
+
+// Read and parse index.json, returning its { updated, groups, ungrouped }. A
+// missing or broken file yields { groups: [], ungrouped: [] }, never an error,
+// so callers always get a usable shape.
+export function readIndex({
+  env = process.env,
+  readFile = fs.readFileSync,
+} = {}) {
+  const jsonPath = path.join(indexDir(env), 'index.json');
+  try {
+    const parsed = JSON.parse(String(readFile(jsonPath, 'utf8')));
+    return {
+      updated: parsed.updated,
+      groups: Array.isArray(parsed.groups) ? parsed.groups : [],
+      ungrouped: Array.isArray(parsed.ungrouped) ? parsed.ungrouped : [],
+    };
+  } catch {
+    return { groups: [], ungrouped: [] };
+  }
+}
+
+// Park a single group into the index with status 'parked' and lastSeen now,
+// replacing any existing entry with the same name (matched trimmed and
+// case-insensitively). Rewrites index.json and index.md, leaving every other
+// group and the ungrouped list untouched. Only those two files are touched.
+export function parkGroup(group = {}, {
+  env = process.env,
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+  mkdir = fs.mkdirSync,
+  now = new Date().toISOString(),
+} = {}) {
+  const dir = indexDir(env);
+  const jsonPath = path.join(dir, 'index.json');
+  const mdPath = path.join(dir, 'index.md');
+  const prev = readIndex({ env, readFile });
+  const key = groupKey(group.name);
+  const parked = {
+    name: String(group.name || ''),
+    color: group.color,
+    windowId: group.windowId,
+    tabs: Array.isArray(group.tabs) ? group.tabs.map((t) => ({ title: t.title, url: t.url })) : [],
+    status: 'parked',
+    lastSeen: now,
+  };
+  const groups = prev.groups.filter((g) => groupKey(g.name) !== key);
+  groups.push(parked);
+  const ungrouped = Array.isArray(prev.ungrouped)
+    ? prev.ungrouped.map((t) => ({ title: t.title, url: t.url }))
+    : [];
+  mkdir(dir, { recursive: true });
+  writeFile(jsonPath, `${JSON.stringify({ updated: now, groups, ungrouped }, null, 2)}\n`);
+  writeFile(mdPath, renderMarkdown(groups, ungrouped, now));
+  return groups.length;
+}

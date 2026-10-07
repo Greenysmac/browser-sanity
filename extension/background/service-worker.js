@@ -12,6 +12,7 @@ import { withLock } from '../lib/mutex.js';
 import { uniqueId } from '../lib/ids.js';
 import { getSecret } from '../lib/secret-store.js';
 import { syncIndex, openGroupTitles } from '../lib/index-sync.js';
+import { parkGroup, openParked } from '../lib/park.js';
 
 // Creates the native client, attaching the openai adapter's UI-entered config
 // (key decrypted from secret-store here, base/model from settings) so the host
@@ -424,6 +425,30 @@ async function handleSyncIndex() {
   return { ok: true, groups: res && res.groups };
 }
 
+// Park an open tab group: hand its tabs to the host, then close them. The group
+// is reopenable from the index. Opens a native client around the call.
+async function handleParkGroup(m) {
+  const settings = await getSettings();
+  const nativeClient = await makeClient(settings);
+  try {
+    const res = await parkGroup({ chromeApi: chrome, nativeClient, groupId: m.groupId });
+    return { ok: true, ...res };
+  } finally {
+    nativeClient.disconnect();
+  }
+}
+
+// Reopen a parked group by name into the given window, then sync the index.
+async function handleOpenParked(m) {
+  const settings = await getSettings();
+  const nativeClient = await makeClient(settings);
+  try {
+    return await openParked({ chromeApi: chrome, nativeClient, name: m.name, windowId: m.windowId });
+  } finally {
+    nativeClient.disconnect();
+  }
+}
+
 async function handleHealth() {  const settings = await getSettings();
   const client = await makeClient(settings);
   try { return { ok: true, health: await client.request({ type: 'health', adapter: settings.adapter }) }; }
@@ -453,6 +478,8 @@ const HANDLERS = {
   deleteSession: handleDeleteSession,
   health: handleHealth,
   syncIndex: handleSyncIndex,
+  parkGroup: handleParkGroup,
+  openParked: handleOpenParked,
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

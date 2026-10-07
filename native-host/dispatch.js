@@ -4,7 +4,7 @@ import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandR
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile } from './groups-file.js';
-import { writeIndex } from './index-file.js';
+import { writeIndex, parkGroup, readIndex } from './index-file.js';
 import { loadProposals } from './proposals-file.js';
 
 // Fold the user's "my groups" file into the rules the model sees. When the file
@@ -20,7 +20,7 @@ function withGroups(rules, groupsText) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'organize', 'command', 'prompt', 'index', 'proposals'],
+    types: ['health', 'organize', 'command', 'prompt', 'index', 'park', 'index-read', 'proposals'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -111,6 +111,23 @@ export async function handle(msg, deps = {}) {
     const writeIdx = deps.writeIndex || writeIndex;
     const count = writeIdx(msg.payload || {});
     return { ok: true, groups: count };
+  }
+
+  // Park a single group into the index: write it as 'parked' with lastSeen now,
+  // replacing any entry with the same name. The file work lives in index-file.js.
+  if (msg.type === 'park') {
+    const park = deps.parkGroup || parkGroup;
+    const payload = msg.payload || {};
+    park(payload.group || {});
+    return { ok: true };
+  }
+
+  // Read the parsed index.json so the extension can reopen a parked group. A
+  // missing or broken file yields { groups: [], ungrouped: [] } (handled in
+  // index-file.js), never an error.
+  if (msg.type === 'index-read') {
+    const read = deps.readIndex || readIndex;
+    return read();
   }
 
   // Read the agent-written proposals.json (same directory as the index) and
