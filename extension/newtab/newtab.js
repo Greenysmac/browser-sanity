@@ -79,8 +79,8 @@ export async function initNewtab({ container, note, search, panelBtn, panelNote 
   // Intercept the boardData request: ask the service worker first, and if it
   // doesn't answer (helper down), fall back to the open groups we can read
   // locally and record that the helper was unreachable so the note can show.
-  // Also, after a 'Sort this group' click sends sortGroup, open the side panel
-  // so the suggestions it produces are visible.
+  // Also, after a 'Sort this group' or 'Split this group…' click, open the side
+  // panel so the suggestions / split proposal it produces are visible there.
   let helperReachable = true;
   const observingSend = async (message) => {
     const res = await send(message);
@@ -88,7 +88,7 @@ export async function initNewtab({ container, note, search, panelBtn, panelNote 
       helperReachable = false;
       return { ok: true, open: await openGroupsFallback(), parked: [], descriptions: [] };
     }
-    if (message && message.cmd === 'sortGroup') {
+    if (message && (message.cmd === 'sortGroup' || message.cmd === 'splitGroup')) {
       const opened = await openSidePanel();
       if (!opened && panelNote) panelNote.hidden = false;
     }

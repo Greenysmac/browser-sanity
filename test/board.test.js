@@ -557,22 +557,22 @@ test('each group renders as a single compact row with dot, name, count and a ⋯
   assert.ok(!(openRow.children || []).some((c) => c.className === 'boardSuggestDot'), 'no waiting dot when a description is saved');
 });
 
-test('the ⋯ menu lists the open-row actions (Sort, Park, Description…)', async () => {
+test('the ⋯ menu lists the open-row actions (Sort, Split, Park, Description…)', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const { send } = makeSend(FIXTURE);
   await renderBoard(container, { send });
   const row = openRowMenu(container, 'Work');
-  assert.deepEqual(menuLabels(row), ['Sort this group', 'Park', 'Description…']);
+  assert.deepEqual(menuLabels(row), ['Sort this group', 'Split this group…', 'Park', 'Description…']);
 });
 
-test('the ⋯ menu lists the parked-row actions (Open, Description…)', async () => {
+test('the ⋯ menu lists the parked-row actions (Open, Split, Description…)', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const { send } = makeSend(FIXTURE);
   await renderBoard(container, { send });
   const row = openRowMenu(container, 'Travel');
-  assert.deepEqual(menuLabels(row), ['Open', 'Description…']);
+  assert.deepEqual(menuLabels(row), ['Open', 'Split this group…', 'Description…']);
 });
 
 test('Description… opens an inline editor with Save and Cancel under the row', async () => {

@@ -617,6 +617,105 @@ async function handleDescribe(m) {
   }
 }
 
+// Apply one groupTabs item (create/reuse a Chrome tab group) with undo recorded,
+// reusing the executor's groupTabs path so the board's split can create each
+// sub-group as a real group that Undo can reverse. The parent group disappears
+// on its own once every tab has moved into a sub-group.
+async function handleGroupTabs(m) {
+  const settings = await getSettings();
+  const runId = uniqueId('run-');
+  const item = { itemId: m.item && m.item.itemId, action: 'groupTabs', data: (m.item && m.item.data) || {} };
+  const res = await applyItems([item], { runId, applyItem: (i) => applyItem(i, { runId, settings }), recordUndo });
+  return { ok: true, ...res };
+}
+
+// Ask the helper to split one group into sub-groups and hand the panel a split
+// proposal (never applying anything here). The group is either open (identified
+// by groupId: its live web tabs) or parked (identified by name: the index
+// entry's tabs). Parked tabs have no live id, so we hand the model fake
+// sequential ids and map them back to { title, url } afterwards. Split is a big
+// job, so it runs on the big-sorts model slot (makeClient defaults to 'big').
+// The proposal is stored in storage.local so the panel can show it — including
+// when opened fresh from the new-tab page's Split action — and also returned.
+async function handleSplitGroup(m) {
+  const settings = await getSettings();
+  // Collect the tabs to split: open groups use their live web tabs; parked
+  // groups use the index entry's tabs with fake sequential ids we map back.
+  let name = '';
+  let color;
+  let kind;
+  const hostTabs = []; // [{ tabId, title, url }] handed to the model
+  const byId = new Map(); // tabId -> { title, url } for mapping the result back
+  if (m.groupId != null) {
+    kind = 'open';
+    try {
+      const g = await chrome.tabGroups.get(m.groupId);
+      name = g.title || '';
+      color = g.color;
+    } catch { /* group gone — split with empty name */ }
+    const tabs = await chrome.tabs.query({ groupId: m.groupId });
+    for (const t of tabs) {
+      if (t.id == null || !isHttpUrl(t.url)) continue;
+      hostTabs.push({ tabId: t.id, title: t.title || '', url: t.url });
+      byId.set(t.id, { tabId: t.id, title: t.title || '', url: t.url });
+    }
+  } else {
+    kind = 'parked';
+    name = m.name || '';
+    const client = await makeClient(settings);
+    let entry;
+    try {
+      const index = await client.request({ type: 'index-read' });
+      const groups = (index && Array.isArray(index.groups)) ? index.groups : [];
+      const wanted = String(name).trim().toLowerCase();
+      entry = groups.find((g) => String(g.name || '').trim().toLowerCase() === wanted);
+    } finally {
+      client.disconnect();
+    }
+    if (!entry) return { ok: false, error: `No parked group named ${name}` };
+    color = entry.color;
+    const tabs = Array.isArray(entry.tabs) ? entry.tabs : [];
+    tabs.forEach((t, i) => {
+      const tabId = i + 1; // fake sequential id, mapped back below
+      hostTabs.push({ tabId, title: t.title || '', url: t.url || '' });
+      byId.set(tabId, { title: t.title || '', url: t.url || '' });
+    });
+  }
+
+  const client = await makeClient(settings, 'big');
+  let subGroups;
+  try {
+    const res = await client.request({ type: 'organize', task: 'split', adapter: settings.adapter, payload: { groupName: name, tabs: hostTabs } });
+    const groups = (res && Array.isArray(res.groups)) ? res.groups : [];
+    // Map each sub-group's tabIds back to the tabs we sent, keeping tabId for an
+    // open split (so Apply can group live tabs) and title/url either way.
+    subGroups = groups.map((g) => ({
+      name: g.name,
+      description: g.description || '',
+      tabs: (Array.isArray(g.tabIds) ? g.tabIds : []).map((id) => byId.get(id)).filter(Boolean),
+    }));
+  } finally {
+    client.disconnect();
+  }
+
+  const tabCount = hostTabs.length;
+  const proposal = { kind, name, groupId: m.groupId ?? null, color, tabCount, subGroups };
+  await withLock('splitProposal', () => chrome.storage.local.set({ splitProposal: proposal }));
+  return { ok: true, proposal };
+}
+
+// The panel reads the stored split proposal on open (e.g. after the new-tab
+// page's Split action opened it) and clears it once shown.
+async function handleGetSplitProposal() {
+  const { splitProposal = null } = await chrome.storage.local.get('splitProposal');
+  return { ok: true, proposal: splitProposal };
+}
+
+async function handleClearSplitProposal() {
+  await withLock('splitProposal', () => chrome.storage.local.remove('splitProposal'));
+  return { ok: true };
+}
+
 // Split a parked group into sub-groups in the host's index via 'split-parked'.
 // Sub-group tabs are drawn only from the parent's own tabs (foreign urls are
 // ignored by the host). Returns the host's { ok, groups } / { ok: false, error }.
@@ -675,6 +774,10 @@ const HANDLERS = {
   groupsWrite: handleGroupsWrite,
   splitParked: handleSplitParked,
   groupsSplit: handleGroupsSplit,
+  splitGroup: handleSplitGroup,
+  getSplitProposal: handleGetSplitProposal,
+  clearSplitProposal: handleClearSplitProposal,
+  groupTabs: handleGroupTabs,
   describe: handleDescribe,
   boardData: handleBoardData,
 };

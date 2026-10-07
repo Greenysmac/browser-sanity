@@ -201,6 +201,19 @@ function webTabCount(group) {
   return (group && typeof group.webTabCount === 'number') ? group.webTabCount : (group.tabCount || 0);
 }
 
+// A small "30+" badge shown next to the count on a crowded row (more than 30
+// web tabs for an open group, or tabs for a parked one), a hint that the group
+// is a good candidate to split. Returns the badge element, or undefined when the
+// count is at or below the threshold.
+const SPLIT_HINT_THRESHOLD = 30;
+function splitHintBadge(count) {
+  if (!(count > SPLIT_HINT_THRESHOLD)) return undefined;
+  const badge = document.createElement('span');
+  badge.className = 'boardSplitHint';
+  badge.textContent = '30+';
+  return badge;
+}
+
 // Find the parked record (if any) whose name matches an open group's name
 // (trimmed, case-insensitive), so an open card can offer to add its tabs back.
 function parkedMatch(parked, name) {
@@ -281,7 +294,7 @@ function walkIncludes(el, target) {
 // since there's nothing worth parking. When a parked record carries the same
 // name, the menu offers "Add back <n> parked tabs", opening those parked tabs
 // straight into this open group.
-function openCard({ group, descriptions, suggestions, parked, send, setStatus, rerender, expander, chromeApi }) {
+function openCard({ group, descriptions, suggestions, parked, send, setStatus, rerender, expander, chromeApi, onSplitProposal }) {
   const row = document.createElement('div');
   row.className = 'boardRow';
   const dot = document.createElement('span');
@@ -295,6 +308,10 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
   count.className = 'boardCount';
   count.textContent = webCount ? `${webCount} tabs` : 'no web pages';
   row.append(dot, name, count);
+  // A crowded group (more than 30 web pages) shows a small "30+" badge — a hint
+  // that Split (in the ⋯ menu) is worth a look.
+  const badge = splitHintBadge(webCount);
+  if (badge) row.append(badge);
 
   const description = descriptionFor(descriptions, group.name);
   // Only surface a stored suggestion when nothing is saved yet; a saved
@@ -315,6 +332,10 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
 
   const items = [
     { label: 'Sort this group', onChoose: async () => { await send({ cmd: 'sortGroup', groupId: group.groupId }); await rerender(); } },
+    { label: 'Split this group…', onChoose: async () => {
+      const res = await send({ cmd: 'splitGroup', groupId: group.groupId });
+      if (onSplitProposal && res && res.ok && res.proposal) onSplitProposal(res.proposal);
+    } },
   ];
   if (webCount) {
     items.push({ label: 'Park', onChoose: async () => { await send({ cmd: 'parkGroup', groupId: group.groupId }); await rerender(); } });
@@ -378,7 +399,7 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
 // A single parked-group row: color dot, name, "<n> tabs · last seen <date>" in
 // muted text, and a '⋯' button whose menu offers "Open" and "Description…".
 // After Open the board re-renders.
-function parkedCard({ group, descriptions, send, setStatus, rerender, expander }) {
+function parkedCard({ group, descriptions, send, setStatus, rerender, expander, onSplitProposal }) {
   const row = document.createElement('div');
   row.className = 'boardRow';
   const dot = document.createElement('span');
@@ -391,6 +412,9 @@ function parkedCard({ group, descriptions, send, setStatus, rerender, expander }
   meta.className = 'boardCount';
   meta.textContent = `${group.tabCount} tabs · ${lastSeenText(group.lastSeen)}`;
   row.append(dot, name, meta);
+  // A crowded parked group (more than 30 tabs) shows the same "30+" split hint.
+  const badge = splitHintBadge(group.tabCount);
+  if (badge) row.append(badge);
 
   const description = descriptionFor(descriptions, group.name);
   const openEditor = () => {
@@ -400,6 +424,10 @@ function parkedCard({ group, descriptions, send, setStatus, rerender, expander }
   };
   const items = [
     { label: 'Open', onChoose: async () => { await send({ cmd: 'openParked', name: group.name }); await rerender(); } },
+    { label: 'Split this group…', onChoose: async () => {
+      const res = await send({ cmd: 'splitGroup', name: group.name });
+      if (onSplitProposal && res && res.ok && res.proposal) onSplitProposal(res.proposal);
+    } },
     { label: 'Description…', onChoose: openEditor },
   ];
   const menuBtn = document.createElement('button');
@@ -526,8 +554,8 @@ async function autoDescribe({ open, descriptions, suggestions, send, setStatus, 
 // and re-requests boardData, debounced to ~400ms so a burst of events paints
 // once. The listeners are attached once (tracked on the container) and removed
 // by the teardown function this returns, so re-renders don't stack them.
-export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr(), chromeApi = (typeof chrome !== 'undefined' ? chrome : undefined), debounceMs = 400 } = {}) {
-  const rerender = () => renderBoard(container, { send, setStatus, storage, today, chromeApi, debounceMs });
+export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr(), chromeApi = (typeof chrome !== 'undefined' ? chrome : undefined), debounceMs = 400, onSplitProposal = () => {} } = {}) {
+  const rerender = () => renderBoard(container, { send, setStatus, storage, today, chromeApi, debounceMs, onSplitProposal });
   const res = await send({ cmd: 'boardData' });
   const open = (res && res.open) || [];
   const parkedRaw = (res && res.parked) || [];
@@ -559,7 +587,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'No open groups';
     openSection.appendChild(empty);
   } else {
-    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, parked: parkedRaw, send, setStatus, rerender, expander, chromeApi }));
+    for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, parked: parkedRaw, send, setStatus, rerender, expander, chromeApi, onSplitProposal }));
   }
 
   const parkedSection = document.createElement('details');
@@ -574,7 +602,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'Nothing parked yet';
     parkedSection.appendChild(empty);
   } else {
-    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, send, setStatus, rerender, expander }));
+    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, send, setStatus, rerender, expander, onSplitProposal }));
   }
 
   container.append(openSection, parkedSection);
