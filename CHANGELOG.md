@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-10-07
+**Run 5 (Kiro, six tasks, all first try; reviewed by Mycroft)**
+- A reopened group shows as open, never as parked (index reads Chrome's pending address; the board hides a parked card when that group is open).
+- Two model slots: big sorts (default Claude Sonnet 5.5) and quick jobs (default Claude Haiku 4.5); per-request model for Claude, per-slot model for OpenAI-style services. Fresh installs suggest only grouping, re-sorting and duplicates.
+- Runs on: Claude subscription, Poe, OpenRouter, OpenAI, a local model, or Other; Load models lists what the service offers.
+- Settings redesign: AI first, What to suggest, More (folded), Advanced.
+- Main panel redesign: header with version, one Sort tabs button with This window / All windows / Selected tabs, a one-line result with Apply and Review, the board, More tools folded.
+- Suggested descriptions on the board, saved only on Save.
+- Known gap: the browser end-to-end tests (e2e/) were written for the old layout and haven't been run against this one.
+
 ## 0.2.2 — 2026-10-07
 **Security fix by Mycroft (from a background security review of run 4)**
 - Model-written group descriptions are suggestions only. The helper's 'describe' no longer writes the groups file: tab titles are untrusted page text, and the groups file goes back into every later prompt as rules, so a crafted page title could otherwise plant lasting instructions. Only an explicit Save ('groups-write') stores a description.
