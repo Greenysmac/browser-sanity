@@ -4,6 +4,7 @@ export const DEFAULTS = {
     staleTabs: true, groupTabs: true, importantBookmarks: true, cleanBookmarks: true, deadLinkScan: false, dupeTabs: true, organizeBookmarks: false,
   },
   organizeMode: 'additive',            // 'match' | 'additive' | 'full' (how aggressively to reorganize)
+  regroupExisting: false,              // re-sort tabs already in groups (send grouped tabs to the grouping phase too)
   protectBookmarkBar: true,            // never move/remove anything in the Bookmarks Bar
   protectedFolders: [],                // folder paths/names the organizer never touches (with their contents)
   removeEmptyFolders: false,           // propose removing folders left empty after organizing

@@ -107,10 +107,12 @@ export async function buildPlan(deps) {
   if (f.groupTabs && tabs.length) {
     // Respect existing Chrome tab groups: only offer to group currently-ungrouped
     // tabs, so re-running doesn't propose new groups over already-organized ones.
+    // When regroupExisting is on, send every collected tab so the organizer may
+    // move tabs between existing groups too.
     try {
-      const ungrouped = tabs.filter((t) => (t.groupId ?? -1) === -1);
-      if (ungrouped.length) {
-        const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(ungrouped), rules } });
+      const candidates = settings.regroupExisting ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
+      if (candidates.length) {
+        const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(candidates), rules } });
         items.push(...mapGroupResult(r.groups, byId));
       }
     } catch (e) { console.warn('[organizer] grouping phase failed:', e); } // keep other results

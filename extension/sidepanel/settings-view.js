@@ -77,6 +77,7 @@ export async function loadSettings() {
   form.deadLinkScan.checked = s.enabledFeatures.deadLinkScan;
   form.organizeBookmarks.checked = s.enabledFeatures.organizeBookmarks;
   form.organizeMode.value = s.organizeMode || 'additive';
+  form.regroupExisting.checked = !!s.regroupExisting;
   form.protectBookmarkBar.checked = s.protectBookmarkBar !== false;
   form.removeEmptyFolders.checked = !!s.removeEmptyFolders;
   form.protectedFolders.value = (s.protectedFolders || []).join('\n');
@@ -164,6 +165,7 @@ export function initSettingsView() {
           organizeBookmarks: form.organizeBookmarks.checked,
         },
         organizeMode: form.organizeMode.value,
+        regroupExisting: form.regroupExisting.checked,
         protectBookmarkBar: form.protectBookmarkBar.checked,
         removeEmptyFolders: form.removeEmptyFolders.checked,
         protectedFolders: form.protectedFolders.value.split('\n').map((s) => s.trim()).filter(Boolean),

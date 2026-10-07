@@ -13,6 +13,7 @@ test('getSettings returns defaults when nothing stored', async () => {
   // organize feature defaults: off, additive, bar protected
   assert.equal(s.enabledFeatures.organizeBookmarks, false);
   assert.equal(s.organizeMode, 'additive');
+  assert.equal(s.regroupExisting, false); // default off: re-running won't re-sort already-grouped tabs
   assert.equal(s.debugLogging, false);
   assert.equal(s.advancedCli.loadMcpServers, false);
   assert.equal(s.advancedCli.checkHostUpdates, false); // opt-in, off by default
