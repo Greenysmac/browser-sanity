@@ -56,7 +56,7 @@ function block(css, selector) {
 }
 
 test('the shared .boardSection rule is an auto-fill column grid, one-line names', () => {
-  const section = block(newtabCss, '.boardSection');
+  const section = block(newtabCss, '.boardSection::details-content'); // grid lives on the content slot (real Chrome)
   assert.match(section, /display:\s*grid/, 'the section is a grid');
   assert.match(
     section,

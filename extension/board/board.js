@@ -162,10 +162,12 @@ function openMenu(host, items) {
     const target = e && e.target;
     // A click on the menu itself (or its items) shouldn't close it from here;
     // choosing an item closes the menu explicitly.
-    if (target && (target === menu || (menu.children || []).includes(target))) return;
+    if (target && (target === menu || walkIncludes(menu, target))) return;
     close();
   };
+  let closed = false;
   close = () => {
+    closed = true;
     detach(menu);
     const doc = (typeof document !== 'undefined') ? document : undefined;
     if (doc && doc.removeEventListener) {
@@ -189,7 +191,10 @@ function openMenu(host, items) {
   const doc = (typeof document !== 'undefined') ? document : undefined;
   if (doc && doc.addEventListener) {
     doc.addEventListener('keydown', onKey);
-    doc.addEventListener('click', onDocClick);
+    // Listen for outside clicks only after the click that opened the menu has
+    // finished bubbling; otherwise that same click reaches the document and
+    // closes the menu at once (found in a real browser, 2026-10-07).
+    setTimeout(() => { if (!closed) doc.addEventListener('click', onDocClick); }, 0);
   }
   return close;
 }
@@ -232,7 +237,7 @@ function makeExpander() {
   let openRow;
   const collapse = () => {
     if (!openRow) return;
-    const area = (openRow.children || []).find((c) => c && c.className === 'boardExpanded');
+    const area = Array.from(openRow.children || []).find((c) => c && c.className === 'boardExpanded');
     detach(area);
     openRow = undefined;
   };
@@ -240,7 +245,7 @@ function makeExpander() {
   // editor/expanded area shouldn't toggle the row.
   const fromControls = (row, target) => {
     if (!target) return false;
-    const controls = (row.children || []).filter((c) => c && (
+    const controls = Array.from(row.children || []).filter((c) => c && (
       c.className === 'boardMenuBtn' || c.className === 'boardMenu'
       || c.className === 'boardExpanded' || c.className === 'boardDescEditor'));
     for (const c of controls) {
@@ -254,7 +259,7 @@ function makeExpander() {
     const toggle = (e) => {
       const target = e && e.target;
       if (fromControls(row, target)) return;
-      const isOpen = (row.children || []).some((c) => c && c.className === 'boardExpanded');
+      const isOpen = Array.from(row.children || []).some((c) => c && c.className === 'boardExpanded');
       if (isOpen) { collapse(); return; }
       collapse();
       row.appendChild(build());
@@ -276,7 +281,7 @@ function makeExpander() {
 function walkIncludes(el, target) {
   if (!el) return false;
   if (el === target) return true;
-  for (const kid of el.children || []) { if (walkIncludes(kid, target)) return true; }
+  for (const kid of Array.from(el.children || [])) { if (walkIncludes(kid, target)) return true; }
   return false;
 }
 
@@ -325,7 +330,7 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
 
   // Opening the editor replaces any editor already open on this row.
   const openEditor = () => {
-    const existing = (row.children || []).find((c) => c && c.className === 'boardDescEditor');
+    const existing = Array.from(row.children || []).find((c) => c && c.className === 'boardDescEditor');
     if (existing) return;
     row.appendChild(descriptionEditor({ name: group.name, description, suggested, send, setStatus }));
   };
@@ -376,7 +381,7 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
       // the links appear once the query answers.
       if (tabsApi && tabsApi.query && group.groupId != null) {
         Promise.resolve(tabsApi.query({ groupId: group.groupId })).then((tabs) => {
-          const list = (area.children || []).find((c) => c && c.className === 'boardTabList');
+          const list = Array.from(area.children || []).find((c) => c && c.className === 'boardTabList');
           if (!list) return;
           for (const t of (tabs || [])) {
             const li = document.createElement('li');
@@ -418,7 +423,7 @@ function parkedCard({ group, descriptions, send, setStatus, rerender, expander, 
 
   const description = descriptionFor(descriptions, group.name);
   const openEditor = () => {
-    const existing = (row.children || []).find((c) => c && c.className === 'boardDescEditor');
+    const existing = Array.from(row.children || []).find((c) => c && c.className === 'boardDescEditor');
     if (existing) return;
     row.appendChild(descriptionEditor({ name: group.name, description, send, setStatus }));
   };

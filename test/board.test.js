@@ -611,7 +611,12 @@ test('a click outside the ⋯ menu closes it', async () => {
   await renderBoard(container, { send });
   const row = openRowMenu(container, 'Work');
   assert.ok((row.children || []).some((c) => c.className === 'boardMenu'), 'the menu is open');
-  // A document click on something that isn't the menu closes it.
+  // The opening click itself must not close the menu: the outside-click
+  // listener is attached on the next tick (real-browser fix, 2026-10-07).
+  document._fire('click', { target: makeEl('div') });
+  assert.ok((row.children || []).some((c) => c.className === 'boardMenu'), 'the opening click does not close it');
+  await new Promise((r) => setTimeout(r, 0));
+  // A later document click on something that isn't the menu closes it.
   document._fire('click', { target: makeEl('div') });
   assert.ok(!(row.children || []).some((c) => c.className === 'boardMenu'), 'the menu is closed after an outside click');
 });

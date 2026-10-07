@@ -89,7 +89,7 @@ function block(selector) {
 // --- 1. the section is a column grid ----------------------------------------
 
 test('the board section is a CSS grid of auto-fill columns about 300px wide', () => {
-  const rule = block('.boardSection');
+  const rule = block('.boardSection::details-content'); // grid lives on the content slot (real Chrome)
   assert.match(rule, /display:\s*grid/, 'the section is a grid');
   assert.match(rule, /grid-template-columns:\s*repeat\(\s*auto-fill\s*,\s*minmax\(\s*300px/, 'columns auto-fill at ~300px');
 });

@@ -404,6 +404,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .boardRow {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 7px;
   background: var(--surface);
@@ -1003,3 +1004,9 @@ li.nonHttp span:not(.tabTag) { color: var(--text-muted); }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Real-browser fixes (Mycroft, 2026-10-07): the count never wraps under the
+   name, and an opened row's expanded area or editor sits on its own line. */
+.boardName { flex: 0 1 auto; }
+.boardCount { white-space: nowrap; flex: none; }
+.boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; }

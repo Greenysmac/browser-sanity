@@ -127,6 +127,10 @@ textarea, input {
    so they always sit above the columns rather than inside one. */
 .boardSection {
   margin-top: 18px;
+}
+/* A <details> element doesn't lay its own children out as a grid; its content
+   slot does (Chrome's ::details-content). Found in a real browser 2026-10-07. */
+.boardSection::details-content {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 6px 12px;
@@ -146,6 +150,7 @@ textarea, input {
 .boardRow {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   background: var(--surface);
@@ -261,3 +266,9 @@ textarea, input {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Real-browser fixes (Mycroft, 2026-10-07): the count never wraps under the
+   name, and an opened row's expanded area or editor sits on its own line. */
+.boardName { flex: 0 1 auto; }
+.boardCount { white-space: nowrap; flex: none; }
+.boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; }

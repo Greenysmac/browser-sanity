@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-10-07
+**Run 10 (Kiro, three tasks, first try; reviewed by Mycroft): Split**
+- Split this group… in every group's ⋯ menu; a "30+" badge on groups past 30 tabs. The model proposes 2 to 6 sub-groups with descriptions; Review shows names, counts, descriptions and tabs; nothing changes until Apply. Open groups become new Chrome groups (undo works); parked groups split inside the index (only the parent's own tabs, history copy first); the groups file gets the new lines.
+
+**Real-browser fixes by Mycroft** (found by loading the new-tab page in a real dark-mode browser with test data; the unit tests' fake DOM couldn't show them)
+- Clicking a row to expand it, and clicking outside a ⋯ menu to close it, threw errors: board.js treated element.children as an array. Now Array.from everywhere, with a guard test.
+- Once that worked, the click that opened a ⋯ menu also closed it at once; the outside-click listener now attaches on the next tick. Test updated.
+- New-tab rows now lay out in real columns (the grid moved to the details element's content slot); counts don't wrap under names; an opened row's description sits on its own line.
+
 ## 0.3.4 — 2026-10-07
 **Run 9 (Kiro, one task, first try; reviewed by Mycroft)**
 - Dark mode: the new-tab page sets color-scheme and uses theme tokens for light and dark; buttons, the filter, rows, the expanded area, the description editor and the ⋯ menu (with hover and focus) draw only from those tokens, on the new-tab page and in the side panel.
