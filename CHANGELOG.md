@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — 2026-10-07
+**Run 7 (Kiro, three tasks, all first try; reviewed by Mycroft)**: the declutter.
+- One line per group (color, name, count, a dot when a description suggestion waits) with a ⋯ menu: Sort this group, Park or Close group, Add back parked tabs, Description…; parked rows: Open, Description…. Section headers show counts.
+- The side panel shows only the header, the Sort card, the result card and your groups; Update index, Agent suggestions, the extra tools, sessions and muted items live in a More view (⋯ in the header). The connection line shows only when something's wrong.
+- The new-tab page uses the same rows in columns, with just the title, the filter and Open side panel on top.
+
 ## 0.3.1 — 2026-10-07
 **Run 6 (Kiro, four tasks, all first try; reviewed by Mycroft)** after Park lost two groups' records on Jeff's machine (recovered by Mycroft).
 - Park merges into a saved group instead of replacing it; an empty Park never shrinks a record; Park closes the whole group, new-tab pages included. Mycroft tested on a copy of the real index: 139 stays 139 after an empty Park, 140 after a Park with one new tab.
