@@ -4,6 +4,7 @@ import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandR
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile } from './groups-file.js';
+import { writeIndex } from './index-file.js';
 
 // Fold the user's "my groups" file into the rules the model sees. When the file
 // is empty this returns the incoming rules unchanged, so prompts stay identical
@@ -18,7 +19,7 @@ function withGroups(rules, groupsText) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'organize', 'command', 'prompt'],
+    types: ['health', 'organize', 'command', 'prompt', 'index'],
     tasks: ['group', 'stale', 'important', 'organize-bookmarks'],
     passthrough: true,
     adapters: adapterNames(),
@@ -100,6 +101,15 @@ export async function handle(msg, deps = {}) {
     const rules = withGroups(payload.rules || '', loadGroups());
     const out = await adapter.run(buildCommandPrompt(payload.instruction, payload.tabs, rules), opts);
     return parseCommandResult(out);
+  }
+
+  // Write (and merge) the on-disk index of every group, remembering ones the
+  // user has since closed. The file work lives in index-file.js; a missing or
+  // broken previous index is treated as empty there, never an error.
+  if (msg.type === 'index') {
+    const writeIdx = deps.writeIndex || writeIndex;
+    const count = writeIdx(msg.payload || {});
+    return { ok: true, groups: count };
   }
 
   throw new Error(`Unknown message type: ${msg.type}`);
