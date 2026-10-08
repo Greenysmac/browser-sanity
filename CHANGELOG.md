@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 — 2026-10-08
+**Run 13 (Kiro, two tasks, first try; reviewed by Mycroft)**
+- A new Analyze clears the old suggestions; a stored plan older than 6 hours comes back empty, and items for tabs that no longer exist are dropped.
+- A calmer side panel header: mark, name, Restore before sort on one line, ⋯ and the gear; the version moved into the More view.
+
+**New icon by Mycroft** (Jeff's pick): a level with the bubble centered, green on a dark tile; a simpler drawing for 16 and 32 pixels so it reads in the toolbar; the same mark in the panel header. Source in extension/icons/icon.svg.
+
 ## 0.5.0 — 2026-10-08
 **Runs 11 and 12 (Kiro, five tasks; reviewed by Mycroft).** Run 11 stopped on task 4 when the Mac went offline; run 12 finished it. The runner now waits out network drops without counting them, and uses a wall-clock time limit.
 - Cards: the tab count at the top right with the 30+ badge; clicking a card shows its description, then at most five tabs with the site in bold and "+ N more"; several cards can be open.
