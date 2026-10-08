@@ -651,8 +651,8 @@ async function autoDescribe({ open, descriptions, suggestions, send, setStatus, 
 // and re-requests boardData, debounced to ~400ms so a burst of events paints
 // once. The listeners are attached once (tracked on the container) and removed
 // by the teardown function this returns, so re-renders don't stack them.
-export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr(), chromeApi = (typeof chrome !== 'undefined' ? chrome : undefined), debounceMs = 400, onSplitProposal = () => {} } = {}) {
-  const rerender = () => renderBoard(container, { send, setStatus, storage, today, chromeApi, debounceMs, onSplitProposal });
+export async function renderBoard(container, { send, setStatus = () => {}, storage = defaultStorage(), today = todayStr(), chromeApi = (typeof chrome !== 'undefined' ? chrome : undefined), debounceMs = 400, onSplitProposal = () => {}, onTidyParked = () => {} } = {}) {
+  const rerender = () => renderBoard(container, { send, setStatus, storage, today, chromeApi, debounceMs, onSplitProposal, onTidyParked });
   const res = await send({ cmd: 'boardData' });
   const open = (res && res.open) || [];
   const parkedRaw = (res && res.parked) || [];
@@ -696,6 +696,15 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   const parkedSummary = document.createElement('summary');
   parkedSummary.textContent = `Parked · ${parked.length}`;
   parkedSection.appendChild(parkedSummary);
+  // A small text button in the Parked header starts a "Tidy parked groups…"
+  // proposal (merges + splits). It hands the proposal off via onTidyParked;
+  // clicking it never toggles the fold (summary clicks default to that).
+  const tidyBtn = document.createElement('button');
+  tidyBtn.type = 'button';
+  tidyBtn.className = 'boardTidyBtn';
+  tidyBtn.textContent = 'Tidy parked groups…';
+  tidyBtn.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); if (e && e.stopPropagation) e.stopPropagation(); onTidyParked(); });
+  parkedSummary.appendChild(tidyBtn);
   if (!parked.length) {
     const empty = document.createElement('p');
     empty.className = 'boardEmpty';

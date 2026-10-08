@@ -1,11 +1,11 @@
 import { getAdapter as defaultGetAdapter, adapterNames } from './adapters/registry.js';
 import { listModels as openaiListModels } from './adapters/openai.js';
-import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt, buildSplitPrompt } from './prompts.js';
-import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseJsonBlock } from './parse.js';
+import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt, buildSplitPrompt, buildTidyParkedPrompt } from './prompts.js';
+import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseTidyResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile, readGroups, writeGroupDescription, writeGroupSplit } from './groups-file.js';
-import { writeIndex, parkGroup, readIndex, listIndexHistory, restoreIndexHistory, splitParkedGroup } from './index-file.js';
+import { writeIndex, parkGroup, readIndex, listIndexHistory, restoreIndexHistory, splitParkedGroup, mergeParkedGroups } from './index-file.js';
 import { loadProposals } from './proposals-file.js';
 
 // Fold the user's "my groups" file into the rules the model sees. When the file
@@ -28,8 +28,8 @@ function cleanSuggestion(text) {
 // that lets the extension ship new AI operations without a host edit.
 function capabilities() {
   return {
-    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'split-parked', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'groups-split', 'describe'],
-    tasks: ['group', 'stale', 'important', 'organize-bookmarks', 'split'],
+    types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'split-parked', 'merge-parked', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'groups-split', 'describe'],
+    tasks: ['group', 'stale', 'important', 'organize-bookmarks', 'split', 'tidy-parked'],
     passthrough: true,
     adapters: adapterNames(),
   };
@@ -116,6 +116,16 @@ export async function handle(msg, deps = {}) {
       const out = await adapter.run(buildOrganizePrompt(payload.bookmarks, payload.folders, payload.mode, rules), opts);
       return { task, moves: parseOrganizeResult(out) };
     }
+    // Tidy the parked groups: ask the model to propose merges (small/overlapping
+    // groups) and splits (crowded or many-topic groups). Like split, the groups
+    // file is deliberately NOT fed in: this concerns the parked list alone. The
+    // parser keeps only group names that were actually sent and drops self-merges.
+    if (task === 'tidy-parked') {
+      const groups = Array.isArray(payload.groups) ? payload.groups : [];
+      const names = groups.map((g) => String((g && g.name) || ''));
+      const out = await adapter.run(buildTidyParkedPrompt(groups), opts);
+      return { task, ...parseTidyResult(out, names) };
+    }
     // Split one group into sub-groups. The groups file is deliberately NOT fed
     // in here (via rules): the split concerns this single group alone, so the
     // model should only see its tabs. Left-out tabs are recovered in the parser.
@@ -162,6 +172,17 @@ export async function handle(msg, deps = {}) {
     const split = deps.splitParkedGroup || splitParkedGroup;
     const payload = msg.payload || {};
     return split({ name: payload.name, groups: payload.groups });
+  }
+
+  // Merge several parked groups' tabs into one in the index, in place: the
+  // 'from' entries' tabs move into 'into' (deduplicated by url, 'into' created
+  // if missing with the first source's color), then the emptied 'from' entries
+  // are removed. Writes through the index path so a history copy is made. The
+  // file work lives in index-file.js; returns { ok, tabs } or { ok: false }.
+  if (msg.type === 'merge-parked') {
+    const merge = deps.mergeParkedGroups || mergeParkedGroups;
+    const payload = msg.payload || {};
+    return merge({ into: payload.into, from: payload.from });
   }
 
   // Read the parsed index.json so the extension can reopen a parked group. A

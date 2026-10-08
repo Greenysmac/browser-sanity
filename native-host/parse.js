@@ -179,6 +179,43 @@ export function parseDescribeResult(text) {
   return normalizeDescriptions(obj && obj.descriptions);
 }
 
+// Parse a proposed tidy of parked groups into merges and splits. Lenient like
+// the other parsers: a name is kept only when it is in `existingNames` (trimmed,
+// case-insensitive) and is rewritten to that canonical spelling. A merge never
+// keeps a `from` equal to its `into` (a group can't merge into itself) and
+// drops duplicate `from` names; a merge left with no valid `from`, or a split
+// for an unknown name, is dropped. `existingNames` is the list of parked group
+// names the model was shown.
+export function parseTidyResult(text, existingNames) {
+  const obj = parseJsonBlock(text) || {};
+  const byKey = new Map();
+  for (const n of (Array.isArray(existingNames) ? existingNames : [])) {
+    byKey.set(String(n ?? '').trim().toLowerCase(), String(n ?? ''));
+  }
+  const exists = (name) => byKey.has(String(name ?? '').trim().toLowerCase());
+  const canon = (name) => byKey.get(String(name ?? '').trim().toLowerCase());
+  const sameKey = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+  const merge = (Array.isArray(obj.merge) ? obj.merge : [])
+    .filter((m) => m && exists(m.into))
+    .map((m) => {
+      const into = canon(m.into);
+      const seen = new Set([String(into).trim().toLowerCase()]);
+      const from = (Array.isArray(m.from) ? m.from : [])
+        .filter((f) => exists(f) && !sameKey(f, into)) // keep only real names, never self-merge
+        .map((f) => canon(f))
+        .filter((f) => { const k = String(f).trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+      return { into, from, reason: String(m.reason ?? '') };
+    })
+    .filter((m) => m.from.length > 0);
+
+  const split = (Array.isArray(obj.split) ? obj.split : [])
+    .filter((s) => s && exists(s.name))
+    .map((s) => ({ name: canon(s.name), reason: String(s.reason ?? '') }));
+
+  return { merge, split };
+}
+
 export function parseCommandResult(text) {
   const obj = parseJsonBlock(text) || {}; // model may emit literal null
   return {

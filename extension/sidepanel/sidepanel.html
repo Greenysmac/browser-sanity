@@ -97,6 +97,14 @@
       <ul id="splitReviewList" class="splitReviewList" hidden></ul>
     </section>
 
+    <section id="tidyCard" class="resultCard" aria-label="Tidy parked groups result" hidden>
+      <p id="tidySummary" class="resultSummary"></p>
+      <ul id="tidyList" class="tidyList"></ul>
+      <div class="resultActions">
+        <button type="button" id="tidyApply" class="apply-primary">Apply merges</button>
+      </div>
+    </section>
+
     <details id="board" class="board" open>
       <summary>Board</summary>
       <div id="boardBody"></div>
@@ -110,6 +118,7 @@
       <div class="boardActions">
         <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
         <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
+        <button type="button" id="tidyParked" class="secondaryBtn" aria-label="Suggest merges and splits for parked groups">Tidy parked groups…</button>
       </div>
 
       <details id="moreTools" class="moreTools" aria-label="Tools">

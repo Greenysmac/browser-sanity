@@ -794,6 +794,45 @@ async function handleSplitParked(m) {
   }
 }
 
+// Ask the helper to tidy the parked groups: read the index, hand the model each
+// parked group's name, tab count and sample titles, and return its proposed
+// merges and splits (names already filtered to existing parked groups by the
+// host's parser). Nothing is applied here. Tidy is a quick judgement call, so it
+// runs on the quick model slot. Returns { ok, merge, split }.
+async function handleTidyParked() {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  let parked = [];
+  try {
+    const index = await client.request({ type: 'index-read' });
+    const indexGroups = (index && Array.isArray(index.groups)) ? index.groups : [];
+    parked = indexGroups
+      .filter((g) => g.status !== 'open')
+      .map((g) => ({ name: g.name || '', tabs: Array.isArray(g.tabs) ? g.tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) : [] }));
+  } finally {
+    client.disconnect();
+  }
+  const sorter = await makeClient(settings, 'quick');
+  try {
+    const res = await sorter.request({ type: 'organize', task: 'tidy-parked', adapter: settings.adapter, payload: { groups: parked } });
+    return { ok: true, merge: (res && res.merge) || [], split: (res && res.split) || [] };
+  } finally {
+    sorter.disconnect();
+  }
+}
+
+// Merge several parked groups' tabs into one in the host's index via
+// 'merge-parked'. Returns the host's { ok, tabs } / { ok: false, error }.
+async function handleMergeParked(m) {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  try {
+    return await client.request({ type: 'merge-parked', adapter: settings.adapter, payload: { into: m.into, from: m.from } });
+  } finally {
+    client.disconnect();
+  }
+}
+
 // Replace the parent group's line in the host's groups file with one line per
 // sub-group via 'groups-split'.
 async function handleGroupsSplit(m) {
@@ -840,6 +879,8 @@ const HANDLERS = {
   groupsRead: handleGroupsRead,
   groupsWrite: handleGroupsWrite,
   splitParked: handleSplitParked,
+  tidyParked: handleTidyParked,
+  mergeParked: handleMergeParked,
   groupsSplit: handleGroupsSplit,
   splitGroup: handleSplitGroup,
   getSplitProposal: handleGetSplitProposal,

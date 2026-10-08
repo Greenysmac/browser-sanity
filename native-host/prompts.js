@@ -141,6 +141,37 @@ export function buildSplitPrompt(groupName, tabs, { maxPerGroup = 30 } = {}) {
   ].join('\n');
 }
 
+// Each parked group is summarised by its name and tab count, with up to 15
+// sample tab titles under it so the model can judge overlap without the whole
+// list. Titles are untrusted page text, so the table goes inside the fence.
+function parkedTable(groups) {
+  return groups
+    .map((g) => {
+      const count = Array.isArray(g.tabs) ? g.tabs.length : (Number(g.tabCount) || 0);
+      const titles = (Array.isArray(g.tabs) ? g.tabs : [])
+        .slice(0, 15)
+        .map((t) => `\t${clip(t.title, 120)}`)
+        .join('\n');
+      const head = `GROUP ${clip(g.name, 120)} (${count} tabs)`;
+      return titles ? `${head}\n${titles}` : head;
+    })
+    .join('\n');
+}
+
+export function buildTidyParkedPrompt(groups) {
+  return [
+    'You tidy a list of parked browser tab groups by proposing merges and splits.',
+    'Each GROUP line names a parked group and its tab count; the indented lines under it are sample tab titles.',
+    'Propose a MERGE for small or overlapping groups that clearly belong together: pick one existing group to merge the others into.',
+    'Propose a SPLIT for a group past about 30 tabs, or one that covers several different needs.',
+    'Only reference group names present in the data below. A group can never merge into itself.',
+    'Respond with ONLY this JSON, no prose:',
+    '{"merge":[{"into":"name","from":["name"],"reason":"why"}],"split":[{"name":"name","reason":"why"}]}',
+    '',
+    wrapWithFence(parkedTable(groups), 'DATA'),
+  ].join('\n');
+}
+
 export function buildImportantPrompt(tabs, rules = '') {
   return [
     'You identify high-value browser tabs worth bookmarking and file them into a tidy shallow folder structure.',

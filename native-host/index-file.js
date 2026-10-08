@@ -291,6 +291,80 @@ export function splitParkedGroup({ name, groups: subGroups = [] } = {}, {
   return { ok: true, groups: entries.map((e) => ({ name: e.name, tabs: e.tabs.length })) };
 }
 
+// Merge several parked groups' tabs into one, in place. `into` is the surviving
+// group's name and `from` is the list of groups whose tabs move into it; both
+// are matched by name (trimmed, case-insensitive). The survivor keeps its own
+// tabs and gains each source's tabs whose url isn't already present (dedup by
+// url). When no `into` entry exists yet it is created, taking the first source's
+// color/windowId. The emptied `from` entries are removed; the survivor keeps the
+// old entry's position (or is appended when new). Writes through the same path
+// as other index writes (a dated history copy first). Returns { ok: true, tabs }
+// with the survivor's final tab count, or { ok: false, error } when no source
+// groups are found. A `from` name equal to `into` is ignored. Only index.json
+// and index.md are touched.
+export function mergeParkedGroups({ into, from = [] } = {}, {
+  env = process.env,
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+  mkdir = fs.mkdirSync,
+  now = new Date().toISOString(),
+} = {}) {
+  const dir = indexDir(env);
+  const jsonPath = path.join(dir, 'index.json');
+  const mdPath = path.join(dir, 'index.md');
+  const prev = readIndex({ env, readFile });
+  const intoKey = groupKey(into);
+  // The source keys: every requested `from` that isn't the survivor itself.
+  const fromKeys = new Set((Array.isArray(from) ? from : [])
+    .map(groupKey)
+    .filter((k) => k && k !== intoKey));
+  const sources = prev.groups.filter((g) => fromKeys.has(groupKey(g.name)));
+  if (!sources.length) return { ok: false, error: 'No source groups found to merge' };
+
+  const existing = prev.groups.find((g) => groupKey(g.name) === intoKey);
+  const tabs = existing && Array.isArray(existing.tabs)
+    ? existing.tabs.map((t) => ({ title: t.title, url: t.url }))
+    : [];
+  const haveUrls = new Set(tabs.map((t) => t.url));
+  for (const src of sources) {
+    for (const t of (Array.isArray(src.tabs) ? src.tabs : [])) {
+      if (haveUrls.has(t.url)) continue; // dedup by url
+      haveUrls.add(t.url);
+      tabs.push({ title: t.title, url: t.url });
+    }
+  }
+  const firstSource = sources[0];
+  const survivor = {
+    name: existing ? existing.name : String(into || ''),
+    color: existing && existing.color !== undefined ? existing.color : (firstSource && firstSource.color),
+    windowId: existing && existing.windowId !== undefined ? existing.windowId : (firstSource && firstSource.windowId),
+    tabs,
+    status: 'parked',
+    lastSeen: now,
+  };
+
+  // Keep every group that is neither a source nor the old survivor, preserving
+  // order; put the survivor where the old entry was (or append it when new).
+  const groups = [];
+  let placed = false;
+  for (const g of prev.groups) {
+    const key = groupKey(g.name);
+    if (fromKeys.has(key)) continue; // emptied source — removed
+    if (key === intoKey) { groups.push(survivor); placed = true; continue; }
+    groups.push(g);
+  }
+  if (!placed) groups.push(survivor);
+
+  const ungrouped = Array.isArray(prev.ungrouped)
+    ? prev.ungrouped.map((t) => ({ title: t.title, url: t.url }))
+    : [];
+  mkdir(dir, { recursive: true });
+  snapshotIndex(dir, now, { readFile, writeFile, mkdir });
+  writeFile(jsonPath, `${JSON.stringify({ updated: now, groups, ungrouped }, null, 2)}\n`);
+  writeFile(mdPath, renderMarkdown(groups, ungrouped, now));
+  return { ok: true, tabs: tabs.length };
+}
+
 // List the dated copies kept in index-history, newest first. Each entry is
 // { name, time }, where name is the file name and time is the ISO timestamp
 // recovered from it (':' restored). A missing folder yields an empty list,

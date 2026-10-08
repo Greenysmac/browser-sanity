@@ -11,6 +11,7 @@ import { initUndoHistory } from './undo.js';
 import { initMainPanel } from './main-panel.js';
 import { renderBoard } from '../board/board.js';
 import { showSplitProposal } from './split-view.js';
+import { showTidyProposal } from './tidy-view.js';
 import { $, send, setStatus } from './dom.js';
 
 // chrome.i18n scaffolding: replace the text of any [data-i18n] element with its
@@ -35,10 +36,33 @@ function initBoardView() {
     reviewList: $('splitReviewList'),
     apply: $('splitApply'),
   };
-  const paint = () => renderBoard($('boardBody'), { send, setStatus, onSplitProposal });
+  const tidyEls = {
+    card: $('tidyCard'),
+    summary: $('tidySummary'),
+    list: $('tidyList'),
+    apply: $('tidyApply'),
+  };
+  const paint = () => renderBoard($('boardBody'), { send, setStatus, onSplitProposal, onTidyParked });
   const onSplitProposal = (proposal) => {
     showSplitProposal({ proposal, els: splitEls, send, setStatus, onDone: paint });
   };
+  // "Tidy parked groups…" (the Parked header button and the More-view button):
+  // ask the service worker for a proposal, then show it on the tidy card. A
+  // Split… line reuses the existing split flow (splitGroup by parked name); the
+  // merge Apply refreshes the board.
+  const onSplitByName = async (name) => {
+    const res = await send({ cmd: 'splitGroup', name });
+    if (res && res.ok && res.proposal) onSplitProposal(res.proposal);
+  };
+  const onTidyParked = async () => {
+    setStatus('Tidying parked groups…');
+    const res = await send({ cmd: 'tidyParked' });
+    if (!res || !res.ok) { setStatus('Could not tidy parked groups.'); return; }
+    setStatus('');
+    showTidyProposal({ proposal: res, els: tidyEls, send, setStatus, onSplit: onSplitByName, onDone: paint });
+  };
+  const moreTidy = $('tidyParked');
+  if (moreTidy) moreTidy.addEventListener('click', onTidyParked);
   $('board').addEventListener('toggle', () => { if ($('board').open) paint(); });
   // A proposal may already be waiting — the new-tab page's Split action stores
   // one and opens the panel, so show it on first load.
