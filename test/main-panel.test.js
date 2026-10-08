@@ -6,7 +6,7 @@
 //   3. modelsInUseLine's "endpoint default" fallback for empty slots;
 //   4. Review toggles the detailed suggestion list (reviewHidden class);
 //   5. the "Selected tabs" segment routes the Sort button to sortSelected;
-//   6. the header version text comes from the manifest (version_name preferred).
+//   6. the version text comes from the manifest (version_name preferred).
 // Like the other side-panel suites, this drives the module with a hand-rolled
 // fake DOM (no jsdom in this repo) rather than a browser.
 import { test } from 'node:test';
@@ -27,14 +27,12 @@ test('the main panel parts appear top-to-bottom in order', () => {
     return i;
   };
   const header = idx('class="appHeader"');
-  const version = idx('id="appVersion"');
   const sortCard = idx('id="sortCard"');
   const resultCard = idx('id="resultCard"');
   const board = idx('id="board"');
   const boardActions = idx('class="boardActions"');
   const moreTools = idx('id="moreTools"');
-  assert.ok(header < version, 'version chip sits in the header');
-  assert.ok(version < sortCard, 'header before the sort card');
+  assert.ok(header < sortCard, 'header before the sort card');
   assert.ok(sortCard < resultCard, 'sort card before the result card');
   assert.ok(resultCard < board, 'result card before the board');
   assert.ok(board < boardActions, 'board before the board actions');
@@ -216,15 +214,15 @@ test('the Selected tabs segment sets selected mode; window/all drive the scope s
   assert.equal(els.scope.value, 'all', 'All windows sets the hidden scope select');
 });
 
-// ---- 6. Header version comes from the manifest ------------------------------
+// ---- 6. Version comes from the manifest -------------------------------------
 
-test('the header version text comes from the manifest (version_name preferred)', () => {
+test('the version text comes from the manifest (version_name preferred)', () => {
   const { els } = makeHarness({ manifest: { version: '0.2.2', version_name: '0.2.2 Browser Sanity' } });
   initMainPanel();
   assert.equal(els.appVersion.textContent, '0.2.2 Browser Sanity');
 });
 
-test('the header version falls back to version when no version_name', () => {
+test('the version falls back to version when no version_name', () => {
   const { els } = makeHarness({ manifest: { version: '0.3.0' } });
   initMainPanel();
   assert.equal(els.appVersion.textContent, '0.3.0');

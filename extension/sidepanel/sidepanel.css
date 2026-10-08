@@ -100,7 +100,7 @@ header.appHeader {
 .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
 .brandMark { width: 22px; height: 22px; flex: none; color: var(--accent); }
 h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
-.appVersion { font-size: 11px; color: var(--text-faint); font-weight: 500; }
+.appVersion { font-size: 11px; color: var(--text-faint); font-weight: 500; margin: 0 2px 10px; }
 
 .headerActions { display: flex; align-items: center; gap: 6px; }
 .headerIconBtn {
@@ -126,8 +126,9 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
   color: var(--text-muted);
   border-radius: var(--r-sm);
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
 .headerTextBtn:hover {
