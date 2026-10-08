@@ -121,7 +121,7 @@ test('renderBoard shows a parked card with count and last-seen date', async () =
   await renderBoard(container, { send });
   const texts = allText(container);
   assert.ok(texts.includes('Travel'), 'parked group name');
-  assert.ok(texts.some((t) => t === '5 tabs · last seen 2026-01-02'), 'parked meta line with date');
+  assert.ok(texts.some((t) => t === '5 tabs'), 'parked meta line shows just the count (the date is on hover)');
 });
 
 test('a parked entry with the same name as an open group is not rendered', async () => {

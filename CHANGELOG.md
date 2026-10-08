@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 — 2026-10-08
+**Runs 11 and 12 (Kiro, five tasks; reviewed by Mycroft).** Run 11 stopped on task 4 when the Mac went offline; run 12 finished it. The runner now waits out network drops without counting them, and uses a wall-clock time limit.
+- Cards: the tab count at the top right with the 30+ badge; clicking a card shows its description, then at most five tabs with the site in bold and "+ N more"; several cards can be open.
+- "Restore before sort" is a labelled button that undoes the latest sort; the full undo history is in More.
+- Analyze first counts loose tabs and duplicates (no model call), then you choose Put into my groups or Suggest new groups. Re-sort all groups and Close duplicates are occasional actions under it, not settings; the confusing grouping switch is gone. A single tab can join an existing group.
+- Tabs that belong to a parked group are filed into it (the tab closes after the helper saves it; undo reopens it); the result line says where tabs go, and the parked card shows "+N new".
+- Tidy parked groups…: suggests merges and splits with reasons; merges apply in the index (history copy first), splits start the Split flow.
+
+**Real-browser check by Mycroft** (fake-Chrome test pages for the side panel and new-tab page, dark mode): Analyze counts and both choices, card description with five bold sites, two cards open, Restore before sort, Tidy link. Fixed there: parked names cut off (the row now shows just the count; the date is on hover), the ⋯ wrapping to a second line, a white Tidy button on the new-tab page, and old "Run one" wording on the empty panel.
+
 ## 0.4.0 — 2026-10-07
 **Run 10 (Kiro, three tasks, first try; reviewed by Mycroft): Split**
 - Split this group… in every group's ⋯ menu; a "30+" badge on groups past 30 tabs. The model proposes 2 to 6 sub-groups with descriptions; Review shows names, counts, descriptions and tabs; nothing changes until Apply. Open groups become new Chrome groups (undo works); parked groups split inside the index (only the parent's own tabs, history copy first); the groups file gets the new lines.

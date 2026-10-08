@@ -462,7 +462,10 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
   name.textContent = group.name || '(unnamed)';
   const meta = document.createElement('span');
   meta.className = 'boardCount';
-  meta.textContent = `${group.tabCount} tabs · ${lastSeenText(group.lastSeen)}`;
+  // Just the count on the row (Jeff, 2026-10-08); the date shows on hover so
+  // long names aren't cut off.
+  meta.textContent = `${group.tabCount} tabs`;
+  meta.title = lastSeenText(group.lastSeen);
   // The count/meta sits top-right, before the ⋯ button, with the "30+" split
   // hint (on a crowded parked group) and the "+n new" badge beside it, in a
   // right-aligned container.

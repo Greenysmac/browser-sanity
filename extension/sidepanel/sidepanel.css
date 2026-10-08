@@ -1082,3 +1082,8 @@ li.nonHttp span:not(.tabTag) { color: var(--text-muted); }
 .boardName { flex: 0 1 auto; }
 .boardCount { white-space: nowrap; flex: none; }
 .boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; }
+
+/* Real-browser fixes for 0.5.0 (Mycroft, 2026-10-08): the name shrinks first so
+   the count and the ⋯ button stay on the first line; only an opened card's
+   description area wraps to its own line. */
+.boardRow > .boardName { flex: 1 1 0; min-width: 0; }

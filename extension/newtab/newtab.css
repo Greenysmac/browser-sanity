@@ -280,3 +280,21 @@ textarea, input {
 .boardName { flex: 0 1 auto; }
 .boardCount { white-space: nowrap; flex: none; }
 .boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; }
+
+/* Real-browser fixes for 0.5.0 (Mycroft, 2026-10-08): the name shrinks first so
+   the count and the ⋯ button stay on the first line; only an opened card's
+   description area wraps to its own line. */
+.boardRow > .boardName { flex: 1 1 0; min-width: 0; }
+.boardTidyBtn {
+  margin-left: 10px;
+  background: transparent;
+  border: none;
+  color: var(--accent, var(--text));
+  font: inherit;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  padding: 0;
+}
+.boardTidyBtn:hover, .boardTidyBtn:focus-visible { text-decoration: underline; }
