@@ -88,6 +88,24 @@ test('planSummaryLine omits a zero clause and is empty for an empty plan', () =>
   assert.equal(planSummaryLine([{ action: 'closeTab', data: { tabId: 1 } }]), 'close 1 duplicate');
 });
 
+test('planSummaryLine reports where parked-group tabs go, with a per-group breakdown', () => {
+  const plan = [
+    // Three groups holding 9 tabs total (3 each).
+    ...Array.from({ length: 3 }, () => ({ action: 'groupTabs', data: { tabIds: [1, 2, 3] } })),
+    ...Array.from({ length: 3 }, (_, i) => ({ action: 'parkTab', data: { tabId: 100 + i, groupName: 'Hearing research' } })),
+    { action: 'parkTab', data: { tabId: 200, groupName: 'Someday' } },
+  ];
+  assert.equal(
+    planSummaryLine(plan),
+    'Move 9 tabs into 3 groups, file 4 into parked groups (Hearing research 3, Someday 1)',
+  );
+  // Parked-only plans still read cleanly.
+  assert.equal(
+    planSummaryLine([{ action: 'parkTab', data: { tabId: 1, groupName: 'Someday' } }]),
+    'file 1 into parked groups (Someday 1)',
+  );
+});
+
 test('modelsInUseLine names both slots and falls back to "endpoint default"', () => {
   assert.equal(modelsInUseLine('Sonnet 5.5', 'Haiku 4.5'), 'Big sorts: Sonnet 5.5 · Quick jobs: Haiku 4.5');
   assert.equal(modelsInUseLine('', ''), 'Big sorts: endpoint default · Quick jobs: endpoint default');

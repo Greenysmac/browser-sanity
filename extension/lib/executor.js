@@ -89,6 +89,21 @@ async function applyItemInner(item, c, deps = {}) {
       // Record the safety bookmark so undo is a clean inverse (reopen + delete it).
       return { undoId: undoId(), ts: Date.now(), action: 'closeTab', reverse: { url, windowId, index, pinned, savedBookmarkId } };
     }
+    case 'parkTab': {
+      // File a single tab into an already-parked group: hand the host a one-tab
+      // 'park' (the host merges by url, never shrinking the parked record), and
+      // only after it answers ok close the tab. A host failure closes nothing,
+      // so the tab is never lost. The undo entry mirrors closeTab's reverse
+      // shape (url/windowId/index/pinned) so reverseEntry reopens it where it
+      // was — the parked record keeps the tab either way.
+      const { tabId, url, title, groupName, windowId, index } = item.data;
+      const nativeClient = deps.nativeClient;
+      if (!nativeClient) throw new Error('parkTab requires a nativeClient');
+      const res = await nativeClient.request({ type: 'park', payload: { group: { name: groupName, tabs: [{ title: title || url, url }] } } });
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Park failed');
+      await c.tabs.remove(tabId);
+      return { undoId: undoId(), ts: Date.now(), action: 'closeTab', reverse: { url, windowId, index, pinned: false } };
+    }
     case 'groupTabs': {
       const { tabIds, groupName, color } = item.data;
       // Drop tab ids that no longer exist (closed/suspended since the plan was

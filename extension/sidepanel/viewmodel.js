@@ -6,17 +6,30 @@ export { summarize, digestText };
 export function actionLabel(action) { return ACTION_LABELS[action] || action; }
 
 // One plain-English line for the main-panel result card, built from the plan:
-// counts the tabs moved into groups (groupTabs items' tabIds) and the tabs
-// closed (closeTab items), e.g. "Move 412 tabs into 14 groups, close 37
-// duplicates". Omits a clause whose count is zero; returns '' for an empty plan.
+// counts the tabs moved into groups (groupTabs items' tabIds), the tabs filed
+// into parked groups (parkTab items, with a per-group breakdown), and the tabs
+// closed (closeTab items), e.g. "Move 9 tabs into 3 groups, file 4 into parked
+// groups (Hearing research 3, Someday 1), close 37 duplicates". Omits a clause
+// whose count is zero; returns '' for an empty plan.
 export function planSummaryLine(plan) {
   const items = plan || [];
   const groups = items.filter((it) => it.action === 'groupTabs');
   const groupTabCount = groups.reduce((n, it) => n + ((it.data && it.data.tabIds && it.data.tabIds.length) || 0), 0);
+  const parks = items.filter((it) => it.action === 'parkTab');
   const closeCount = items.filter((it) => it.action === 'closeTab').length;
   const parts = [];
   if (groupTabCount) {
     parts.push(`Move ${groupTabCount} tab${groupTabCount === 1 ? '' : 's'} into ${groups.length} group${groups.length === 1 ? '' : 's'}`);
+  }
+  if (parks.length) {
+    // Count filed tabs per parked group, in first-seen order, for the breakdown.
+    const byGroup = new Map();
+    for (const it of parks) {
+      const name = (it.data && it.data.groupName) || '';
+      byGroup.set(name, (byGroup.get(name) || 0) + 1);
+    }
+    const breakdown = [...byGroup.entries()].map(([name, n]) => `${name} ${n}`).join(', ');
+    parts.push(`file ${parks.length} into parked groups (${breakdown})`);
   }
   if (closeCount) {
     parts.push(`close ${closeCount} duplicate${closeCount === 1 ? '' : 's'}`);

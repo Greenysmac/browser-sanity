@@ -448,8 +448,10 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
 
 // A single parked-group row: color dot, name, "<n> tabs · last seen <date>" in
 // muted text, and a '⋯' button whose menu offers "Open" and "Description…".
-// After Open the board re-renders.
-function parkedCard({ group, descriptions, send, setStatus, rerender, expander, onSplitProposal }) {
+// After Open the board re-renders. When `newCount` > 0 the row shows a small
+// "+<n> new" badge (tabs filed into this group by the last apply); expanding the
+// row clears that count via `storage` so the badge doesn't linger.
+function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatus, rerender, expander, onSplitProposal }) {
   const row = document.createElement('div');
   row.className = 'boardRow';
   const dot = document.createElement('span');
@@ -462,10 +464,17 @@ function parkedCard({ group, descriptions, send, setStatus, rerender, expander, 
   meta.className = 'boardCount';
   meta.textContent = `${group.tabCount} tabs · ${lastSeenText(group.lastSeen)}`;
   // The count/meta sits top-right, before the ⋯ button, with the "30+" split
-  // hint (on a crowded parked group) beside it, in a right-aligned container.
+  // hint (on a crowded parked group) and the "+n new" badge beside it, in a
+  // right-aligned container.
   const countWrap = document.createElement('span');
   countWrap.className = 'boardCountWrap';
   countWrap.appendChild(meta);
+  if (newCount > 0) {
+    const newBadge = document.createElement('span');
+    newBadge.className = 'boardNewBadge';
+    newBadge.textContent = `+${newCount} new`;
+    countWrap.appendChild(newBadge);
+  }
   const badge = splitHintBadge(group.tabCount);
   if (badge) countWrap.appendChild(badge);
   row.append(dot, name, countWrap);
@@ -493,10 +502,18 @@ function parkedCard({ group, descriptions, send, setStatus, rerender, expander, 
 
   // Clicking a parked row expands it with the description (plus Edit) and the
   // tab titles from the index entry as plain text (parked tabs aren't live, so
-  // there's nothing to focus).
+  // there's nothing to focus). Expanding also clears this group's "+n new"
+  // badge: drop its stored count and remove the badge element from the row.
   if (expander) {
     const tabs = Array.isArray(group.tabs) ? group.tabs : [];
-    const build = () => expandedArea({ name: group.name, description, suggested: '', tabs, send, setStatus });
+    const build = () => {
+      if (newCount > 0) {
+        clearNewCount(storage, group.name);
+        const b = Array.from(countWrap.children || []).find((c) => c && c.className === 'boardNewBadge');
+        detach(b);
+      }
+      return expandedArea({ name: group.name, description, suggested: '', tabs, send, setStatus });
+    };
     expander.wire(row, build);
   }
   return row;
@@ -511,6 +528,12 @@ const ASKED_KEY = 'boardDescribeAsked';
 // as { "<name-lowercased>": { description, date } } so the board can show a
 // suggestion again on later renders without calling the model.
 const SUGGESTIONS_KEY = 'boardDescribeSuggestions';
+
+// The chrome.storage.local key holding how many tabs each parked group received
+// in the last apply, kept as { "<name-lowercased>": <count> }. A parked card
+// with a count > 0 shows a "+<n> new" badge until the user opens/expands it,
+// which clears that group's entry.
+const NEW_COUNTS_KEY = 'boardParkedNewCounts';
 
 // Today's date as YYYY-MM-DD (local), the granularity of the once-a-day memory.
 function todayStr(now = new Date()) {
@@ -547,6 +570,26 @@ async function readSuggestions(storage) {
 async function writeSuggestions(storage, suggestions) {
   if (!storage) return;
   await storage.set({ [SUGGESTIONS_KEY]: suggestions });
+}
+
+// Read the per-parked-group "new tabs" counts ({ "<name-lowercased>": <count> }).
+// A missing store (tests) reads {}.
+async function readNewCounts(storage) {
+  if (!storage) return {};
+  const got = await storage.get(NEW_COUNTS_KEY);
+  return (got && got[NEW_COUNTS_KEY]) || {};
+}
+
+// Clear one parked group's "new" count (by name, trimmed/case-insensitive) once
+// the user opens/expands its card, so the "+n new" badge doesn't persist. A
+// missing store (tests) does nothing.
+async function clearNewCount(storage, name) {
+  if (!storage) return;
+  const counts = await readNewCounts(storage);
+  const key = String(name || '').trim().toLowerCase();
+  if (!(key in counts)) return;
+  delete counts[key];
+  await storage.set({ [NEW_COUNTS_KEY]: counts });
 }
 
 // Pick the open groups that have a name, lack a saved description, lack a stored
@@ -617,6 +660,9 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   // Stored model suggestions, shown on open cards that have no saved
   // description (prefilled with a "Suggested" label) without re-asking.
   const suggestions = await readSuggestions(storage);
+  // Per-parked-group "new tabs" counts from the last apply; a parked card with a
+  // count > 0 shows a "+n new" badge until the user opens/expands it.
+  const newCounts = await readNewCounts(storage);
   // Drop any parked card whose name matches an open group (trimmed, case-
   // insensitive): a reopened group is "open now", so it shouldn't also appear
   // under "Parked, from the index". The full parkedRaw is still passed to open
@@ -656,7 +702,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     empty.textContent = 'Nothing parked yet';
     parkedSection.appendChild(empty);
   } else {
-    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, send, setStatus, rerender, expander, onSplitProposal }));
+    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, newCount: newCounts[String(group.name || '').trim().toLowerCase()] || 0, storage, send, setStatus, rerender, expander, onSplitProposal }));
   }
 
   container.append(openSection, parkedSection);

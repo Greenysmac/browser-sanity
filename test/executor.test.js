@@ -397,3 +397,50 @@ test('ensureFolder reuses an existing folder', async () => {
   const devFolders = chrome._created.filter((c) => c.title === 'Dev');
   assert.equal(devFolders.length, 1); // created once, reused second time
 });
+
+// --- TASK 1: parkTab files a tab into a parked group then closes it ----------
+
+// A fake native client that records every request and answers with `reply`.
+function fakeClient(reply = { ok: true }) {
+  const sent = [];
+  return { _sent: sent, async request(msg) { sent.push(msg); return typeof reply === 'function' ? reply(msg) : reply; } };
+}
+
+test('parkTab sends a one-tab park to the host, then closes the tab (host merges, never shrinks)', async () => {
+  const removed = [];
+  const chrome = { tabs: { async remove(id) { removed.push(id); } } };
+  const nativeClient = fakeClient({ ok: true });
+  const item = { action: 'parkTab', data: { tabId: 7, url: 'https://a.com', title: 'A', groupName: 'Someday', windowId: 1, index: 3 } };
+  const undo = await applyItem(item, { chrome, nativeClient });
+  // The host got a park with exactly this one tab under the named group.
+  assert.equal(nativeClient._sent.length, 1);
+  assert.equal(nativeClient._sent[0].type, 'park');
+  assert.deepEqual(nativeClient._sent[0].payload.group, { name: 'Someday', tabs: [{ title: 'A', url: 'https://a.com' }] });
+  // Only after the host answered ok is the tab closed.
+  assert.deepEqual(removed, [7]);
+  // Undo reopens the tab where it was (the same reverse shape closeTab uses).
+  assert.equal(undo.action, 'closeTab');
+  assert.deepEqual(undo.reverse, { url: 'https://a.com', windowId: 1, index: 3, pinned: false });
+});
+
+test('parkTab closes nothing when the host rejects the park', async () => {
+  const removed = [];
+  const chrome = { tabs: { async remove(id) { removed.push(id); } } };
+  const nativeClient = fakeClient({ ok: false, error: 'host down' });
+  const item = { action: 'parkTab', data: { tabId: 7, url: 'https://a.com', title: 'A', groupName: 'Someday', windowId: 1, index: 3 } };
+  await assert.rejects(() => applyItem(item, { chrome, nativeClient }), /host down/);
+  assert.deepEqual(removed, []); // nothing closed — the tab is never lost
+});
+
+test('parkTab reopens the tab on undo', async () => {
+  const chrome = { tabs: { async remove() {} } };
+  const nativeClient = fakeClient({ ok: true });
+  const item = { action: 'parkTab', data: { tabId: 7, url: 'https://a.com', title: 'A', groupName: 'Someday', windowId: 2, index: 5 } };
+  const undo = await applyItem(item, { chrome, nativeClient });
+  // Apply the recorded reverse via a tabs.create mock, as the undo flow does.
+  const created = [];
+  const undoChrome = { tabs: { async create(opts) { created.push(opts); } } };
+  const { url, windowId, index, pinned } = undo.reverse;
+  await undoChrome.tabs.create({ url, windowId, index, pinned, active: false });
+  assert.deepEqual(created, [{ url: 'https://a.com', windowId: 2, index: 5, pinned: false, active: false }]);
+});

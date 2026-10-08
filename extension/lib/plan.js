@@ -1,6 +1,6 @@
 import { OTHER_ID } from './bookmark-collector.js';
 
-const ACTIONS = new Set(['closeTab', 'groupTabs', 'createBookmark', 'deleteBookmark', 'discardTab', 'moveBookmark', 'removeFolder']);
+const ACTIONS = new Set(['closeTab', 'groupTabs', 'parkTab', 'createBookmark', 'deleteBookmark', 'discardTab', 'moveBookmark', 'removeFolder']);
 
 export function indexById(snapshots) {
   return new Map(snapshots.map((s) => [s.tabId, s]));
@@ -13,6 +13,11 @@ export function indexById(snapshots) {
 // matches an existing open group in that window (`openNamesByWindow`) or a
 // parked group (`parkedNames`), since joining an existing group is useful even
 // for one tab. Name matching is trimmed/case-insensitive.
+//
+// When a group's name matches a parked group but NO open group of that name
+// exists in the window, the result isn't a live tab group at all — the tabs
+// belong in the parked record. Those windows emit one `parkTab` item per tab
+// (file-and-close) instead of a single `groupTabs` item.
 export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map(), parkedNames = [] } = {}) {
   const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
   const parkedSet = new Set(parkedNames.map(norm));
@@ -29,11 +34,24 @@ export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map()
     }
     let wi = 0;
     for (const [windowId, members] of byWindow) {
-      if (members.length < 2) {
-        const name = norm(g.name);
-        const matchesOpen = openSets.has(windowId) && openSets.get(windowId).has(name);
-        if (!matchesOpen && !parkedSet.has(name)) continue; // single tab, no existing group to join
+      const name = norm(g.name);
+      const matchesOpen = openSets.has(windowId) && openSets.get(windowId).has(name);
+      const matchesParked = parkedSet.has(name);
+      // A parked name with no open group in this window → file the tabs into the
+      // parked record (one parkTab per tab) rather than form an open group.
+      if (matchesParked && !matchesOpen) {
+        for (const m of members) {
+          items.push({
+            itemId: `park-${gi}-${wi++}`,
+            action: 'parkTab',
+            status: 'pending',
+            reason: `File into parked group "${g.name}"`,
+            data: { tabId: m.tabId, url: m.url, title: m.title, groupName: g.name, windowId, index: m.index },
+          });
+        }
+        continue;
       }
+      if (members.length < 2 && !matchesOpen) continue; // single tab, no existing group to join
       items.push({
         itemId: `group-${gi}-${wi++}`,
         action: 'groupTabs',

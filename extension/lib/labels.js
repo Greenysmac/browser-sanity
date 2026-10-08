@@ -3,6 +3,7 @@
 export const ACTION_LABELS = {
   closeTab: 'Close tab',
   groupTabs: 'Group tabs',
+  parkTab: 'File into parked group',
   createBookmark: 'Bookmark tab',
   deleteBookmark: 'Delete bookmark',
   discardTab: 'Suspend tab',

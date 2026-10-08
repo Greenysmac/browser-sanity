@@ -935,3 +935,47 @@ test('a card with five or fewer tabs shows no "+ n more" line', async () => {
   const area = expandedOf(row);
   assert.ok(!walk(area).some((n) => n.className === 'boardTabMore'), 'no more line when five or fewer tabs');
 });
+
+// --- TASK 1: the "+n new" badge on parked cards that received filed tabs ------
+
+const PARKED_FIXTURE = {
+  open: [],
+  parked: [{ name: 'Hearing research', color: 'green', tabCount: 5, lastSeen: '2026-01-02T10:00:00.000Z', tabs: [{ title: 'A', url: 'https://a' }] }],
+  descriptions: [],
+};
+
+test('a parked card shows a "+n new" badge from the stored new-counts', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(PARKED_FIXTURE);
+  // The apply flow recorded 3 tabs filed into "Hearing research" (keyed lowercased).
+  const storage = makeStorage({ boardParkedNewCounts: { 'hearing research': 3 } });
+  await renderBoard(container, { send, storage });
+  const badge = walk(container).find((n) => n.className === 'boardNewBadge');
+  assert.ok(badge, 'the parked card shows a new badge');
+  assert.equal(badge.textContent, '+3 new');
+});
+
+test('a parked card with no recorded new tabs shows no badge', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(PARKED_FIXTURE);
+  const storage = makeStorage(); // no counts
+  await renderBoard(container, { send, storage });
+  assert.ok(!walk(container).some((n) => n.className === 'boardNewBadge'), 'no badge without a count');
+});
+
+test('expanding a parked card clears its "+n new" badge and the stored count', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(PARKED_FIXTURE);
+  const storage = makeStorage({ boardParkedNewCounts: { 'hearing research': 3 } });
+  await renderBoard(container, { send, storage });
+  const row = rowFor(container, 'Hearing research');
+  assert.ok(walk(row).some((n) => n.className === 'boardNewBadge'), 'badge present before expand');
+  clickRow(row);
+  await flush();
+  // Expanding removes the badge element and clears the stored count for this group.
+  assert.ok(!walk(row).some((n) => n.className === 'boardNewBadge'), 'badge gone after expand');
+  assert.deepEqual(storage.peek().boardParkedNewCounts, {}, 'stored count cleared');
+});

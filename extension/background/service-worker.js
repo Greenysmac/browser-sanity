@@ -376,9 +376,20 @@ async function handleApply(m) {
     // blocks a now-stale moveBookmark/removeFolder item (see executor.js).
     const settings = await getSettings();
     const { folders, rootIds, barId, otherId } = await collectTree(chrome);
-    const applyRes = await applyItems(chosen, { runId, applyItem: (i) => applyItem(i, { runId, settings, folders, rootIds, barId, otherId }), recordUndo });
+    // parkTab items hand a one-tab 'park' to the native host, so give the
+    // executor a live client. Torn down after apply.
+    const nativeClient = await makeClient(settings);
+    let applyRes;
+    try {
+      applyRes = await applyItems(chosen, { runId, applyItem: (i) => applyItem(i, { runId, settings, folders, rootIds, barId, otherId, nativeClient }), recordUndo });
+    } finally {
+      nativeClient.disconnect();
+    }
     const remaining = currentPlan.filter((i) => !applyRes.applied.includes(i.itemId));
     await chrome.storage.local.set({ currentPlan: remaining });
+    // Remember how many tabs each parked group just received so the board can
+    // flag it with a "+n new" badge until the user opens/expands that card.
+    await bumpParkedNewCounts(chosen.filter((i) => i.action === 'parkTab' && applyRes.applied.includes(i.itemId)));
     return { ok: true, ...applyRes };
   });
   // Refresh the on-disk index to match the now-applied tab state. Best-effort:
@@ -401,6 +412,25 @@ async function syncCurrentIndex({ dissolved } = {}) {
     return await syncIndex({ chromeApi: chrome, nativeClient, dissolved });
   } finally {
     nativeClient.disconnect();
+  }
+}
+
+// Record how many tabs each parked group received in the just-applied run, keyed
+// by group name (trimmed, case-insensitive), so the board shows a "+n new" badge
+// on those cards until the user opens/expands them. Counts accumulate across
+// runs until cleared. Best-effort: never throws.
+async function bumpParkedNewCounts(parkItems) {
+  if (!parkItems || !parkItems.length) return;
+  try {
+    const { boardParkedNewCounts = {} } = await chrome.storage.local.get('boardParkedNewCounts');
+    for (const it of parkItems) {
+      const key = String((it.data && it.data.groupName) || '').trim().toLowerCase();
+      if (!key) continue;
+      boardParkedNewCounts[key] = (boardParkedNewCounts[key] || 0) + 1;
+    }
+    await chrome.storage.local.set({ boardParkedNewCounts });
+  } catch (e) {
+    console.warn('[organizer] failed to record parked new-counts:', e);
   }
 }
 
