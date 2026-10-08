@@ -18,6 +18,17 @@ import { parkGroup, openParked } from '../lib/park.js';
 import { isHttpUrl } from '../lib/url-utils.js';
 import { apiKeyForProvider } from '../lib/providers.js';
 
+// A stored plan goes stale after this long; getPlan clears one older than this
+// rather than serve yesterday's suggestions.
+const PLAN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+// The single plan writer: store the items and stamp when they were made, both
+// under the shared 'currentPlan' lock the other readers/writers use, so the
+// timestamp can never drift from the items it describes.
+function storePlan(items) {
+  return withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items, currentPlanAt: Date.now() }));
+}
+
 // Creates the native client, attaching the openai adapter's UI-entered config
 // (key decrypted from secret-store here, base/model from settings) so the host
 // resolves them per-request. Other adapters send no config.
@@ -138,7 +149,7 @@ chrome.omnibox.onInputEntered.addListener(async (text) => {
   const client = await makeClient(settings);
   try {
     const items = await runCommand(instruction, { nativeClient: client, windowId: win.id, settings });
-    await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+    await storePlan(items);
     await chrome.sidePanel.open({ windowId: win.id });
   } finally {
     client.disconnect();
@@ -191,7 +202,7 @@ function runScan(deps = {}) {
       const items = await buildPlan({ settings, nativeClient, onProgress, shouldCancel, onWarning: (w) => warnings.push(w), features: deps.features, windowId: deps.windowId ?? null, groupMode: deps.groupMode, regroupAll: deps.regroupAll });
       if (settings.debugLogging) console.info('[organizer] scan produced', items.length, 'item(s),', warnings.length, 'warning(s)');
       const { autoApply, needsReview } = partitionForApply(items, settings);
-      await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: needsReview }));
+      await storePlan(needsReview);
       if (autoApply.length) {
         const runId = uniqueId('run-');
         const { folders, rootIds, barId, otherId } = await collectTree(chrome);
@@ -275,6 +286,9 @@ async function handleAnalyze(m) {
   const tabs = await scopeTabs(m);
   const loose = tabs.filter((t) => (t.groupId ?? -1) === -1).length;
   const duplicates = findDuplicateTabs(tabs).length;
+  // Clear any plan left over from an earlier run so a fresh Analyze never leaves
+  // yesterday's result card showing stale suggestions.
+  await storePlan([]);
   return { ok: true, loose, duplicates };
 }
 
@@ -285,7 +299,7 @@ async function handleCloseDuplicates(m) {
   const settings = await getSettings();
   const tabs = await scopeTabs(m);
   const items = finalizePlan(findDuplicateTabs(tabs), settings);
-  await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+  await storePlan(items);
   return { ok: true, items };
 }
 
@@ -348,16 +362,43 @@ async function handleCloseTabs(m) {
   return { ok: true, closed: entries.length };
 }
 
+// The tab ids a plan item references: a group item lists several, the tab items
+// one each. Returns [] for items that don't name any tab (bookmark actions etc.)
+function planItemTabIds(item) {
+  if (item && item.action === 'groupTabs') return (item.data && item.data.tabIds) || [];
+  if (item && (item.action === 'closeTab' || item.action === 'parkTab' || item.action === 'discardTab')) {
+    const id = item.data && item.data.tabId;
+    return id == null ? [] : [id];
+  }
+  return [];
+}
+
 async function handleGetPlan() {
-  const { currentPlan = [] } = await chrome.storage.local.get('currentPlan');
-  return { ok: true, items: currentPlan };
+  return withLock('currentPlan', async () => {
+    const { currentPlan = [], currentPlanAt = 0 } = await chrome.storage.local.get({ currentPlan: [], currentPlanAt: 0 });
+    // A plan older than the max age is stale — drop it and serve nothing.
+    if (currentPlanAt && Date.now() - currentPlanAt > PLAN_MAX_AGE_MS) {
+      await chrome.storage.local.set({ currentPlan: [], currentPlanAt: Date.now() });
+      return { ok: true, items: [] };
+    }
+    // Drop tab-acting items whose tabs are all gone (chrome.tabs.get fails), so
+    // the panel never offers to close/park/group a tab that no longer exists.
+    const kept = [];
+    for (const item of currentPlan) {
+      const ids = planItemTabIds(item);
+      if (!ids.length) { kept.push(item); continue; }
+      const alive = await Promise.all(ids.map((id) => chrome.tabs.get(id).then(() => true, () => false)));
+      if (alive.some(Boolean)) kept.push(item);
+    }
+    if (kept.length !== currentPlan.length) {
+      await chrome.storage.local.set({ currentPlan: kept, currentPlanAt });
+    }
+    return { ok: true, items: kept };
+  });
 }
 
 async function handleUpdatePlan(m) {
-  return withLock('currentPlan', async () => {
-    await chrome.storage.local.set({ currentPlan: m.items || [] });
-    return { ok: true };
-  });
+  return storePlan(m.items || []).then(() => ({ ok: true }));
 }
 
 async function handleApply(m) {
@@ -386,7 +427,7 @@ async function handleApply(m) {
       nativeClient.disconnect();
     }
     const remaining = currentPlan.filter((i) => !applyRes.applied.includes(i.itemId));
-    await chrome.storage.local.set({ currentPlan: remaining });
+    await chrome.storage.local.set({ currentPlan: remaining, currentPlanAt: Date.now() });
     // Remember how many tabs each parked group just received so the board can
     // flag it with a "+n new" badge until the user opens/expands that card.
     await bumpParkedNewCounts(chosen.filter((i) => i.action === 'parkTab' && applyRes.applied.includes(i.itemId)));
@@ -460,7 +501,7 @@ async function handleCommand(m) {
   const nativeClient = await makeClient(settings);
   try {
     const items = await runCommand(m.instruction, { nativeClient, windowId: m.windowId ?? null, settings });
-    await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+    await storePlan(items);
     return { ok: true, items };
   } finally {
     nativeClient.disconnect();
@@ -476,7 +517,7 @@ async function handleProposals(m) {
   const nativeClient = await makeClient(settings);
   try {
     const { items, note, from } = await loadProposals({ nativeClient, windowId: m.windowId ?? null, settings });
-    await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+    await storePlan(items);
     return { ok: true, items, note, from };
   } finally {
     nativeClient.disconnect();
@@ -493,7 +534,7 @@ async function sortTabIds(tabIds, emptyMessage) {
   const nativeClient = await makeClient(settings, 'quick');
   try {
     const items = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds });
-    await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items }));
+    await storePlan(items);
     return { ok: true, items };
   } finally {
     nativeClient.disconnect();

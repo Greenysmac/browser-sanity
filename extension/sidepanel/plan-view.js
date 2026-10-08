@@ -7,6 +7,7 @@ import { startScanClock, stopScanClock, ensureScanPort } from './scan-clock.js';
 import { showUndoToast } from './undo.js';
 import { updateResultCard } from './main-panel.js';
 import { isSelectedMode } from './main-panel.js';
+import { hideResults } from './main-panel.js';
 import { ignoreKey } from '../lib/orchestrator.js';
 import { TAB_GROUP_COLORS as GROUP_COLORS } from '../lib/colors.js';
 import { STATUS_LABELS } from '../lib/labels.js';
@@ -319,6 +320,11 @@ async function analyze() {
   showSortChoices(false);
   const counts = $('analyzeCounts');
   if (counts) counts.hidden = true;
+  // A fresh Analyze clears any earlier result so the old card and detailed list
+  // can't linger while the new counts are gathered.
+  plan = [];
+  selection = new Set();
+  hideResults();
   setStatus('Analyzing…');
   const selected = isSelectedMode();
   const windowId = selected ? null : await currentScopeWindowId();

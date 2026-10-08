@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { installChromeMock } from './helpers/chrome-mock.js';
 import { planSummaryLine, modelsInUseLine } from '../extension/sidepanel/viewmodel.js';
-import { initMainPanel, updateResultCard, isSelectedMode } from '../extension/sidepanel/main-panel.js';
+import { initMainPanel, updateResultCard, isSelectedMode, hideResults } from '../extension/sidepanel/main-panel.js';
 
 const html = readFileSync(new URL('../extension/sidepanel/sidepanel.html', import.meta.url), 'utf8');
 
@@ -251,4 +251,24 @@ test('the result Apply button triggers the existing apply-all path', () => {
   initMainPanel();
   els.resultApply.listeners.click();
   assert.equal(info().approveAllClicks, 1, 'Apply reuses approveAll');
+});
+
+// A fresh Analyze calls hideResults() so yesterday's card and detailed list
+// can't linger (TASK 1).
+test('hideResults clears the result card and collapses the detailed list', () => {
+  const { els } = makeHarness();
+  initMainPanel();
+  // Show a result card and expand the detailed list.
+  updateResultCard([{ action: 'groupTabs', data: { tabIds: [1, 2, 3] } }]);
+  els.reviewToggle.listeners.click();
+  assert.equal(els.resultCard.hidden, false, 'card showing before hideResults');
+  assert.ok(!els.plan.classes.has('reviewHidden'), 'list shown before hideResults');
+
+  hideResults();
+  assert.equal(els.resultCard.hidden, true, 'result card hidden after hideResults');
+  assert.equal(els.resultSummary.textContent, '', 'summary cleared');
+  for (const id of ['plan', 'planTools', 'planActions', 'summary']) {
+    assert.ok(els[id].classes.has('reviewHidden'), `${id} collapsed after hideResults`);
+  }
+  assert.equal(els.reviewToggle.getAttribute('aria-expanded'), 'false');
 });

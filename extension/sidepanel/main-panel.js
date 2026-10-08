@@ -77,6 +77,13 @@ function setReviewShown(shown) {
   }
 }
 
+// Clear the result card and collapse the detailed list — called when a fresh
+// Analyze starts so yesterday's "Move N tabs into M groups" card can't linger.
+export function hideResults() {
+  updateResultCard([]);
+  setReviewShown(false);
+}
+
 export function initMainPanel() {
   paintVersion();
   paintModelsInUse();
