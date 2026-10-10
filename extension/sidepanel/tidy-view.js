@@ -1,4 +1,4 @@
-// The tidy-parked proposal card: when "Tidy parked groups…" produces a proposal
+// The tidy-parked proposal card: when "Re-analyze parked groups…" produces a proposal
 // (merges + splits over the parked groups), this fills the result card with one
 // line per proposal. Each merge shows its reason and a checked Apply checkbox;
 // each split shows its reason and a "Split…" button that starts the existing
@@ -14,11 +14,11 @@
 export function tidySummaryText(proposal) {
   const merges = (proposal && Array.isArray(proposal.merge)) ? proposal.merge.length : 0;
   const splits = (proposal && Array.isArray(proposal.split)) ? proposal.split.length : 0;
-  if (!merges && !splits) return 'Parked groups look tidy — nothing to merge or split.';
+  if (!merges && !splits) return 'Parked groups look fine. Nothing to merge or split.';
   const parts = [];
   if (merges) parts.push(`${merges} ${merges === 1 ? 'merge' : 'merges'}`);
   if (splits) parts.push(`${splits} ${splits === 1 ? 'split' : 'splits'}`);
-  return `Tidy parked groups: ${parts.join(', ')}`;
+  return `Re-analyze parked groups: ${parts.join(', ')}`;
 }
 
 // One merge line: a checked checkbox, "Merge <from…> into <into>" and its reason

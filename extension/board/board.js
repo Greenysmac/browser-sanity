@@ -699,13 +699,13 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   const parkedSummary = document.createElement('summary');
   parkedSummary.textContent = `Parked · ${parked.length}`;
   parkedSection.appendChild(parkedSummary);
-  // A small text button in the Parked header starts a "Tidy parked groups…"
+  // A small text button in the Parked header starts a "Re-analyze parked groups…"
   // proposal (merges + splits). It hands the proposal off via onTidyParked;
   // clicking it never toggles the fold (summary clicks default to that).
   const tidyBtn = document.createElement('button');
   tidyBtn.type = 'button';
   tidyBtn.className = 'boardTidyBtn';
-  tidyBtn.textContent = 'Tidy parked groups…';
+  tidyBtn.textContent = 'Re-analyze parked groups…';
   tidyBtn.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); if (e && e.stopPropagation) e.stopPropagation(); onTidyParked(); });
   parkedSummary.appendChild(tidyBtn);
   if (!parked.length) {

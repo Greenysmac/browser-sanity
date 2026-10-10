@@ -96,10 +96,11 @@ export function showSplitProposal({ proposal, els, send, setStatus = () => {}, o
   if (!proposal || !card) return;
   if (summary) summary.textContent = splitSummaryText(proposal);
   if (reviewList) {
-    reviewList.children = [];
     reviewList.textContent = '';
     const built = buildReviewList(proposal);
-    for (const li of built.children || []) reviewList.appendChild(li);
+    // Copy first: in real Chrome children is a live list that shrinks as each
+    // <li> moves, so looping it directly would skip every other sub-group.
+    for (const li of Array.from(built.children || [])) reviewList.appendChild(li);
     reviewList.hidden = true;
   }
   if (review) {

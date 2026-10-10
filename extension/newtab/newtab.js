@@ -67,7 +67,7 @@ async function openGroupsFallback() {
 // down, so send resolves with undefined; in that case we still show the open
 // groups by answering renderBoard's boardData request from the live tab strip.
 // document/send are injectable so the whole thing is unit-testable.
-export async function initNewtab({ container, note, search, panelBtn, panelNote } = {}) {
+export async function initNewtab({ container, note, search, panelBtn, panelNote, storageApi = (typeof chrome !== 'undefined' ? chrome.storage : undefined) } = {}) {
   const doc = (typeof document !== 'undefined') ? document : undefined;
   const byId = (id) => (doc && typeof doc.getElementById === 'function') ? doc.getElementById(id) : undefined;
   container = container || byId('board');
@@ -95,7 +95,16 @@ export async function initNewtab({ container, note, search, panelBtn, panelNote 
     return res;
   };
 
-  await renderBoard(container, { send: observingSend });
+  // "Re-analyze parked groups…" runs in the side panel, where its result card
+  // lives: leave a pendingReanalyze flag for the panel, then open it inside
+  // this click so Chrome allows it.
+  const onTidyParked = async () => {
+    try { Promise.resolve(storageApi.local.set({ pendingReanalyze: Date.now() })).catch(() => {}); } catch { /* no storage: the panel just opens */ }
+    const opened = await openSidePanel();
+    if (!opened && panelNote) panelNote.hidden = false;
+  };
+
+  await renderBoard(container, { send: observingSend, onTidyParked });
   if (note) note.hidden = helperReachable;
 
   if (search) {

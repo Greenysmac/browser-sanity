@@ -46,23 +46,47 @@ function initBoardView() {
   const onSplitProposal = (proposal) => {
     showSplitProposal({ proposal, els: splitEls, send, setStatus, onDone: paint });
   };
-  // "Tidy parked groups…" (the Parked header button and the More-view button):
+  // "Re-analyze parked groups…" (the Parked header button and the More-view button):
   // ask the service worker for a proposal, then show it on the tidy card. A
   // Split… line reuses the existing split flow (splitGroup by parked name); the
   // merge Apply refreshes the board.
   const onSplitByName = async (name) => {
+    setStatus(`Working out a split for ${name}…`);
     const res = await send({ cmd: 'splitGroup', name });
-    if (res && res.ok && res.proposal) onSplitProposal(res.proposal);
+    if (res && res.ok && res.proposal) { setStatus(''); onSplitProposal(res.proposal); }
+    else setStatus(`Could not split ${name}.`);
   };
   const onTidyParked = async () => {
-    setStatus('Tidying parked groups…');
+    setStatus('Re-analyzing parked groups…');
     const res = await send({ cmd: 'tidyParked' });
-    if (!res || !res.ok) { setStatus('Could not tidy parked groups.'); return; }
+    if (!res || !res.ok) { setStatus('Could not re-analyze parked groups.'); return; }
     setStatus('');
     showTidyProposal({ proposal: res, els: tidyEls, send, setStatus, onSplit: onSplitByName, onDone: paint });
   };
   const moreTidy = $('tidyParked');
   if (moreTidy) moreTidy.addEventListener('click', onTidyParked);
+  // The new-tab page's "Re-analyze parked groups…" opens this panel and leaves a
+  // pendingReanalyze timestamp. Run it here once, whether the panel was just
+  // opened or already open; a flag older than a minute is stale and dropped.
+  let reanalyzing = false;
+  const runPendingReanalyze = async () => {
+    if (reanalyzing || !chrome.storage || !chrome.storage.local) return;
+    const { pendingReanalyze } = await chrome.storage.local.get('pendingReanalyze');
+    if (!pendingReanalyze) return;
+    reanalyzing = true;
+    try {
+      await chrome.storage.local.remove('pendingReanalyze');
+      if (Date.now() - pendingReanalyze < 60000) await onTidyParked();
+    } finally {
+      reanalyzing = false;
+    }
+  };
+  runPendingReanalyze();
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.pendingReanalyze && changes.pendingReanalyze.newValue) runPendingReanalyze();
+    });
+  }
   $('board').addEventListener('toggle', () => { if ($('board').open) paint(); });
   // A proposal may already be waiting — the new-tab page's Split action stores
   // one and opens the panel, so show it on first load.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.2 — 2026-10-10
+**Fixes by Mycroft, from Jeff's report**
+- Split… did nothing: the split card crashed in real Chrome (it assigned to a read-only `children`), so no proposal ever showed. Fixed, and the review list now shows every sub-group (looping the live list skipped every other one). The panel also says "Working out a split for <group>…" while it waits, and says so when a split fails.
+- "Tidy parked groups…" is now "Re-analyze parked groups…".
+- On the new-tab page that link did nothing; it now opens the side panel and runs the re-analysis there.
+- Guard tests: no extension page assigns to `children` or loops the live list directly.
+
+**Real-browser check:** Re-analyze from the panel, Split… on a suggestion, Review showing all three sub-groups, and the new-tab link opening the panel and starting the re-analysis. No errors.
+
 ## 0.5.1 — 2026-10-08
 **Run 13 (Kiro, two tasks, first try; reviewed by Mycroft)**
 - A new Analyze clears the old suggestions; a stored plan older than 6 hours comes back empty, and items for tabs that no longer exist are dropped.

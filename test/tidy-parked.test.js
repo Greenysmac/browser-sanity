@@ -234,8 +234,8 @@ const PROPOSAL = {
 };
 
 test('tidySummaryText counts merges and splits', () => {
-  assert.equal(tidySummaryText(PROPOSAL), 'Tidy parked groups: 2 merges, 1 split');
-  assert.equal(tidySummaryText({ merge: [], split: [] }), 'Parked groups look tidy — nothing to merge or split.');
+  assert.equal(tidySummaryText(PROPOSAL), 'Re-analyze parked groups: 2 merges, 1 split');
+  assert.equal(tidySummaryText({ merge: [], split: [] }), 'Parked groups look fine. Nothing to merge or split.');
 });
 
 test('showTidyProposal renders each merge (checkbox + reason) and each split (reason + Split… button)', () => {
@@ -299,9 +299,9 @@ test('Apply with every merge unchecked sends nothing and keeps the card', async 
   assert.equal(els.card.hidden, false, 'card stays visible');
 });
 
-// ---- board: the "Tidy parked groups…" button in the Parked header ----------
+// ---- board: the "Re-analyze parked groups…" button in the Parked header ----------
 
-test('the Parked section header carries a "Tidy parked groups…" button that calls onTidyParked', async () => {
+test('the Parked section header carries a "Re-analyze parked groups…" button that calls onTidyParked', async () => {
   installFakeDocument();
   const container = makeEl('div');
   const boardData = {
@@ -314,7 +314,7 @@ test('the Parked section header carries a "Tidy parked groups…" button that ca
   await renderBoard(container, { send, onTidyParked: () => { tidied += 1; } });
   const btn = byClass(container, 'boardTidyBtn')[0];
   assert.ok(btn, 'the Tidy button is in the board');
-  assert.equal(btn.textContent, 'Tidy parked groups…');
+  assert.equal(btn.textContent, 'Re-analyze parked groups…');
   btn.click();
   assert.equal(tidied, 1, 'clicking the button starts a tidy proposal');
 });

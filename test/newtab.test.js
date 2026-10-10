@@ -229,3 +229,35 @@ test('openSidePanel returns false when sidePanel is missing', async () => {
   assert.equal(await openSidePanel({}), false, 'no sidePanel API');
   assert.equal(await openSidePanel({ sidePanel: {} }), false, 'no open()');
 });
+
+// The new-tab page's "Re-analyze parked groups…" link had no handler (Jeff,
+// 2026-10-10). It now leaves a pendingReanalyze flag for the side panel and
+// opens the panel, where the result card lives.
+test('Re-analyze parked groups on the new-tab page flags the panel and opens it', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const saved = [];
+  let opened = 0;
+  globalThis.chrome = {
+    runtime: { sendMessage: (msg, cb) => cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }) },
+    windows: { getCurrent: async () => ({ id: 1 }) },
+    sidePanel: { open: async () => { opened += 1; } },
+  };
+  const storageApi = { local: { set: async (v) => { saved.push(v); } } };
+  await initNewtab({ container, note: makeEl('p'), search: makeEl('input'), storageApi });
+  const btn = walk(container).find((n) => n.className === 'boardTidyBtn');
+  assert.equal(btn.textContent, 'Re-analyze parked groups…');
+  await btn.dispatch('click');
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(saved.length, 1, 'one flag written');
+  assert.equal(typeof saved[0].pendingReanalyze, 'number');
+  assert.equal(opened, 1, 'the side panel was opened');
+});
+
+test('the side panel runs a pending re-analysis and drops a stale one', () => {
+  const src = readFileSync(fileURLToPath(new URL('../extension/sidepanel/sidepanel.js', import.meta.url)), 'utf8');
+  assert.match(src, /chrome\.storage\.local\.get\('pendingReanalyze'\)/);
+  assert.match(src, /chrome\.storage\.local\.remove\('pendingReanalyze'\)/);
+  assert.match(src, /Date\.now\(\) - pendingReanalyze < 60000/);
+  assert.match(src, /changes\.pendingReanalyze/);
+});
