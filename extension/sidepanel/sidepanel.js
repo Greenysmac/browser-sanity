@@ -51,8 +51,8 @@ function initBoardView() {
     showSplitProposal({ proposal, els: splitEls, send, setStatus, onDone: paint });
     send({ cmd: 'clearSplitProposal' });
   };
-  // "Re-analyze parked groups…" (the Parked header button and the More-view button):
-  // ask the service worker for a proposal, then show it on the tidy card. A
+  // "Re-analyze parked groups…" (the Parked header button and the Parked-groups
+  // part button): ask the service worker for a proposal, then show it on the tidy card. A
   // Split… line reuses the existing split flow (splitGroup by parked name); the
   // merge Apply refreshes the board.
   const onSplitByName = async (name) => {
@@ -68,7 +68,7 @@ function initBoardView() {
     setStatus('');
     showTidyProposal({ proposal: res, els: tidyEls, send, setStatus, onSplit: onSplitByName, onDone: paint });
   };
-  const moreTidy = $('tidyParked');
+  const moreTidy = $('reanalyzeParked');
   if (moreTidy) moreTidy.addEventListener('click', onTidyParked);
   // The new-tab page's "Re-analyze parked groups…" opens this panel and leaves a
   // pendingReanalyze timestamp. Run it here once, whether the panel was just

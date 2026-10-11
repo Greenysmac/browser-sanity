@@ -164,6 +164,10 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 .scopeRow[hidden] { display: none; }
 .hiddenRunner { display: none; }
 
+/* ---------- Section parts (Open tabs / Parked groups) ---------- */
+.partHeading { font-size: 13px; font-weight: 700; color: var(--text); margin: 0 2px 2px; }
+.partLine { font-size: 12px; color: var(--text-muted); margin: 0 2px 10px; }
+
 /* ---------- Sort card ---------- */
 .sortCard {
   border: 1px solid var(--border);
@@ -232,6 +236,7 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 
 /* ---------- Board actions + More tools ---------- */
 .boardActions { display: flex; gap: 6px; margin: 8px 0 12px; }
+.parkedActions { display: flex; gap: 6px; margin: 8px 0 12px; }
 .secondaryBtn {
   padding: 5px 10px;
   font-size: 12px;
@@ -258,6 +263,7 @@ body[data-view="settings"] #resultCard,
 body[data-view="settings"] #splitCard,
 body[data-view="settings"] #board,
 body[data-view="settings"] .boardActions,
+body[data-view="settings"] .parkedActions,
 body[data-view="settings"] #moreTools,
 body[data-view="settings"] #moreView,
 body[data-view="settings"] #onboarding,
@@ -266,6 +272,9 @@ body[data-view="settings"] #planTools,
 body[data-view="settings"] #planEmptyState,
 body[data-view="settings"] #plan,
 body[data-view="settings"] #planActions,
+body[data-view="settings"] #parkedGroupsHeading,
+body[data-view="settings"] #parkedGroupsHeading + .partLine,
+body[data-view="settings"] #tidyCard,
 body[data-view="settings"] #sessions,
 body[data-view="settings"] #mutedPanel,
 body[data-view="settings"] .toolRow { display: none !important; }
@@ -277,6 +286,10 @@ body[data-view="more"] #moreView { display: block; }
 body[data-view="more"] .moreViewHead { display: block; }
 body[data-view="more"] .heroControls,
 body[data-view="more"] #resultCard,
+body[data-view="more"] #parkedGroupsHeading,
+body[data-view="more"] #parkedGroupsHeading + .partLine,
+body[data-view="more"] .parkedActions,
+body[data-view="more"] #tidyCard,
 body[data-view="more"] #splitCard,
 body[data-view="more"] #board,
 body[data-view="more"] #onboarding,

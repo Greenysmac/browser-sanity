@@ -37,6 +37,9 @@
       <div id="health" role="status"></div>
       <div id="hostUpdate" role="status" hidden></div>
 
+      <h2 class="partHeading" id="openTabsHeading">Open tabs</h2>
+      <p class="partLine">Sorts the tabs open right now. Parked groups aren't changed.</p>
+
       <section id="sortCard" class="sortCard" aria-label="Sort tabs">
         <div id="scopeSegment" class="segmented" role="radiogroup" aria-label="What to sort">
           <button type="button" class="segBtn" data-scope="window" aria-pressed="true">This window</button>
@@ -85,15 +88,11 @@
       </div>
     </section>
 
-    <section id="splitCard" class="resultCard" aria-label="Split result" hidden>
-      <p id="splitSummary" class="resultSummary"></p>
-      <div class="resultActions">
-        <button type="button" id="splitApply" class="apply-primary">Apply</button>
-        <button type="button" id="splitReview" aria-expanded="false" aria-controls="splitReviewList">Review</button>
-        <button type="button" id="splitDismiss" class="dismiss">Dismiss</button>
-      </div>
-      <ul id="splitReviewList" class="splitReviewList" hidden></ul>
-    </section>
+    <h2 class="partHeading" id="parkedGroupsHeading">Parked groups</h2>
+    <p class="partLine">Suggests merges and splits for saved groups. Open tabs aren't touched.</p>
+    <div class="parkedActions">
+      <button type="button" id="reanalyzeParked" class="secondaryBtn" aria-label="Suggest merges and splits for parked groups">Re-analyze parked groups…</button>
+    </div>
 
     <section id="tidyCard" class="resultCard" aria-label="Re-analyze parked groups result" hidden>
       <p id="tidySummary" class="resultSummary"></p>
@@ -102,6 +101,16 @@
         <button type="button" id="tidyApply" class="apply-primary">Apply merges</button>
         <button type="button" id="tidyDismiss" class="dismiss">Dismiss</button>
       </div>
+    </section>
+
+    <section id="splitCard" class="resultCard" aria-label="Split result" hidden>
+      <p id="splitSummary" class="resultSummary"></p>
+      <div class="resultActions">
+        <button type="button" id="splitApply" class="apply-primary">Apply</button>
+        <button type="button" id="splitReview" aria-expanded="false" aria-controls="splitReviewList">Review</button>
+        <button type="button" id="splitDismiss" class="dismiss">Dismiss</button>
+      </div>
+      <ul id="splitReviewList" class="splitReviewList" hidden></ul>
     </section>
 
     <details id="board" class="board" open>
@@ -119,7 +128,6 @@
       <div class="boardActions">
         <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
         <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
-        <button type="button" id="tidyParked" class="secondaryBtn" aria-label="Suggest merges and splits for parked groups">Re-analyze parked groups…</button>
       </div>
 
       <details id="moreTools" class="moreTools" aria-label="Tools">
@@ -148,7 +156,7 @@
           <ul id="tabList"></ul>
         </details>
 
-        <div class="quickActions">
+        <div class="quickActions" hidden>
           <span class="quickLabel">Run one</span>
           <div id="runOne" class="runOne">
             <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
@@ -160,7 +168,7 @@
         </div>
       </details>
 
-      <details id="sessions">
+      <details id="sessions" hidden>
         <summary data-i18n="sessionsTitle">Sessions</summary>
         <form id="saveSessionForm">
           <input type="text" id="sessionName" placeholder="Session name (optional)" />
@@ -304,7 +312,7 @@
               <input type="number" name="staleTabDays" min="1" max="365" /> days</label>
           </fieldset>
 
-          <fieldset>
+          <fieldset hidden>
             <legend>Bookmarks</legend>
             <label><input type="checkbox" name="importantBookmarks" /> Auto-bookmark important tabs</label>
             <label><input type="checkbox" name="cleanBookmarks" /> Clean up stale/dead bookmarks</label>
