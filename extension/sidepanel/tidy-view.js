@@ -1,15 +1,18 @@
 // The tidy-parked proposal card: when "Re-analyze parked groups…" produces a proposal
 // (merges + splits over the parked groups), this fills the result card with one
-// line per proposal. Each merge shows its reason and an unchecked Apply checkbox
-// (the user ticks what they want); each split shows its reason and a "Split…" button that starts the existing
-// split flow for that group. "Apply merges" sends 'mergeParked' for the checked
-// merges, then re-renders the board. Nothing changes until the user acts.
+// line per proposal. Each merge shows its reason and an unchecked checkbox; each
+// split shows its proposed sub-group names, its reason, and an unchecked
+// checkbox (the user ticks what they want). "Apply checked" sends 'mergeParked'
+// for the checked merges, then splits each checked group into its proposed
+// sub-group names (splitGroup → applyParkedSplit), then re-renders the board.
+// Nothing changes until the user acts.
 //
 // All DOM is built with createElement/textContent — never innerHTML with data —
 // so group names and reasons can't inject markup. The module takes its elements
-// and the `send`/`setStatus`/`onSplit`/`onDone` callbacks as arguments so it
-// stays unit-testable with a bare fake document (no chrome, no jsdom).
+// and the `send`/`setStatus`/`onDone` callbacks as arguments so it stays
+// unit-testable with a bare fake document (no chrome, no jsdom).
 import { originLine } from './viewmodel.js';
+import { applyParkedSplit } from './split-view.js';
 
 // The one-line summary shown on the card.
 export function tidySummaryText(proposal) {
@@ -47,27 +50,28 @@ function mergeLine(m) {
   return li;
 }
 
-// One split line: "Split <name>", its reason, and a "Split…" button that starts
-// the existing split flow for that parked group via `onSplit(name)`.
-function splitLine(s, onSplit) {
+// One split line: an unchecked checkbox, "Split <name> into A, B, C" and its
+// reason in muted text. The user ticks the splits they want. The checkbox
+// element is returned on the <li> as `.checkbox` so Apply can read which splits
+// are checked; the split itself is kept on `.split`.
+function splitLine(s) {
   const li = document.createElement('li');
   li.className = 'tidySplit';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = false;
   const label = document.createElement('span');
   label.className = 'tidySplitLabel';
-  label.textContent = `Split ${s.name}`;
-  li.appendChild(label);
+  label.textContent = `Split ${s.name} into ${(s.into || []).join(', ')}`;
+  li.append(checkbox, label);
   if (s.reason) {
     const reason = document.createElement('span');
     reason.className = 'tidyReason';
     reason.textContent = s.reason;
     li.appendChild(reason);
   }
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'tidySplitBtn';
-  btn.textContent = 'Split…';
-  btn.addEventListener('click', () => onSplit(s.name));
-  li.appendChild(btn);
+  li.checkbox = checkbox;
+  li.split = s;
   return li;
 }
 
@@ -86,15 +90,14 @@ function renderOrigin(card, summary, origin) {
   else card.appendChild(p);
 }
 
-// Fill the tidy card from a proposal and wire the merge checkboxes, the Split…
-// buttons, and "Apply merges". `els` carries the card and its parts; `send`/
-// `setStatus` reach the service worker and status line; `onSplit(name)` starts
-// the split flow for a parked group; `onDone` is called after Apply so the host
-// can refresh the board. `origin` is the { label, at } the card shows as a muted
-// "From <label>, <time>" line; it defaults to "Re-analyze parked groups" stamped
-// now (the moment the proposal came back). Returns nothing — it mutates the
-// given elements.
-export function showTidyProposal({ proposal, els, send, setStatus = () => {}, onSplit = () => {}, onDone = () => {}, origin = null }) {
+// Fill the tidy card from a proposal and wire the merge and split checkboxes and
+// "Apply checked". `els` carries the card and its parts; `send`/`setStatus`
+// reach the service worker and status line; `onDone` is called after Apply so
+// the host can refresh the board. `origin` is the { label, at } the card shows
+// as a muted "From <label>, <time>" line; it defaults to "Re-analyze parked
+// groups" stamped now (the moment the proposal came back). Returns nothing — it
+// mutates the given elements.
+export function showTidyProposal({ proposal, els, send, setStatus = () => {}, onDone = () => {}, origin = null }) {
   const { card, summary, list, apply, dismiss } = els;
   const from = origin || { label: 'Re-analyze parked groups', at: Date.now() };
   if (!proposal || !card) return;
@@ -104,6 +107,7 @@ export function showTidyProposal({ proposal, els, send, setStatus = () => {}, on
   renderOrigin(card, summary, from);
 
   const mergeLines = [];
+  const splitLines = [];
   if (list) {
     list.textContent = '';
     for (const m of merges) {
@@ -111,20 +115,40 @@ export function showTidyProposal({ proposal, els, send, setStatus = () => {}, on
       mergeLines.push(li);
       list.appendChild(li);
     }
-    for (const s of splits) list.appendChild(splitLine(s, onSplit));
+    for (const s of splits) {
+      const li = splitLine(s);
+      splitLines.push(li);
+      list.appendChild(li);
+    }
   }
 
   if (apply) {
-    apply.disabled = merges.length === 0;
+    apply.textContent = 'Apply checked';
+    apply.disabled = merges.length === 0 && splits.length === 0;
     apply.onclick = async () => {
-      const checked = mergeLines.filter((li) => li.checkbox && li.checkbox.checked).map((li) => li.merge);
-      if (!checked.length) { setStatus('No merges selected.'); return; }
-      setStatus('Applying merges…');
-      for (const m of checked) {
+      const checkedMerges = mergeLines.filter((li) => li.checkbox && li.checkbox.checked).map((li) => li.merge);
+      const checkedSplits = splitLines.filter((li) => li.checkbox && li.checkbox.checked).map((li) => li.split);
+      if (!checkedMerges.length && !checkedSplits.length) { setStatus('Nothing checked.'); return; }
+      // Merges first, as before.
+      for (const m of checkedMerges) {
         await send({ cmd: 'mergeParked', into: m.into, from: m.from });
       }
+      // Then each checked split in turn: ask the service worker to split the
+      // parked group into the proposed sub-group names, then apply the returned
+      // parked proposal directly with the split card's own calls — no card.
+      let splitOk = 0;
+      for (const s of checkedSplits) {
+        setStatus(`Splitting ${s.name}…`);
+        const res = await send({ cmd: 'splitGroup', name: s.name, names: s.into });
+        if (res && res.ok && res.proposal) {
+          await applyParkedSplit(res.proposal, send);
+          splitOk += 1;
+        } else {
+          setStatus(`Could not split ${s.name}.`);
+        }
+      }
       card.hidden = true;
-      setStatus(`Merged ${checked.length} ${checked.length === 1 ? 'group set' : 'group sets'}.`);
+      setStatus(`Merged ${checkedMerges.length}, split ${splitOk}.`);
       await onDone();
     };
   }

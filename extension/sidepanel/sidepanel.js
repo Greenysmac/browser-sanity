@@ -52,21 +52,15 @@ function initBoardView() {
     send({ cmd: 'clearSplitProposal' });
   };
   // "Re-analyze parked groups…" (the Parked header button and the Parked-groups
-  // part button): ask the service worker for a proposal, then show it on the tidy card. A
-  // Split… line reuses the existing split flow (splitGroup by parked name); the
-  // merge Apply refreshes the board.
-  const onSplitByName = async (name) => {
-    setStatus(`Working out a split for ${name}…`);
-    const res = await send({ cmd: 'splitGroup', name });
-    if (res && res.ok && res.proposal) { setStatus(''); onSplitProposal(res.proposal); }
-    else setStatus(`Could not split ${name}.`);
-  };
+  // part button): ask the service worker for a proposal, then show it on the tidy card.
+  // Checked merges and splits are applied by "Apply checked"; a split's proposed
+  // sub-group names drive the split, which refreshes the board.
   const onTidyParked = async () => {
     setStatus('Re-analyzing parked groups…');
     const res = await send({ cmd: 'tidyParked' });
     if (!res || !res.ok) { setStatus('Could not re-analyze parked groups.'); return; }
     setStatus('');
-    showTidyProposal({ proposal: res, els: tidyEls, send, setStatus, onSplit: onSplitByName, onDone: paint });
+    showTidyProposal({ proposal: res, els: tidyEls, send, setStatus, onDone: paint });
   };
   const moreTidy = $('reanalyzeParked');
   if (moreTidy) moreTidy.addEventListener('click', onTidyParked);

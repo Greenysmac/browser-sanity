@@ -184,8 +184,10 @@ export function parseDescribeResult(text) {
 // case-insensitive) and is rewritten to that canonical spelling. A merge never
 // keeps a `from` equal to its `into` (a group can't merge into itself) and
 // drops duplicate `from` names; a merge left with no valid `from`, or a split
-// for an unknown name, is dropped. `existingNames` is the list of parked group
-// names the model was shown.
+// for an unknown name, is dropped. A split keeps up to 6 proposed sub-group
+// names in `into`, each cleaned to one line of at most 60 characters, and is
+// dropped when fewer than two survive. `existingNames` is the list of parked
+// group names the model was shown.
 export function parseTidyResult(text, existingNames) {
   const obj = parseJsonBlock(text) || {};
   const byKey = new Map();
@@ -211,7 +213,15 @@ export function parseTidyResult(text, existingNames) {
 
   const split = (Array.isArray(obj.split) ? obj.split : [])
     .filter((s) => s && exists(s.name))
-    .map((s) => ({ name: canon(s.name), reason: String(s.reason ?? '') }));
+    .map((s) => {
+      // Keep up to 6 proposed sub-group names, each cleaned to one line ≤ 60.
+      const into = (Array.isArray(s.into) ? s.into : [])
+        .map((n) => cleanLine(n, 60))
+        .filter(Boolean)
+        .slice(0, 6);
+      return { name: canon(s.name), reason: String(s.reason ?? ''), into };
+    })
+    .filter((s) => s.into.length >= 2); // a split needs at least two sub-groups
 
   return { merge, split };
 }

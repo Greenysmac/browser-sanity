@@ -44,8 +44,10 @@ async function applyOpenSplit(proposal, send) {
 }
 
 // Apply a parked-group split: the host rewrites the index entry in place, then
-// the groups file gets the new lines/descriptions.
-async function applyParkedSplit(proposal, send) {
+// the groups file gets the new lines/descriptions. Exported so the re-analyze
+// card can apply a split's parked proposal with the same calls, without the
+// split card.
+export async function applyParkedSplit(proposal, send) {
   await send({ cmd: 'splitParked', name: proposal.name, groups: (proposal.subGroups || []).map((g) => ({ name: g.name, description: g.description || '', urls: (g.tabs || []).map((t) => t.url) })) });
   await send({ cmd: 'groupsSplit', name: proposal.name, groups: subGroupLines(proposal) });
 }

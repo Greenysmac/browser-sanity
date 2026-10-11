@@ -378,6 +378,20 @@ test('splitGroup for a parked group reads the index, uses fake ids, and maps the
   assert.deepEqual(res.proposal.subGroups[1].tabs, [{ title: 'H1', url: 'https://h1' }]);
 });
 
+test('splitGroup forwards given sub-group names to the split request payload', async () => {
+  const { dispatch, requests } = installSwChrome({
+    index: { groups: [{ name: 'Travel', color: 'green', status: 'parked', tabs: [
+      { title: 'F1', url: 'https://f1' },
+      { title: 'H1', url: 'https://h1' },
+    ] }] },
+    splitGroups: [{ name: 'Flights', description: 'air', tabIds: [1] }, { name: 'Hotels', description: 'stay', tabIds: [2] }],
+  });
+  const res = await dispatch({ cmd: 'splitGroup', name: 'Travel', names: ['Flights', 'Hotels'] });
+  assert.equal(res.ok, true);
+  const splitReq = requests.find((r) => r.type === 'organize' && r.task === 'split');
+  assert.deepEqual(splitReq.payload.names, ['Flights', 'Hotels'], 'the proposed names ride along to the host');
+});
+
 test('splitGroup stores the proposal so the panel can read it on open, then clear it', async () => {
   const { dispatch } = installSwChrome({
     groupTabs: { 7: [{ id: 11, url: 'https://a', title: 'A' }] },

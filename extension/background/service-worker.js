@@ -878,7 +878,7 @@ async function handleSplitGroup(m) {
   const client = await makeClient(settings, 'big');
   let subGroups;
   try {
-    const res = await client.request({ type: 'organize', task: 'split', adapter: settings.adapter, payload: { groupName: name, tabs: hostTabs } });
+    const res = await client.request({ type: 'organize', task: 'split', adapter: settings.adapter, payload: { groupName: name, tabs: hostTabs, names: m.names } });
     const groups = (res && Array.isArray(res.groups)) ? res.groups : [];
     // Map each sub-group's tabIds back to the tabs we sent, keeping tabId for an
     // open split (so Apply can group live tabs) and title/url either way.

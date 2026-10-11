@@ -144,7 +144,7 @@ export async function handle(msg, deps = {}) {
     // model should only see its tabs. Left-out tabs are recovered in the parser.
     if (task === 'split') {
       const tabs = Array.isArray(payload.tabs) ? payload.tabs : [];
-      const out = await adapter.run(buildSplitPrompt(payload.groupName, tabs, { maxPerGroup: payload.maxPerGroup }), opts);
+      const out = await adapter.run(buildSplitPrompt(payload.groupName, tabs, { maxPerGroup: payload.maxPerGroup, names: payload.names }), opts);
       const sentIds = tabs.map((t) => Number(t.tabId)).filter(Number.isInteger);
       return { task, groups: parseSplitResult(out, sentIds) };
     }

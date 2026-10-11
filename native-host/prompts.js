@@ -127,12 +127,15 @@ export function buildDescribePrompt(groups) {
   ].join('\n');
 }
 
-export function buildSplitPrompt(groupName, tabs, { maxPerGroup = 30 } = {}) {
+export function buildSplitPrompt(groupName, tabs, { maxPerGroup = 30, names = [] } = {}) {
+  const given = (Array.isArray(names) ? names : []).map((n) => clip(n, 120)).filter(Boolean);
   return [
     `All of these tabs belong to the user's group "${clip(groupName, 120)}".`,
     'Each data line is: tabId<TAB>title<TAB>url.',
-    `Split them into 2 to 6 sub-groups by what the user would use them for, each about ${maxPerGroup} tabs at most.`,
-    'Each name is 2 to 5 plain words with no colons. Put every tabId in exactly one sub-group.',
+    ...(given.length >= 2
+      ? [`Split them into exactly these sub-groups, using these names verbatim: ${given.join(', ')}. Put every tabId in exactly one sub-group.`]
+      : [`Split them into 2 to 6 sub-groups by what the user would use them for, each about ${maxPerGroup} tabs at most.`,
+         'Each name is 2 to 5 plain words with no colons. Put every tabId in exactly one sub-group.']),
     'For each sub-group write one plain sentence, at most 25 words, saying what belongs in it.',
     'Respond with ONLY this JSON, no prose:',
     '{"groups":[{"name":"...","description":"...","tabIds":[1,2]}]}',
@@ -164,10 +167,10 @@ export function buildTidyParkedPrompt(groups) {
     'Each GROUP line names a parked group and its tab count; the indented lines under it are sample tab titles.',
     'Propose a MERGE for small or overlapping groups that clearly belong together: pick one existing group to merge the others into.',
     'Never propose a merge whose combined tab count (the into group plus every from group) would exceed 30 tabs.',
-    'Propose a SPLIT for any group past 30 tabs, or one that covers several different needs.',
+    'Propose a SPLIT for any group past 30 tabs, or one that covers several different needs. For each split give 2 to 6 proposed sub-group names in "into", only as many as the group genuinely needs.',
     'Only reference group names present in the data below. A group can never merge into itself.',
     'Respond with ONLY this JSON, no prose:',
-    '{"merge":[{"into":"name","from":["name"],"reason":"why"}],"split":[{"name":"name","reason":"why"}]}',
+    '{"merge":[{"into":"name","from":["name"],"reason":"why"}],"split":[{"name":"name","reason":"why","into":["Sub-group A","Sub-group B"]}]}',
     '',
     wrapWithFence(parkedTable(groups), 'DATA'),
   ].join('\n');

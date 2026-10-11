@@ -46,15 +46,54 @@ test('tidy prompt caps each group at 15 sample titles and clips long titles', ()
   assert.ok(!p.includes('t15'), 'the 16th title is dropped');
 });
 
+test('tidy prompt asks each split for 2 to 6 proposed sub-group names in "into"', () => {
+  const p = buildTidyParkedPrompt([{ name: 'Work', tabs: [] }]);
+  assert.match(p, /2 to 6 proposed sub-group names/);
+  assert.match(p, /"into":\["Sub-group A","Sub-group B"\]/);
+});
+
 // ---- parser -----------------------------------------------------------------
 
 test('parseTidyResult keeps only names that exist and canonicalises their spelling', () => {
   const out = parseTidyResult(
-    '{"merge":[{"into":"travel","from":["Trips","Ghost"],"reason":"same"}],"split":[{"name":"work","reason":"big"},{"name":"Nope","reason":"x"}]}',
+    '{"merge":[{"into":"travel","from":["Trips","Ghost"],"reason":"same"}],"split":[{"name":"work","reason":"big","into":["Docs","Code"]},{"name":"Nope","reason":"x","into":["A","B"]}]}',
     ['Travel', 'Trips', 'Work'],
   );
   assert.deepEqual(out.merge, [{ into: 'Travel', from: ['Trips'], reason: 'same' }]); // 'Ghost' dropped; names canonicalised
-  assert.deepEqual(out.split, [{ name: 'Work', reason: 'big' }]); // 'Nope' dropped
+  assert.deepEqual(out.split, [{ name: 'Work', reason: 'big', into: ['Docs', 'Code'] }]); // 'Nope' dropped
+});
+
+test('parseTidyResult keeps up to 6 split names cleaned to one line of at most 60 chars', () => {
+  const out = parseTidyResult(
+    JSON.stringify({ merge: [], split: [{ name: 'Work', reason: 'big', into: ['A', 'B', 'C', 'D', 'E', 'F', 'G', `Too  long\n${'x'.repeat(80)}`] }] }),
+    ['Work'],
+  );
+  assert.equal(out.split.length, 1);
+  assert.equal(out.split[0].into.length, 6, 'capped at six names');
+  assert.deepEqual(out.split[0].into, ['A', 'B', 'C', 'D', 'E', 'F']);
+});
+
+test('parseTidyResult cleans a split name to one line and clips it to 60 chars', () => {
+  const long = 'x'.repeat(80);
+  const out = parseTidyResult(
+    JSON.stringify({ merge: [], split: [{ name: 'Work', reason: '', into: [`one\ttwo\nthree`, long] }] }),
+    ['Work'],
+  );
+  assert.equal(out.split[0].into[0], 'one two three', 'tabs/newlines collapse to single spaces');
+  assert.equal(out.split[0].into[1].length, 60, 'long name clipped to 60');
+});
+
+test('parseTidyResult drops a split with fewer than two sub-group names', () => {
+  const out = parseTidyResult(
+    JSON.stringify({ merge: [], split: [
+      { name: 'Work', reason: '', into: ['Only'] },
+      { name: 'Work', reason: '', into: [] },
+      { name: 'Work', reason: '', into: ['A', 'B'] },
+    ] }),
+    ['Work'],
+  );
+  assert.equal(out.split.length, 1, 'only the split with two names survives');
+  assert.deepEqual(out.split[0].into, ['A', 'B']);
 });
 
 test('parseTidyResult drops a self-merge (into equal to its only from)', () => {
@@ -78,14 +117,14 @@ function fakeGetAdapter(cannedOutput) {
 }
 
 test('organize/tidy-parked parses against only the sent names', async () => {
-  const out = '{"merge":[{"into":"Travel","from":["Trips"],"reason":"same"}],"split":[{"name":"Work","reason":"big"}]}';
+  const out = '{"merge":[{"into":"Travel","from":["Trips"],"reason":"same"}],"split":[{"name":"Work","reason":"big","into":["Docs","Code"]}]}';
   const r = await handle(
     { type: 'organize', task: 'tidy-parked', payload: { groups: [{ name: 'Travel' }, { name: 'Trips' }, { name: 'Work' }] } },
     { getAdapter: fakeGetAdapter(out) },
   );
   assert.equal(r.task, 'tidy-parked');
   assert.deepEqual(r.merge, [{ into: 'Travel', from: ['Trips'], reason: 'same' }]);
-  assert.deepEqual(r.split, [{ name: 'Work', reason: 'big' }]);
+  assert.deepEqual(r.split, [{ name: 'Work', reason: 'big', into: ['Docs', 'Code'] }]);
 });
 
 test('merge-parked message delegates to mergeParkedGroups with the payload', async () => {
@@ -229,7 +268,7 @@ const PROPOSAL = {
     { into: 'Dev', from: ['Code', 'Repos'], reason: 'overlap' },
   ],
   split: [
-    { name: 'Work', reason: 'past 30 tabs' },
+    { name: 'Work', reason: 'past 30 tabs', into: ['Docs', 'Code', 'Email'] },
   ],
 };
 
@@ -238,7 +277,7 @@ test('tidySummaryText counts merges and splits', () => {
   assert.equal(tidySummaryText({ merge: [], split: [] }), 'Parked groups look fine. Nothing to merge or split.');
 });
 
-test('showTidyProposal renders each merge (checkbox + reason) and each split (reason + Split… button)', () => {
+test('showTidyProposal renders each merge (checkbox + reason) and each split (checkbox + names + reason)', () => {
   installFakeDocument();
   const els = makeTidyEls();
   const { send } = makeRecordingSend();
@@ -249,53 +288,104 @@ test('showTidyProposal renders each merge (checkbox + reason) and each split (re
   assert.ok(texts.includes('Merge Trips into Travel'), 'merge line');
   assert.ok(texts.includes('Merge Code, Repos into Dev'), 'multi-source merge line');
   assert.ok(texts.includes('same topic') && texts.includes('overlap'), 'merge reasons');
-  assert.ok(texts.includes('Split Work'), 'split line');
+  assert.ok(texts.includes('Split Work into Docs, Code, Email'), 'split line names the proposed sub-groups');
   assert.ok(texts.includes('past 30 tabs'), 'split reason');
 
+  // One checkbox per merge AND per split; all start unchecked.
   const checkboxes = walk(els.list).filter((n) => n.type === 'checkbox');
-  assert.equal(checkboxes.length, 2, 'one checkbox per merge');
-  assert.ok(checkboxes.every((c) => !c.checked), 'merges start unchecked; the user ticks what they want');
-  assert.equal(byClass(els.list, 'tidySplitBtn').length, 1, 'one Split… button per split');
+  assert.equal(checkboxes.length, 3, 'two merges + one split, each a checkbox');
+  assert.ok(checkboxes.every((c) => !c.checked), 'everything starts unchecked; the user ticks what they want');
+  assert.equal(byClass(els.list, 'tidySplitBtn').length, 0, 'no Split… button anymore');
 });
 
-test('a Split… button starts the split flow for that group via onSplit', () => {
+test('Apply is disabled only when there are no merges and no splits', () => {
   installFakeDocument();
-  const els = makeTidyEls();
-  const { send } = makeRecordingSend();
-  const splits = [];
-  showTidyProposal({ proposal: PROPOSAL, els, send, onSplit: (name) => splits.push(name) });
-  byClass(els.list, 'tidySplitBtn')[0].click();
-  assert.deepEqual(splits, ['Work']);
+  const only = makeTidyEls();
+  showTidyProposal({ proposal: { merge: [], split: [] }, els: only, send: makeRecordingSend().send });
+  assert.equal(only.apply.disabled, true, 'nothing to apply');
+  const some = makeTidyEls();
+  showTidyProposal({ proposal: { merge: [], split: [{ name: 'Work', reason: '', into: ['A', 'B'] }] }, els: some, send: makeRecordingSend().send });
+  assert.equal(some.apply.disabled, false, 'a split alone enables Apply');
+  assert.equal(some.apply.textContent, 'Apply checked', 'the button reads "Apply checked"');
 });
 
-test('Apply merges sends mergeParked for only the checked merges, then refreshes', async () => {
+test('Apply checked sends mergeParked for checked merges, then splitGroup with names, then splitParked + groupsSplit', async () => {
   installFakeDocument();
   const els = makeTidyEls();
-  const { sent, send } = makeRecordingSend();
+  // A send that answers splitGroup with a parked proposal (so the split applies
+  // through the split card's parked path), and ok for everything else.
+  const sent = [];
+  const send = (m) => {
+    sent.push(m);
+    if (m.cmd === 'splitGroup') {
+      return Promise.resolve({ ok: true, proposal: { kind: 'parked', name: m.name, subGroups: [
+        { name: 'Docs', description: 'd', tabs: [{ title: 'A', url: 'https://a' }] },
+        { name: 'Code', description: 'c', tabs: [{ title: 'B', url: 'https://b' }] },
+      ] } });
+    }
+    return Promise.resolve({ ok: true });
+  };
+  const statuses = [];
   let done = 0;
-  showTidyProposal({ proposal: PROPOSAL, els, send, onDone: () => { done += 1; } });
+  showTidyProposal({ proposal: PROPOSAL, els, send, setStatus: (s) => statuses.push(s), onDone: () => { done += 1; } });
 
-  // Check only the first merge (Travel); the second (Dev) stays unchecked.
+  // Check the first merge (Travel) and the split (Work).
   const checkboxes = walk(els.list).filter((n) => n.type === 'checkbox');
-  checkboxes[0].checked = true;
+  checkboxes[0].checked = true; // Travel merge
+  checkboxes[2].checked = true; // Work split
 
   await els.apply.click();
 
-  const merges = sent.filter((m) => m.cmd === 'mergeParked');
-  assert.equal(merges.length, 1, 'only the checked merge is sent');
-  assert.deepEqual(merges[0], { cmd: 'mergeParked', into: 'Travel', from: ['Trips'] });
+  const cmds = sent.map((m) => m.cmd);
+  // Merge first, then the split: splitGroup → splitParked → groupsSplit.
+  assert.deepEqual(cmds, ['mergeParked', 'splitGroup', 'splitParked', 'groupsSplit']);
+  assert.deepEqual(sent[0], { cmd: 'mergeParked', into: 'Travel', from: ['Trips'] });
+  assert.deepEqual(sent[1], { cmd: 'splitGroup', name: 'Work', names: ['Docs', 'Code', 'Email'] });
+  assert.equal(sent[2].cmd, 'splitParked');
+  assert.equal(sent[2].name, 'Work');
+  assert.equal(sent[3].cmd, 'groupsSplit');
+
+  assert.ok(statuses.includes('Splitting Work…'), 'progress names the group being split');
+  assert.equal(statuses[statuses.length - 1], 'Merged 1, split 1.', 'final status counts both');
   assert.equal(els.card.hidden, true, 'card hides after Apply');
   assert.equal(done, 1, 'onDone fired to refresh the board');
 });
 
-test('Apply with every merge unchecked sends nothing and keeps the card', async () => {
+test('a failed split is named in the status and the rest continue', async () => {
+  installFakeDocument();
+  const els = makeTidyEls();
+  const sent = [];
+  const send = (m) => {
+    sent.push(m);
+    if (m.cmd === 'splitGroup' && m.name === 'Work') return Promise.resolve({ ok: false }); // first split fails
+    if (m.cmd === 'splitGroup') return Promise.resolve({ ok: true, proposal: { kind: 'parked', name: m.name, subGroups: [
+      { name: 'X', description: '', tabs: [] }, { name: 'Y', description: '', tabs: [] },
+    ] } });
+    return Promise.resolve({ ok: true });
+  };
+  const statuses = [];
+  const proposal = { merge: [], split: [
+    { name: 'Work', reason: '', into: ['A', 'B'] },
+    { name: 'Travel', reason: '', into: ['C', 'D'] },
+  ] };
+  showTidyProposal({ proposal, els, send, setStatus: (s) => statuses.push(s) });
+  for (const c of walk(els.list).filter((n) => n.type === 'checkbox')) c.checked = true;
+  await els.apply.click();
+
+  assert.ok(statuses.includes('Could not split Work.'), 'the failed split is named');
+  // Travel still split after Work failed.
+  assert.ok(sent.some((m) => m.cmd === 'splitParked' && m.name === 'Travel'), 'the rest continue');
+  assert.equal(statuses[statuses.length - 1], 'Merged 0, split 1.', 'only the successful split is counted');
+});
+
+test('Apply with nothing checked sends nothing and keeps the card', async () => {
   installFakeDocument();
   const els = makeTidyEls();
   const { sent, send } = makeRecordingSend();
   showTidyProposal({ proposal: PROPOSAL, els, send });
   for (const c of walk(els.list).filter((n) => n.type === 'checkbox')) c.checked = false;
   await els.apply.click();
-  assert.equal(sent.filter((m) => m.cmd === 'mergeParked').length, 0, 'nothing sent');
+  assert.equal(sent.length, 0, 'nothing sent');
   assert.equal(els.card.hidden, false, 'card stays visible');
 });
 

@@ -148,3 +148,14 @@ test('split prompt defaults the cap to 30 tabs', () => {
   const p = buildSplitPrompt('Dev', [{ tabId: 1, title: 't', url: 'https://a' }]);
   assert.match(p, /each about 30 tabs at most/);
 });
+
+test('split prompt with given names tells the model to use exactly those sub-group names', () => {
+  const p = buildSplitPrompt('Work', [{ tabId: 1, title: 't', url: 'https://a' }], { names: ['Docs', 'Code', 'Email'] });
+  assert.match(p, /using these names verbatim: Docs, Code, Email/);
+  assert.ok(!/2 to 6 sub-groups/.test(p), 'the open-ended instruction is replaced');
+});
+
+test('split prompt ignores a names list with fewer than two names', () => {
+  const p = buildSplitPrompt('Work', [{ tabId: 1, title: 't', url: 'https://a' }], { names: ['Only'] });
+  assert.match(p, /2 to 6 sub-groups/, 'falls back to the open-ended split');
+});
