@@ -328,6 +328,8 @@ async function analyze() {
   planOrigin = null;
   selection = new Set();
   hideResults();
+  const toast = $('undoToast');
+  if (toast) toast.hidden = true; // the last Apply's Undo belongs to the old result
   setStatus('Analyzing…');
   const selected = isSelectedMode();
   const windowId = selected ? null : await currentScopeWindowId();
@@ -435,11 +437,24 @@ async function applyItems(itemIds) {
     ({ items: plan, origin: planOrigin } = await fetchPlan());
     selection = new Set();
     renderPlan();
-    setStatus(`Applied ${res.applied.length}. ${res.failed.length ? res.failed.length + ' failed.' : ''}`);
+    setStatus(`Applied ${res.applied.length}.${failedText(res)}`);
     await showUndoToast();
   } finally {
     setPlanActionsBusy(false);
   }
+}
+
+// " 1 failed: Group "Reading" (3 tabs): No tab with id: 12." for the status
+// line, so a failure says what and why instead of only a count (Jeff,
+// 2026-10-11: "Applied 12. 1 failed."). More than one names the first.
+function failedText(res) {
+  const n = (res.failed || []).length;
+  if (!n) return '';
+  const f = (res.failures || [])[0];
+  if (!f) return ` ${n} failed.`;
+  const more = n > 1 ? ` (and ${n - 1} more)` : '';
+  const why = String(f.error).replace(/\.+$/, ''); // the sentence ends with our own period
+  return ` ${n} failed: ${f.reason}: ${why}${more}.`;
 }
 
 // Per-action run buttons: run just one feature without touching settings.

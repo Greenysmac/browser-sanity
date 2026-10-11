@@ -514,7 +514,7 @@ async function handleApply(m) {
     // Remember how many tabs each parked group just received so the board can
     // flag it with a "+n new" badge until the user opens/expands that card.
     await bumpParkedNewCounts(toApply.filter((i) => i.action === 'parkTab' && appliedSet.has(i.itemId)));
-    return { ok: true, applied, failed: applyRes.failed };
+    return { ok: true, applied, failed: applyRes.failed, failures: applyRes.failures || [] };
   });
   // Refresh the on-disk index to match the now-applied tab state. Best-effort:
   // syncIndex never throws, and a failed sync must not fail the apply. Groups

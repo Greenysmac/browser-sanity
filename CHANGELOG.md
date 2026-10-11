@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 — 2026-10-11
+**By Mycroft, from Jeff ("Applied 12. 1 failed." / "And no undo?")**
+- A failed suggestion says what and why: "Applied 12. 1 failed: Group "Someday" (1 tab): No tab with id: 13." (the reason used to go only to the background console).
+- The Undo after Apply stays until you use it or run Analyze again (it used to vanish after 8 seconds), and sits right under the Open tabs result. "Restore before sort" at the top still undoes the latest Apply.
+
 ## 0.6.0 — 2026-10-11
 **Run 14 (Kiro, five tasks, all first try, 25 minutes, 5.5 credits; reviewed by Mycroft)**
 - Tabs go into live groups by default. A tab matching a parked group joins an open group with that name; an unchecked box on the result card offers to file them into the parked groups instead (saves and closes them).

@@ -360,6 +360,7 @@ export async function applyItems(items, deps = {}) {
   const recordUndo = deps.recordUndo || defaultRecordUndo;
   const applied = [];
   const failed = [];
+  const failures = []; // { itemId, reason, error } for the panel's status line
   // Group tabs before anything closes or suspends them (closeTab/discardTab):
   // an earlier item that closes a tab would otherwise remove it from a later
   // group. The two filters preserve relative order within each bucket.
@@ -380,7 +381,8 @@ export async function applyItems(items, deps = {}) {
       // failures undiagnosable — surface it (the item still counts as failed).
       console.warn('[organizer] apply failed for', item.action, item.itemId, e);
       failed.push(item.itemId);
+      failures.push({ itemId: item.itemId, reason: item.reason || item.action, error: String((e && e.message) || e) });
     }
   }
-  return { applied, failed };
+  return { applied, failed, failures };
 }

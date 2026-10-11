@@ -802,9 +802,6 @@ select.groupColor { flex: none; font-size: 11px; padding: 3px 6px; }
 
 /* ---------- Undo toast ---------- */
 #undoToast {
-  position: sticky;
-  bottom: 10px;
-  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -5,7 +5,6 @@
 import { $, send, setStatus } from './dom.js';
 import { groupUndoByRun, actionLabel } from './viewmodel.js';
 
-let toastTimer = null;
 export async function showUndoToast() {
   const res = await send({ cmd: 'getUndo' });
   if (!res || !res.ok) return;
@@ -25,16 +24,9 @@ export async function showUndoToast() {
     toast.hidden = true;
   });
   toast.append(msg, undoBtn);
+  // It stays until Undo is used or the next Analyze clears it: an 8-second
+  // toast was easy to miss (Jeff, 2026-10-11: "And no undo?").
   toast.hidden = false;
-  const scheduleDismiss = (ms = 8000) => {
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast.hidden = true; }, ms);
-  };
-  scheduleDismiss(8000);
-  toast.onmouseenter = () => clearTimeout(toastTimer);
-  toast.onfocusin = () => clearTimeout(toastTimer);
-  toast.onmouseleave = () => scheduleDismiss(3000);
-  toast.onfocusout = () => scheduleDismiss(3000);
 }
 
 // Undo the most recent applied run through the existing undo log, reporting the
