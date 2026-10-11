@@ -6,7 +6,7 @@
 // (run / scope / sortSelected / approveAll) so current behavior is unchanged.
 import { $ } from './dom.js';
 import { getSettings } from '../lib/storage.js';
-import { planSummaryLine, modelsInUseLine } from './viewmodel.js';
+import { planSummaryLine, modelsInUseLine, originLine } from './viewmodel.js';
 
 // Reflect the extension version in the header: version_name preferred (it reads
 // "0.2.2 Browser Sanity"), falling back to the bare version. Guarded so unit
@@ -99,10 +99,30 @@ function paintParkedToggle(card, items) {
   else card.appendChild(row);
 }
 
-// Update the result card from the current plan: one plain summary line plus the
-// "N suggestions." count (shown only here, not in the status line above). The
-// card is shown whenever there's a plan to apply.
-export function updateResultCard(plan) {
+// The muted "From <label>, <time>" line under the summary — what made the plan
+// and when. Built with createElement/textContent so a label can't inject markup.
+// Rebuilt each paint and inserted after the summary; removed when there's no
+// origin (an edited-away or stale plan).
+let originEl = null;
+function paintResultOrigin(card, origin) {
+  if (originEl && originEl.parentNode) originEl.parentNode.removeChild(originEl);
+  originEl = null;
+  const text = originLine(origin);
+  if (!text) return;
+  const p = document.createElement('p');
+  p.className = 'resultOrigin';
+  p.textContent = text;
+  originEl = p;
+  const summary = $('resultSummary');
+  if (summary && summary.parentNode === card) summary.insertAdjacentElement('afterend', p);
+  else card.appendChild(p);
+}
+
+// Update the result card from the current plan: one plain summary line, a muted
+// "From <label>, <time>" origin line, plus the "N suggestions." count (shown
+// only here, not in the status line above). The card is shown whenever there's
+// a plan to apply. `origin` is the { label, at } the plan carries, or null.
+export function updateResultCard(plan, origin = null) {
   const card = $('resultCard');
   if (!card) return;
   const items = plan || [];
@@ -111,6 +131,7 @@ export function updateResultCard(plan) {
   card.hidden = !hasResult;
   const summary = $('resultSummary');
   if (summary) summary.textContent = line;
+  paintResultOrigin(card, hasResult ? origin : null);
   const count = $('resultCount');
   if (count) count.textContent = hasResult ? `${items.length} suggestion${items.length === 1 ? '' : 's'}.` : '';
   paintParkedToggle(card, items);

@@ -58,6 +58,17 @@ export function modelsInUseLine(bigModel, quickModel) {
   return `Big sorts: ${name(bigModel)} · Quick jobs: ${name(quickModel)}`;
 }
 
+// The muted "what made this, and when" line a suggestion card shows under its
+// summary, e.g. "From Analyze: Put into my groups, 9:40 AM". `origin` is the
+// { label, at } an action stamps on its plan/proposal. Returns '' when there's
+// no origin (or no label), so a card with no origin shows nothing.
+export function originLine(origin) {
+  if (!origin || !origin.label) return '';
+  const at = origin.at;
+  const time = at ? new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  return time ? `From ${origin.label}, ${time}` : `From ${origin.label}`;
+}
+
 export function statusLabel(bucket) { return STATUS_LABELS[bucket] || bucket; }
 
 // Maps a bookmark-cleanup proposal to a status bucket key for grouped display.

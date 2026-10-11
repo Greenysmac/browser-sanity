@@ -16,6 +16,7 @@
 // so group names, descriptions and tab titles can't inject markup. The module
 // takes its elements and `send`/`setStatus` as arguments so it stays unit-
 // testable with a bare fake document (no chrome, no jsdom).
+import { originLine } from './viewmodel.js';
 
 // The one-line summary shown on the card.
 export function splitSummaryText(proposal) {
@@ -87,14 +88,32 @@ function buildReviewList(proposal) {
   return list;
 }
 
+// Insert (or replace) the muted "From <label>, <time>" line after the card's
+// summary. Built with createElement/textContent only. A card carries at most
+// one, tracked by the .resultOrigin class so re-renders don't stack them.
+function renderOrigin(card, summary, origin) {
+  const existing = (card.children || []).find((c) => c && c.className === 'resultOrigin');
+  if (existing && existing.remove) existing.remove();
+  const text = originLine(origin);
+  if (!text) return;
+  const p = document.createElement('p');
+  p.className = 'resultOrigin';
+  p.textContent = text;
+  if (summary && summary.insertAdjacentElement) summary.insertAdjacentElement('afterend', p);
+  else card.appendChild(p);
+}
+
 // Fill the split card from a proposal and wire Apply/Review. `els` carries the
 // card and its parts; `send`/`setStatus` reach the service worker and status
 // line; `onDone` is called after a successful Apply so the host can refresh the
-// board. Returns nothing — it mutates the given elements.
+// board. The card shows a muted "From <label>, <time>" line from the proposal's
+// `origin` (what started the split, and when). Returns nothing — it mutates the
+// given elements.
 export function showSplitProposal({ proposal, els, send, setStatus = () => {}, onDone = () => {} }) {
   const { card, summary, review, reviewList, apply, dismiss } = els;
   if (!proposal || !card) return;
   if (summary) summary.textContent = splitSummaryText(proposal);
+  renderOrigin(card, summary, proposal.origin);
   if (reviewList) {
     reviewList.textContent = '';
     const built = buildReviewList(proposal);

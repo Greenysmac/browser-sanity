@@ -29,15 +29,20 @@ const PLAN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 // for the new-tab page to hand it to the panel.
 const SPLIT_PROPOSAL_MAX_AGE_MS = 2 * 60 * 1000;
 async function clearLeftovers() {
-  await withLock('currentPlan', () => chrome.storage.local.remove(['currentPlan', 'currentPlanAt']));
+  await withLock('currentPlan', () => chrome.storage.local.remove(['currentPlan', 'currentPlanAt', 'currentPlanOrigin']));
   await withLock('splitProposal', () => chrome.storage.local.remove(['splitProposal', 'pendingReanalyze']));
 }
 
 // The single plan writer: store the items and stamp when they were made, both
 // under the shared 'currentPlan' lock the other readers/writers use, so the
-// timestamp can never drift from the items it describes.
-function storePlan(items) {
-  return withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items, currentPlanAt: Date.now() }));
+// timestamp can never drift from the items it describes. `label` records what
+// action made the plan ("Analyze: Put into my groups", "Command", …); it's
+// stamped alongside as currentPlanOrigin so the result card can show a muted
+// "From <label>, <time>" line. An empty label clears the origin.
+function storePlan(items, label = '') {
+  const at = Date.now();
+  const origin = label ? { label, at } : null;
+  return withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items, currentPlanAt: at, currentPlanOrigin: origin }));
 }
 
 // Creates the native client, attaching the openai adapter's UI-entered config
@@ -162,7 +167,7 @@ chrome.omnibox.onInputEntered.addListener(async (text) => {
   const client = await makeClient(settings);
   try {
     const items = await runCommand(instruction, { nativeClient: client, windowId: win.id, settings });
-    await storePlan(items);
+    await storePlan(items, 'Command');
     await chrome.sidePanel.open({ windowId: win.id });
   } finally {
     client.disconnect();
@@ -195,6 +200,16 @@ function scanSig(deps = {}) {
   return JSON.stringify({ w: deps.windowId ?? null, f: deps.features ?? null, m: deps.groupMode ?? null, r: !!deps.regroupAll });
 }
 
+// A short label for the action behind a scan, stamped on the plan so the result
+// card can show "From <label>, <time>". "Re-sort all groups" (regroupAll) wins
+// over the grouping mode; otherwise "mine" is the "Put into my groups" choice
+// and anything else is "Suggest new groups".
+function scanOriginLabel(deps = {}) {
+  if (deps.regroupAll) return 'Re-sort all groups';
+  if (deps.groupMode === 'mine') return 'Analyze: Put into my groups';
+  return 'Analyze: Suggest new groups';
+}
+
 function runScan(deps = {}) {
   const sig = scanSig(deps);
   if (scanInFlight) {
@@ -215,7 +230,7 @@ function runScan(deps = {}) {
       const items = await buildPlan({ settings, nativeClient, onProgress, shouldCancel, onWarning: (w) => warnings.push(w), features: deps.features, windowId: deps.windowId ?? null, groupMode: deps.groupMode, regroupAll: deps.regroupAll });
       if (settings.debugLogging) console.info('[organizer] scan produced', items.length, 'item(s),', warnings.length, 'warning(s)');
       const { autoApply, needsReview } = partitionForApply(items, settings);
-      await storePlan(needsReview);
+      await storePlan(needsReview, scanOriginLabel(deps));
       if (autoApply.length) {
         const runId = uniqueId('run-');
         const { folders, rootIds, barId, otherId } = await collectTree(chrome);
@@ -388,11 +403,11 @@ function planItemTabIds(item) {
 
 async function handleGetPlan() {
   return withLock('currentPlan', async () => {
-    const { currentPlan = [], currentPlanAt = 0 } = await chrome.storage.local.get({ currentPlan: [], currentPlanAt: 0 });
+    const { currentPlan = [], currentPlanAt = 0, currentPlanOrigin = null } = await chrome.storage.local.get({ currentPlan: [], currentPlanAt: 0, currentPlanOrigin: null });
     // A plan older than the max age is stale — drop it and serve nothing.
     if (currentPlanAt && Date.now() - currentPlanAt > PLAN_MAX_AGE_MS) {
-      await chrome.storage.local.set({ currentPlan: [], currentPlanAt: Date.now() });
-      return { ok: true, items: [] };
+      await chrome.storage.local.set({ currentPlan: [], currentPlanAt: Date.now(), currentPlanOrigin: null });
+      return { ok: true, items: [], origin: null };
     }
     // Drop tab-acting items whose tabs are all gone (chrome.tabs.get fails), so
     // the panel never offers to close/park/group a tab that no longer exists.
@@ -403,15 +418,25 @@ async function handleGetPlan() {
       const alive = await Promise.all(ids.map((id) => chrome.tabs.get(id).then(() => true, () => false)));
       if (alive.some(Boolean)) kept.push(item);
     }
+    // Pruning away every item clears the plan, so clear its origin too.
+    const origin = kept.length ? currentPlanOrigin : null;
     if (kept.length !== currentPlan.length) {
-      await chrome.storage.local.set({ currentPlan: kept, currentPlanAt });
+      await chrome.storage.local.set({ currentPlan: kept, currentPlanAt, currentPlanOrigin: origin });
     }
-    return { ok: true, items: kept };
+    return { ok: true, items: kept, origin };
   });
 }
 
+// The panel edits the stored plan (rename a group, drop a tab, clear the list).
+// Keep the origin the plan already carries while items remain — an edit doesn't
+// change what made the suggestions — and clear it once the list is emptied.
 async function handleUpdatePlan(m) {
-  return storePlan(m.items || []).then(() => ({ ok: true }));
+  const items = m.items || [];
+  return withLock('currentPlan', async () => {
+    const { currentPlanOrigin = null } = await chrome.storage.local.get({ currentPlanOrigin: null });
+    await chrome.storage.local.set({ currentPlan: items, currentPlanAt: Date.now(), currentPlanOrigin: items.length ? currentPlanOrigin : null });
+    return { ok: true };
+  });
 }
 
 // When `fileIntoParked` is set, each chosen groupTabs item flagged
@@ -455,7 +480,7 @@ async function handleApply(m) {
   // (or an auto-scan writing the plan concurrently) can't double-execute an
   // item or clobber the stored plan.
   const res = await withLock('currentPlan', async () => {
-    const { currentPlan = [] } = await chrome.storage.local.get('currentPlan');
+    const { currentPlan = [], currentPlanOrigin = null } = await chrome.storage.local.get({ currentPlan: [], currentPlanOrigin: null });
     const chosen = currentPlan.filter((i) => m.itemIds.includes(i.itemId));
     // Opt-in: file parked-name matches into the parked record (park-and-close)
     // instead of forming live groups. Default (false) applies them as groups.
@@ -483,7 +508,9 @@ async function handleApply(m) {
       if (partIds.length && partIds.every((id) => appliedSet.has(id))) applied.push(originalId);
     }
     const remaining = currentPlan.filter((i) => !applied.includes(i.itemId));
-    await chrome.storage.local.set({ currentPlan: remaining, currentPlanAt: Date.now() });
+    // Keep the origin for the items that are still pending; clear it once the
+    // plan is empty, like getPlan does when it prunes the last item.
+    await chrome.storage.local.set({ currentPlan: remaining, currentPlanAt: Date.now(), currentPlanOrigin: remaining.length ? currentPlanOrigin : null });
     // Remember how many tabs each parked group just received so the board can
     // flag it with a "+n new" badge until the user opens/expands that card.
     await bumpParkedNewCounts(toApply.filter((i) => i.action === 'parkTab' && appliedSet.has(i.itemId)));
@@ -557,7 +584,7 @@ async function handleCommand(m) {
   const nativeClient = await makeClient(settings);
   try {
     const items = await runCommand(m.instruction, { nativeClient, windowId: m.windowId ?? null, settings });
-    await storePlan(items);
+    await storePlan(items, 'Command');
     return { ok: true, items };
   } finally {
     nativeClient.disconnect();
@@ -573,7 +600,7 @@ async function handleProposals(m) {
   const nativeClient = await makeClient(settings);
   try {
     const { items, note, from } = await loadProposals({ nativeClient, windowId: m.windowId ?? null, settings });
-    await storePlan(items);
+    await storePlan(items, 'Agent suggestions');
     return { ok: true, items, note, from };
   } finally {
     nativeClient.disconnect();
@@ -584,13 +611,13 @@ async function handleProposals(m) {
 // (same shapes as a normal scan, so review/apply/undo are unchanged). buildPlan
 // with onlyTabIds runs only the grouping phase over those tabs. Fewer than one
 // tab returns a friendly message instead of running the backend.
-async function sortTabIds(tabIds, emptyMessage) {
+async function sortTabIds(tabIds, emptyMessage, label = '') {
   if (!Array.isArray(tabIds) || tabIds.length < 1) return { ok: true, items: [], message: emptyMessage };
   const settings = await getSettings();
   const nativeClient = await makeClient(settings, 'quick');
   try {
     const items = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds });
-    await storePlan(items);
+    await storePlan(items, label);
     return { ok: true, items };
   } finally {
     nativeClient.disconnect();
@@ -601,7 +628,11 @@ async function sortTabIds(tabIds, emptyMessage) {
 async function handleSortGroup(m) {
   const tabs = await chrome.tabs.query({ groupId: m.groupId });
   const tabIds = tabs.map((t) => t.id).filter((id) => id != null);
-  return sortTabIds(tabIds, 'That group has no tabs to sort.');
+  // Name the group in the origin label so the card reads "From Sort this group:
+  // <name>, <time>". The title may be empty (unnamed group) or the group gone.
+  let title = '';
+  try { title = (await chrome.tabGroups.get(m.groupId)).title || ''; } catch { /* group gone */ }
+  return sortTabIds(tabIds, 'That group has no tabs to sort.', `Sort this group: ${title}`);
 }
 
 // "Sort selected tabs": regroup the tabs the user highlighted (shift/cmd-click)
@@ -609,7 +640,7 @@ async function handleSortGroup(m) {
 async function handleSortSelected() {
   const tabs = await chrome.tabs.query({ highlighted: true, currentWindow: true });
   const tabIds = tabs.map((t) => t.id).filter((id) => id != null);
-  return sortTabIds(tabIds, 'Select one or more tabs in the tab strip first.');
+  return sortTabIds(tabIds, 'Select one or more tabs in the tab strip first.', 'Selected tabs');
 }
 
 async function handleSaveSession(m) {
@@ -861,7 +892,12 @@ async function handleSplitGroup(m) {
   }
 
   const tabCount = hostTabs.length;
-  const proposal = { kind, name, groupId: m.groupId ?? null, color, tabCount, subGroups };
+  // The result card shows "From <label>, <time>". The board menu's "Split this
+  // group…" reads "Split this group: <name>"; the re-analyze card's "Split…"
+  // line reads "Split… on <name>".
+  const label = m.fromBoard ? `Split this group: ${name}` : `Split… on ${name}`;
+  const origin = { label, at: Date.now() };
+  const proposal = { kind, name, groupId: m.groupId ?? null, color, tabCount, subGroups, origin };
   await withLock('splitProposal', () => chrome.storage.local.set({ splitProposal: { ...proposal, createdAt: Date.now() } }));
   return { ok: true, proposal };
 }

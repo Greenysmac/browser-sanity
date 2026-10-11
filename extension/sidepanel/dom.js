@@ -79,11 +79,12 @@ export async function setSettings(patch) {
   return r.settings;
 }
 
-// Fetch the stored plan, tolerating a null response (SW asleep/no reply — the
-// callback fires with undefined and chrome.runtime.lastError set).
+// Fetch the stored plan with its origin (what made it, and when), tolerating a
+// null response (SW asleep/no reply — the callback fires with undefined and
+// chrome.runtime.lastError set). Returns { items, origin }.
 export async function fetchPlan() {
   const r = await send({ cmd: 'getPlan' });
-  return (r && r.items) || [];
+  return { items: (r && r.items) || [], origin: (r && r.origin) || null };
 }
 
 // Bring a tab to the foreground (used by click-to-focus on a suggestion).

@@ -9,6 +9,7 @@
 // so group names and reasons can't inject markup. The module takes its elements
 // and the `send`/`setStatus`/`onSplit`/`onDone` callbacks as arguments so it
 // stays unit-testable with a bare fake document (no chrome, no jsdom).
+import { originLine } from './viewmodel.js';
 
 // The one-line summary shown on the card.
 export function tidySummaryText(proposal) {
@@ -70,17 +71,37 @@ function splitLine(s, onSplit) {
   return li;
 }
 
+// Insert (or replace) the muted "From <label>, <time>" line after the card's
+// summary. Built with createElement/textContent only. A card can carry at most
+// one, tracked by the .resultOrigin class so re-renders don't stack them.
+function renderOrigin(card, summary, origin) {
+  const existing = (card.children || []).find((c) => c && c.className === 'resultOrigin');
+  if (existing && existing.remove) existing.remove();
+  const text = originLine(origin);
+  if (!text) return;
+  const p = document.createElement('p');
+  p.className = 'resultOrigin';
+  p.textContent = text;
+  if (summary && summary.insertAdjacentElement) summary.insertAdjacentElement('afterend', p);
+  else card.appendChild(p);
+}
+
 // Fill the tidy card from a proposal and wire the merge checkboxes, the Split…
 // buttons, and "Apply merges". `els` carries the card and its parts; `send`/
 // `setStatus` reach the service worker and status line; `onSplit(name)` starts
 // the split flow for a parked group; `onDone` is called after Apply so the host
-// can refresh the board. Returns nothing — it mutates the given elements.
-export function showTidyProposal({ proposal, els, send, setStatus = () => {}, onSplit = () => {}, onDone = () => {} }) {
+// can refresh the board. `origin` is the { label, at } the card shows as a muted
+// "From <label>, <time>" line; it defaults to "Re-analyze parked groups" stamped
+// now (the moment the proposal came back). Returns nothing — it mutates the
+// given elements.
+export function showTidyProposal({ proposal, els, send, setStatus = () => {}, onSplit = () => {}, onDone = () => {}, origin = null }) {
   const { card, summary, list, apply, dismiss } = els;
+  const from = origin || { label: 'Re-analyze parked groups', at: Date.now() };
   if (!proposal || !card) return;
   const merges = Array.isArray(proposal.merge) ? proposal.merge : [];
   const splits = Array.isArray(proposal.split) ? proposal.split : [];
   if (summary) summary.textContent = tidySummaryText(proposal);
+  renderOrigin(card, summary, from);
 
   const mergeLines = [];
   if (list) {

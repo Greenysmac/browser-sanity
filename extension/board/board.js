@@ -389,7 +389,7 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
   const items = [
     { label: 'Sort this group', onChoose: async () => { await send({ cmd: 'sortGroup', groupId: group.groupId }); await rerender(); } },
     { label: 'Split this group…', onChoose: async () => {
-      const res = await send({ cmd: 'splitGroup', groupId: group.groupId });
+      const res = await send({ cmd: 'splitGroup', groupId: group.groupId, fromBoard: true });
       if (onSplitProposal && res && res.ok && res.proposal) onSplitProposal(res.proposal);
     } },
   ];
@@ -491,7 +491,7 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
   const items = [
     { label: 'Open', onChoose: async () => { await send({ cmd: 'openParked', name: group.name }); await rerender(); } },
     { label: 'Split this group…', onChoose: async () => {
-      const res = await send({ cmd: 'splitGroup', name: group.name });
+      const res = await send({ cmd: 'splitGroup', name: group.name, fromBoard: true });
       if (onSplitProposal && res && res.ok && res.proposal) onSplitProposal(res.proposal);
     } },
     { label: 'Description…', onChoose: openEditor },

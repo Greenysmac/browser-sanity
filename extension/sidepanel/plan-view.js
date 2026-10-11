@@ -19,6 +19,7 @@ import {
 } from './viewmodel.js';
 
 let plan = [];
+let planOrigin = null; // { label, at } — what made the plan, shown on the result card
 let selection = new Set();
 const expandedGroups = new Set();
 let planFilter = '';
@@ -238,7 +239,7 @@ export function renderPlan(animate = false) {
     }
     container.appendChild(section);
   }
-  updateResultCard(plan); // keep the main-panel result card in sync with the plan
+  updateResultCard(plan, planOrigin); // keep the main-panel result card in sync with the plan
 }
 
 // Builds one suggestion row (checkbox, title/reason/url, ignore, optional
@@ -298,7 +299,7 @@ async function startScan(features, { groupMode, regroupAll } = {}) {
   stopScanClock();
   $('cancelRun').hidden = true;
   if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
-  plan = await fetchPlan();
+  ({ items: plan, origin: planOrigin } = await fetchPlan());
   selection = new Set();
   renderPlan(true);
   // Surface actionable warnings (e.g. an out-of-date helper) instead of the
@@ -324,6 +325,7 @@ async function analyze() {
   // A fresh Analyze clears any earlier result so the old card and detailed list
   // can't linger while the new counts are gathered.
   plan = [];
+  planOrigin = null;
   selection = new Set();
   hideResults();
   setStatus('Analyzing…');
@@ -430,7 +432,7 @@ async function applyItems(itemIds) {
   try {
     const res = await send({ cmd: 'apply', itemIds, fileIntoParked: fileIntoParkedChecked() });
     if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
-    plan = await fetchPlan();
+    ({ items: plan, origin: planOrigin } = await fetchPlan());
     selection = new Set();
     renderPlan();
     setStatus(`Applied ${res.applied.length}. ${res.failed.length ? res.failed.length + ' failed.' : ''}`);
@@ -541,6 +543,6 @@ export async function initPlanView() {
   const { groupBookmarksByStatus: pref } = await chrome.storage.local.get('groupBookmarksByStatus');
   groupBookmarksByStatus = !!pref;
   $('groupByStatus').checked = groupBookmarksByStatus;
-  plan = await fetchPlan();
+  ({ items: plan, origin: planOrigin } = await fetchPlan());
   renderPlan(true);
 }

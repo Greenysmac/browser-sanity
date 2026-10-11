@@ -323,3 +323,43 @@ test('the result card shows the parked-match checkbox only when parkedMatch item
   assert.equal(fileIntoParkedChecked(), false, 'checkbox gone → unchecked');
   assert.ok(!els.resultCard.children.some((c) => c.classes.has('parkedToggle')), 'toggle row removed');
 });
+
+// ---- Result-card origin line (TASK 4) ---------------------------------------
+
+// A fixed instant so the formatted time is deterministic across machines.
+const ORIGIN_AT = new Date('2026-10-11T09:40:00').getTime();
+const ORIGIN_TIME = new Date(ORIGIN_AT).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+test('the result card renders a muted "From <label>, <time>" line from the plan origin', () => {
+  const { els } = makeHarness();
+  initMainPanel();
+  updateResultCard(
+    [{ action: 'groupTabs', data: { tabIds: [1, 2] } }],
+    { label: 'Analyze: Put into my groups', at: ORIGIN_AT },
+  );
+  const line = els.resultCard.children.find((c) => c.classes.has('resultOrigin'));
+  assert.ok(line, 'the origin line is inserted into the card');
+  assert.equal(line.textContent, `From Analyze: Put into my groups, ${ORIGIN_TIME}`);
+});
+
+test('the result card drops the From line when there is no origin, and re-renders without stacking', () => {
+  const { els } = makeHarness();
+  initMainPanel();
+  // First with an origin, then an update with none: the line is removed.
+  updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }], { label: 'Close duplicates', at: ORIGIN_AT });
+  assert.ok(els.resultCard.children.some((c) => c.classes.has('resultOrigin')), 'From line present with an origin');
+  updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }], null);
+  assert.ok(!els.resultCard.children.some((c) => c.classes.has('resultOrigin')), 'From line gone with no origin');
+  // Two origin paints leave exactly one line.
+  updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }], { label: 'Command', at: ORIGIN_AT });
+  updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }], { label: 'Command', at: ORIGIN_AT });
+  assert.equal(els.resultCard.children.filter((c) => c.classes.has('resultOrigin')).length, 1, 'only one From line after two paints');
+});
+
+test('an empty plan hides the card and shows no From line even if an origin is passed', () => {
+  const { els } = makeHarness();
+  initMainPanel();
+  updateResultCard([], { label: 'Command', at: ORIGIN_AT });
+  assert.equal(els.resultCard.hidden, true);
+  assert.ok(!els.resultCard.children.some((c) => c.classes.has('resultOrigin')), 'no From line for an empty plan');
+});
