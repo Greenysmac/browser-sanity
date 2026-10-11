@@ -84,3 +84,11 @@ test('fileIntoParked true ignores groupTabs items without the parkedMatch flag',
   assert.deepEqual(toApply, [liveGroup()]);
   assert.equal(expansions.size, 0);
 });
+
+test('renaming a parked-match group in Review drops parkedMatch', async () => {
+  const { renameGroup } = await import('../extension/sidepanel/viewmodel.js');
+  const item = { itemId: 'g', action: 'groupTabs', data: { groupName: 'Someday', parkedMatch: true, tabIds: [1] } };
+  const out = renameGroup(item, 'Reading list');
+  assert.equal(out.data.groupName, 'Reading list');
+  assert.equal(out.data.parkedMatch, undefined);
+});

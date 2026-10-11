@@ -2,6 +2,15 @@
    Theme-aware developer-tool aesthetic: slate neutrals + a green "run" accent.
    No remote assets (extension CSP / offline): system font stack, inline SVG. */
 
+/* The hidden attribute always wins. Class rules like `display: flex` or
+   `display: grid` otherwise override it, and hidden leftovers (Run one,
+   the Bookmarks settings) showed anyway. */
+[hidden] { display: none !important; }
+
+/* The Open tabs part's own line says what Analyze does, so the old
+   "No suggestions yet" box would only add clutter. */
+#planEmptyState { display: none !important; }
+
 :root {
   color-scheme: light dark;
 
@@ -363,6 +372,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 
 /* Quick per-feature runs — visually subordinate to the primary Analyze CTA */
 .quickActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.quickActions[hidden] { display: none; }
 .quickLabel { flex: none; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); }
 .runOne { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; }
 .runOne button {

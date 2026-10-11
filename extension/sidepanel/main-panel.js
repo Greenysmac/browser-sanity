@@ -67,7 +67,7 @@ function parkedBreakdown(parked) {
   const byGroup = new Map();
   for (const it of parked) {
     const name = (it.data && it.data.groupName) || '';
-    byGroup.set(name, (byGroup.get(name) || 0) + 1);
+    byGroup.set(name, (byGroup.get(name) || 0) + tabsIn(it));
   }
   return [...byGroup.entries()].map(([name, n]) => `${name} ${n}`).join(', ');
 }
@@ -75,27 +75,33 @@ function parkedBreakdown(parked) {
 // Add or remove the parked-match checkbox under the summary. Shown only when the
 // plan has parkedMatch groupTabs items; rebuilt each paint so its label/count
 // track the current plan, and always starts unchecked.
+const tabsIn = (it) => ((it.data && it.data.tabIds && it.data.tabIds.length) || 0);
+
 function paintParkedToggle(card, items) {
+  // A repaint of the same plan (an edit in Review) keeps the user's choice.
+  const wasChecked = !!(parkedCheckbox && parkedCheckbox.checked);
   if (parkedCheckbox && parkedCheckbox._row && parkedCheckbox._row.parentNode) {
     parkedCheckbox._row.parentNode.removeChild(parkedCheckbox._row);
   }
   parkedCheckbox = null;
   const parked = items.filter((it) => it.action === 'groupTabs' && it.data && it.data.parkedMatch);
   if (!parked.length) return;
+  const tabCount = parked.reduce((n, it) => n + tabsIn(it), 0);
   const row = document.createElement('label');
   row.className = 'parkedToggle';
   const box = document.createElement('input');
   box.type = 'checkbox';
   box.id = 'fileIntoParked';
-  box.checked = false;
+  box.checked = wasChecked;
   const text = document.createElement('span');
-  text.textContent = `File the ${parked.length} tab${parked.length === 1 ? '' : 's'} that match parked groups into those groups instead (${parkedBreakdown(parked)}). This saves and closes them.`;
+  text.textContent = `File the ${tabCount} tab${tabCount === 1 ? '' : 's'} that match parked groups into those groups instead (${parkedBreakdown(parked)}). This saves and closes them.`;
   row.appendChild(box);
   row.appendChild(text);
   box._row = row;
   parkedCheckbox = box;
-  const summary = $('resultSummary');
-  if (summary && summary.parentNode === card) summary.insertAdjacentElement('afterend', row);
+  // Below the summary and its From line.
+  const after = (originEl && originEl.parentNode === card) ? originEl : $('resultSummary');
+  if (after && after.parentNode === card) after.insertAdjacentElement('afterend', row);
   else card.appendChild(row);
 }
 
@@ -134,6 +140,7 @@ export function updateResultCard(plan, origin = null) {
   paintResultOrigin(card, hasResult ? origin : null);
   const count = $('resultCount');
   if (count) count.textContent = hasResult ? `${items.length} suggestion${items.length === 1 ? '' : 's'}.` : '';
+  if (!hasResult && parkedCheckbox) parkedCheckbox.checked = false;
   paintParkedToggle(card, items);
 }
 

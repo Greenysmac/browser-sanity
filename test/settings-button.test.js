@@ -10,12 +10,17 @@ import { initSettingsView } from '../extension/sidepanel/settings-view.js';
 
 const html = readFileSync(new URL('../extension/sidepanel/sidepanel.html', import.meta.url), 'utf8');
 
-test('Tools section comes before the suggestion list (id="plan")', () => {
-  const toolsIdx = html.indexOf('aria-label="Tools"');
+// The Tools live in the More view, which shows on its own (views switch by
+// hiding), so their place in the markup no longer matters. The Review list
+// belongs to the Open tabs part: after its result card, before Parked groups
+// (Mycroft, 2026-10-11).
+test('the suggestion list (id="plan") sits in the Open tabs part', () => {
+  const resultIdx = html.indexOf('id="resultCard"');
   const planIdx = html.indexOf('id="plan"');
-  assert.ok(toolsIdx !== -1, 'Tools section exists');
-  assert.ok(planIdx !== -1, 'plan section exists');
-  assert.ok(toolsIdx < planIdx, 'Tools section should appear before the suggestion list');
+  const parkedIdx = html.indexOf('id="parkedGroupsHeading"');
+  assert.ok(html.includes('aria-label="Tools"'), 'Tools section exists');
+  assert.ok(resultIdx !== -1 && planIdx !== -1 && parkedIdx !== -1);
+  assert.ok(resultIdx < planIdx && planIdx < parkedIdx, 'plan list is between the result card and Parked groups');
 });
 
 test('a Settings button exists in the top row', () => {

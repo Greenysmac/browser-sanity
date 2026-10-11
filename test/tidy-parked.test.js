@@ -337,8 +337,9 @@ test('Apply checked sends mergeParked for checked merges, then splitGroup with n
   await els.apply.click();
 
   const cmds = sent.map((m) => m.cmd);
-  // Merge first, then the split: splitGroup → splitParked → groupsSplit.
-  assert.deepEqual(cmds, ['mergeParked', 'splitGroup', 'splitParked', 'groupsSplit']);
+  // Merge first, then the split: splitGroup → splitParked → groupsSplit, then
+  // the stored copy of the applied proposal is dropped so it can't come back.
+  assert.deepEqual(cmds, ['mergeParked', 'splitGroup', 'splitParked', 'groupsSplit', 'clearSplitProposal']);
   assert.deepEqual(sent[0], { cmd: 'mergeParked', into: 'Travel', from: ['Trips'] });
   assert.deepEqual(sent[1], { cmd: 'splitGroup', name: 'Work', names: ['Docs', 'Code', 'Email'] });
   assert.equal(sent[2].cmd, 'splitParked');
@@ -372,10 +373,10 @@ test('a failed split is named in the status and the rest continue', async () => 
   for (const c of walk(els.list).filter((n) => n.type === 'checkbox')) c.checked = true;
   await els.apply.click();
 
-  assert.ok(statuses.includes('Could not split Work.'), 'the failed split is named');
   // Travel still split after Work failed.
   assert.ok(sent.some((m) => m.cmd === 'splitParked' && m.name === 'Travel'), 'the rest continue');
-  assert.equal(statuses[statuses.length - 1], 'Merged 0, split 1.', 'only the successful split is counted');
+  // The final line counts the successful split and names the failed one.
+  assert.equal(statuses[statuses.length - 1], 'Merged 0, split 1. Could not split Work.');
 });
 
 test('Apply with nothing checked sends nothing and keeps the card', async () => {

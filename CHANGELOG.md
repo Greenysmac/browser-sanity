@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-10-11
+**Run 14 (Kiro, five tasks, all first try, 25 minutes, 5.5 credits; reviewed by Mycroft)**
+- Tabs go into live groups by default. A tab matching a parked group joins an open group with that name; an unchecked box on the result card offers to file them into the parked groups instead (saves and closes them).
+- Re-analyze parked groups is safer: nothing is checked until you check it, no merge that ends up over 30 tabs, merges update the groups file, splitting Someday keeps Someday, and the re-analyze and split cards have Dismiss.
+- The side panel has two parts: Open tabs (Analyze), Parked groups (Re-analyze), each with one line saying what it touches. Run one, the Bookmarks settings and Sessions are hidden.
+- Every suggestion card says what made it and when ("From Analyze: Put into my groups, 9:40 AM").
+- Re-analyze splits are checkboxes showing the proposed sub-group names; one "Apply checked" does merges, then splits.
+
+**Fixed by Mycroft in review** (real-browser check of every button, both themes): the new From line crashed the re-analyze and split cards in real Chrome (`.find` on a children list); the hidden Run one row and Bookmarks settings still showed (a class display rule beat `hidden`; now `[hidden]` always wins); an applied split could come back as a split card; the parked checkbox counted groups, not tabs, and lost its state on edits; renaming a parked-match group kept it filing into the parked group; the suggestion list sat under the Board (now under Open tabs) and the "No suggestions yet" box is gone. Guard tests for the children trap now cover every page.
+
 ## 0.5.3 — 2026-10-11
 **No leftovers, by Mycroft (Jeff: "On restart/new run, there shouldn't be any leftover")**
 - Reloading or updating the extension, or restarting Chrome, clears every stored suggestion: the sort plan, a split proposal, and a pending re-analyze.

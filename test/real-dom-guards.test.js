@@ -43,3 +43,19 @@ test('no extension page loops a live children list directly', () => {
     assert.deepEqual(bad, [], f);
   }
 });
+
+// The same HTMLCollection trap in any page, not just board.js: run 14's "From"
+// line called (card.children || []).find, which throws in real Chrome.
+test('no extension page calls array methods directly on element.children', () => {
+  for (const f of EXT_FILES) {
+    const bad = read(f).match(/(?<!Array\.from)\(\s*[\w.]+\.children\s*\|\|\s*\[\]\s*\)\.(find|filter|includes|some|map|forEach|every)\(/g) || [];
+    assert.deepEqual(bad, [], f);
+  }
+});
+
+// A class rule like `.quickActions { display: flex }` beats the hidden
+// attribute, so every element the panel hides by attribute needs a [hidden] rule.
+test('the hidden Run one row really hides', () => {
+  const css = fs.readFileSync(new URL('../extension/sidepanel/sidepanel.css', import.meta.url), 'utf8');
+  assert.match(css, /\.quickActions\[hidden\]\s*\{\s*display:\s*none/);
+});

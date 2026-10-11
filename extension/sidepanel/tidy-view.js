@@ -79,7 +79,7 @@ function splitLine(s) {
 // summary. Built with createElement/textContent only. A card can carry at most
 // one, tracked by the .resultOrigin class so re-renders don't stack them.
 function renderOrigin(card, summary, origin) {
-  const existing = (card.children || []).find((c) => c && c.className === 'resultOrigin');
+  const existing = Array.from(card.children || []).find((c) => c && c.className === 'resultOrigin');
   if (existing && existing.remove) existing.remove();
   const text = originLine(origin);
   if (!text) return;
@@ -137,18 +137,22 @@ export function showTidyProposal({ proposal, els, send, setStatus = () => {}, on
       // parked group into the proposed sub-group names, then apply the returned
       // parked proposal directly with the split card's own calls — no card.
       let splitOk = 0;
+      const failed = [];
       for (const s of checkedSplits) {
         setStatus(`Splitting ${s.name}…`);
         const res = await send({ cmd: 'splitGroup', name: s.name, names: s.into });
         if (res && res.ok && res.proposal) {
           await applyParkedSplit(res.proposal, send);
+          // splitGroup also stores the proposal for the new-tab hand-off; it's
+          // applied now, so drop it before it can show up as a split card.
+          await send({ cmd: 'clearSplitProposal' });
           splitOk += 1;
         } else {
-          setStatus(`Could not split ${s.name}.`);
+          failed.push(s.name);
         }
       }
       card.hidden = true;
-      setStatus(`Merged ${checkedMerges.length}, split ${splitOk}.`);
+      setStatus(`Merged ${checkedMerges.length}, split ${splitOk}.${failed.length ? ` Could not split ${failed.join(', ')}.` : ''}`);
       await onDone();
     };
   }

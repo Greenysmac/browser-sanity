@@ -94,7 +94,7 @@ function buildReviewList(proposal) {
 // summary. Built with createElement/textContent only. A card carries at most
 // one, tracked by the .resultOrigin class so re-renders don't stack them.
 function renderOrigin(card, summary, origin) {
-  const existing = (card.children || []).find((c) => c && c.className === 'resultOrigin');
+  const existing = Array.from(card.children || []).find((c) => c && c.className === 'resultOrigin');
   if (existing && existing.remove) existing.remove();
   const text = originLine(origin);
   if (!text) return;

@@ -88,6 +88,38 @@
       </div>
     </section>
 
+    <!-- The Review list belongs to the Open tabs part, right under its result card. -->
+    <div id="planTools" class="planTools" role="toolbar" aria-label="Suggestion list controls" hidden>
+      <div class="planTools-filterRow">
+        <input type="search" id="planFilter" aria-label="Filter suggestions" placeholder="Filter suggestions…" />
+      </div>
+      <div class="planTools-actionsRow">
+        <div class="btnGroup" role="group" aria-label="Selection">
+          <button type="button" id="selectAll">Select all</button>
+          <button type="button" id="selectNone">None</button>
+        </div>
+        <div class="btnGroup" role="group" aria-label="Expand or collapse">
+          <button type="button" id="expandAll">Expand</button>
+          <button type="button" id="collapseAll">Collapse</button>
+        </div>
+        <label class="planTool-toggle"><input type="checkbox" id="groupByStatus" /> <span data-i18n="groupByStatus">By status</span></label>
+      </div>
+    </div>
+
+    <div id="planEmptyState" class="emptyPlan" hidden>
+      <p class="emptyPlanTitle">No suggestions yet</p>
+      <p class="emptyPlanDesc">Click <strong>Analyze</strong> above to sort your tabs into groups.</p>
+    </div>
+
+    <section id="plan" aria-label="Suggestions"></section>
+
+    <div id="planActions" hidden>
+      <button id="approveSelected" class="apply-primary" data-i18n="applySelected">Apply selected</button>
+      <button id="approveAll" data-i18n="applyAll">Apply all</button>
+      <button id="exportMarkdown" data-i18n="exportMarkdown">Export as Markdown</button>
+      <button id="clearPlan" data-i18n="clearList">Clear list</button>
+    </div>
+
     <h2 class="partHeading" id="parkedGroupsHeading">Parked groups</h2>
     <p class="partLine">Suggests merges and splits for saved groups. Open tabs aren't touched.</p>
     <div class="parkedActions">
@@ -203,38 +235,8 @@
 
     <section id="summary" hidden></section>
 
-    <div id="planTools" class="planTools" role="toolbar" aria-label="Suggestion list controls" hidden>
-      <div class="planTools-filterRow">
-        <input type="search" id="planFilter" aria-label="Filter suggestions" placeholder="Filter suggestions…" />
-      </div>
-      <div class="planTools-actionsRow">
-        <div class="btnGroup" role="group" aria-label="Selection">
-          <button type="button" id="selectAll">Select all</button>
-          <button type="button" id="selectNone">None</button>
-        </div>
-        <div class="btnGroup" role="group" aria-label="Expand or collapse">
-          <button type="button" id="expandAll">Expand</button>
-          <button type="button" id="collapseAll">Collapse</button>
-        </div>
-        <label class="planTool-toggle"><input type="checkbox" id="groupByStatus" /> <span data-i18n="groupByStatus">By status</span></label>
-      </div>
-    </div>
-
-    <div id="planEmptyState" class="emptyPlan" hidden>
-      <p class="emptyPlanTitle">No suggestions yet</p>
-      <p class="emptyPlanDesc">Click <strong>Analyze</strong> above to sort your tabs into groups.</p>
-    </div>
-
-    <section id="plan" aria-label="Suggestions"></section>
-
     <div id="undoToast" role="status" hidden></div>
 
-    <div id="planActions" hidden>
-      <button id="approveSelected" class="apply-primary" data-i18n="applySelected">Apply selected</button>
-      <button id="approveAll" data-i18n="applyAll">Apply all</button>
-      <button id="exportMarkdown" data-i18n="exportMarkdown">Export as Markdown</button>
-      <button id="clearPlan" data-i18n="clearList">Clear list</button>
-    </div>
 
     <section class="tools" aria-label="Settings">
     <details id="settings">

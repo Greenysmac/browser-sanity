@@ -154,8 +154,12 @@ export function excludeMember(item, tabId) {
   return { ...item, data: { ...item.data, members, tabIds: members.map((m) => m.tabId) } };
 }
 
+// A renamed group no longer matches the parked group it was named after, so it
+// drops parkedMatch (it can't be filed into a parked group it isn't).
 export function renameGroup(item, name) {
-  return { ...item, data: { ...item.data, groupName: name } };
+  const { parkedMatch, ...data } = item.data;
+  void parkedMatch;
+  return { ...item, data: { ...data, groupName: name } };
 }
 
 export function recolorGroup(item, color) {
