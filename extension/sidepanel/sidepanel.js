@@ -43,8 +43,11 @@ function initBoardView() {
     apply: $('tidyApply'),
   };
   const paint = () => renderBoard($('boardBody'), { send, setStatus, onSplitProposal, onTidyParked });
+  // Once a proposal is on screen, drop the stored copy so it can't come back
+  // the next time the panel opens.
   const onSplitProposal = (proposal) => {
     showSplitProposal({ proposal, els: splitEls, send, setStatus, onDone: paint });
+    send({ cmd: 'clearSplitProposal' });
   };
   // "Re-analyze parked groups…" (the Parked header button and the More-view button):
   // ask the service worker for a proposal, then show it on the tidy card. A
@@ -91,10 +94,7 @@ function initBoardView() {
   // A proposal may already be waiting — the new-tab page's Split action stores
   // one and opens the panel, so show it on first load.
   send({ cmd: 'getSplitProposal' }).then((res) => {
-    if (res && res.ok && res.proposal) {
-      onSplitProposal(res.proposal);
-      send({ cmd: 'clearSplitProposal' });
-    }
+    if (res && res.ok && res.proposal) onSplitProposal(res.proposal);
   });
   return paint();
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 — 2026-10-11
+**No leftovers, by Mycroft (Jeff: "On restart/new run, there shouldn't be any leftover")**
+- Reloading or updating the extension, or restarting Chrome, clears every stored suggestion: the sort plan, a split proposal, and a pending re-analyze.
+- A stored split proposal is shown only within two minutes of being made (the new-tab page's hand-off to the panel), and the panel drops it as soon as it's on screen.
+- The restart cleanup never ran before: it loaded code with import(), which Chrome refuses in a service worker, so the handler stopped on its first line. Now a plain import.
+
 ## 0.5.2 — 2026-10-10
 **Fixes by Mycroft, from Jeff's report**
 - Split… did nothing: the split card crashed in real Chrome (it assigned to a read-only `children`), so no proposal ever showed. Fixed, and the review list now shows every sub-group (looping the live list skipped every other one). The panel also says "Working out a split for <group>…" while it waits, and says so when a split fails.

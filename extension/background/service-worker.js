@@ -1,5 +1,5 @@
 import { getSettings, setSettings } from '../lib/storage.js';
-import { installActivityListeners } from '../lib/activity-tracker.js';
+import { installActivityListeners, reconcile } from '../lib/activity-tracker.js';
 import { createNativeClient } from '../lib/native-client.js';
 import { buildPlan, partitionForApply, applyItems, runCommand, loadProposals, recordDecision, finalizePlan } from '../lib/orchestrator.js';
 import { applyItem } from '../lib/executor.js';
@@ -21,6 +21,17 @@ import { apiKeyForProvider } from '../lib/providers.js';
 // A stored plan goes stale after this long; getPlan clears one older than this
 // rather than serve yesterday's suggestions.
 const PLAN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+// Suggestions belong to the click that made them (Jeff, 2026-10-11: "On
+// restart/new run, there shouldn't be any leftover"). A browser restart or an
+// extension reload or update clears every stored suggestion, and a stored split
+// proposal is shown only within two minutes of being made, which is long enough
+// for the new-tab page to hand it to the panel.
+const SPLIT_PROPOSAL_MAX_AGE_MS = 2 * 60 * 1000;
+async function clearLeftovers() {
+  await withLock('currentPlan', () => chrome.storage.local.remove(['currentPlan', 'currentPlanAt']));
+  await withLock('splitProposal', () => chrome.storage.local.remove(['splitProposal', 'pendingReanalyze']));
+}
 
 // The single plan writer: store the items and stamp when they were made, both
 // under the shared 'currentPlan' lock the other readers/writers use, so the
@@ -100,6 +111,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await clearLeftovers();
   const settings = await getSettings();
   await chrome.alarms.create(ALARM_SCAN, { periodInMinutes: settings.scanIntervalMinutes });
   await chrome.alarms.create(ALARM_PRUNE, { periodInMinutes: 1440 });
@@ -118,17 +130,18 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
   await chrome.alarms.create(ALARM_SCAN, { periodInMinutes: newMin });
 });
 
+// Clear leftovers first. (This used to load reconcile with import(), which
+// Chrome refuses in a service worker, so nothing after it ever ran.)
 chrome.runtime.onStartup.addListener(async () => {
+  await clearLeftovers();
   const now = Date.now();
   const rawTabs = await chrome.tabs.query({});
-  const { reconcile } = await import('../lib/activity-tracker.js');
   // Share the 'tabActivity' lock with the activity listeners so this startup
   // reconcile can't clobber a concurrently-written timestamp.
   await withLock('tabActivity', async () => {
     const { tabActivity = {} } = await chrome.storage.local.get('tabActivity');
     await chrome.storage.local.set({ tabActivity: reconcile(tabActivity, rawTabs, now) });
   });
-  await chrome.storage.local.remove('currentPlan'); // stale plan (see Task 6)
 });
 
 installActivityListeners(chrome);
@@ -806,7 +819,7 @@ async function handleSplitGroup(m) {
 
   const tabCount = hostTabs.length;
   const proposal = { kind, name, groupId: m.groupId ?? null, color, tabCount, subGroups };
-  await withLock('splitProposal', () => chrome.storage.local.set({ splitProposal: proposal }));
+  await withLock('splitProposal', () => chrome.storage.local.set({ splitProposal: { ...proposal, createdAt: Date.now() } }));
   return { ok: true, proposal };
 }
 
@@ -814,6 +827,11 @@ async function handleSplitGroup(m) {
 // page's Split action opened it) and clears it once shown.
 async function handleGetSplitProposal() {
   const { splitProposal = null } = await chrome.storage.local.get('splitProposal');
+  if (!splitProposal) return { ok: true, proposal: null };
+  if (!splitProposal.createdAt || Date.now() - splitProposal.createdAt > SPLIT_PROPOSAL_MAX_AGE_MS) {
+    await withLock('splitProposal', () => chrome.storage.local.remove('splitProposal'));
+    return { ok: true, proposal: null };
+  }
   return { ok: true, proposal: splitProposal };
 }
 
