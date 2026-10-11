@@ -8,6 +8,7 @@ import { showUndoToast } from './undo.js';
 import { updateResultCard } from './main-panel.js';
 import { isSelectedMode } from './main-panel.js';
 import { hideResults } from './main-panel.js';
+import { fileIntoParkedChecked } from './main-panel.js';
 import { ignoreKey } from '../lib/orchestrator.js';
 import { TAB_GROUP_COLORS as GROUP_COLORS } from '../lib/colors.js';
 import { STATUS_LABELS } from '../lib/labels.js';
@@ -427,7 +428,7 @@ async function applyItems(itemIds) {
   setStatus(`Applying ${itemIds.length}…`);
   setPlanActionsBusy(true);
   try {
-    const res = await send({ cmd: 'apply', itemIds });
+    const res = await send({ cmd: 'apply', itemIds, fileIntoParked: fileIntoParkedChecked() });
     if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
     plan = await fetchPlan();
     selection = new Set();

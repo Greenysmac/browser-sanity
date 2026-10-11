@@ -15,9 +15,11 @@ export function indexById(snapshots) {
 // for one tab. Name matching is trimmed/case-insensitive.
 //
 // When a group's name matches a parked group but NO open group of that name
-// exists in the window, the result isn't a live tab group at all — the tabs
-// belong in the parked record. Those windows emit one `parkTab` item per tab
-// (file-and-close) instead of a single `groupTabs` item.
+// exists in the window, the tabs still form an ordinary live Chrome tab group
+// (a single tab is enough, as with an open-group match). The item is flagged
+// `data.parkedMatch = true` so the panel can offer to file those tabs into the
+// parked record instead; its members carry each tab's windowId and index so the
+// service worker can expand them into parkTab items when the user opts in.
 export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map(), parkedNames = [] } = {}) {
   const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
   const parkedSet = new Set(parkedNames.map(norm));
@@ -37,21 +39,10 @@ export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map()
       const name = norm(g.name);
       const matchesOpen = openSets.has(windowId) && openSets.get(windowId).has(name);
       const matchesParked = parkedSet.has(name);
-      // A parked name with no open group in this window → file the tabs into the
-      // parked record (one parkTab per tab) rather than form an open group.
-      if (matchesParked && !matchesOpen) {
-        for (const m of members) {
-          items.push({
-            itemId: `park-${gi}-${wi++}`,
-            action: 'parkTab',
-            status: 'pending',
-            reason: `File into parked group "${g.name}"`,
-            data: { tabId: m.tabId, url: m.url, title: m.title, groupName: g.name, windowId, index: m.index },
-          });
-        }
-        continue;
-      }
-      if (members.length < 2 && !matchesOpen) continue; // single tab, no existing group to join
+      // A parked name with no open group in this window → a live group of its
+      // own, flagged parkedMatch so the panel can offer to file them instead.
+      const parkedMatch = matchesParked && !matchesOpen;
+      if (members.length < 2 && !matchesOpen && !parkedMatch) continue; // single tab, no existing/parked group to join
       items.push({
         itemId: `group-${gi}-${wi++}`,
         action: 'groupTabs',
@@ -59,8 +50,9 @@ export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map()
         reason: `Group "${g.name}" (${members.length} tabs)`,
         data: {
           groupName: g.name, color: g.color, windowId,
+          ...(parkedMatch ? { parkedMatch: true } : {}),
           tabIds: members.map((m) => m.tabId),
-          members: members.map((m) => ({ tabId: m.tabId, title: m.title, url: m.url })),
+          members: members.map((m) => ({ tabId: m.tabId, title: m.title, url: m.url, windowId, index: m.index })),
         },
       });
     }

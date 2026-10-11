@@ -145,9 +145,9 @@ test('mapOrganizeResult drops a move to a targetFolderId not in the inventory', 
   assert.deepEqual(out, []);
 });
 
-// --- TASK 1: parkTab vs groupTabs for parked/open names ----------------------
+// --- TASK 1: parked-name matches become live groups, flagged parkedMatch ------
 
-test('mapGroupResult emits parkTab for a parked name (no open group) and groupTabs for an open one', () => {
+test('mapGroupResult flags a parked-name match as a groupTabs item (parkedMatch) and never emits parkTab', () => {
   const tabs = [
     { tabId: 1, title: 'H1', url: 'https://h1.com', windowId: 9, index: 0, pinned: false },
     { tabId: 2, title: 'H2', url: 'https://h2.com', windowId: 9, index: 1, pinned: false },
@@ -156,36 +156,48 @@ test('mapGroupResult emits parkTab for a parked name (no open group) and groupTa
   ];
   const byId = indexById(tabs);
   const groups = [
-    { name: 'Hearing research', color: 'red', tabIds: [1, 2] }, // parked, no open group → parkTab x2
-    { name: 'Work', color: 'blue', tabIds: [3, 4] },            // open group → groupTabs
+    { name: 'Hearing research', color: 'red', tabIds: [1, 2] }, // parked, no open group → groupTabs w/ parkedMatch
+    { name: 'Work', color: 'blue', tabIds: [3, 4] },            // open group → ordinary groupTabs
   ];
   const openNamesByWindow = new Map([[9, ['Work']]]);
   const items = mapGroupResult(groups, byId, { openNamesByWindow, parkedNames: ['  hearing research  '] });
-  const parks = items.filter((i) => i.action === 'parkTab');
-  const grouped = items.filter((i) => i.action === 'groupTabs');
-  assert.equal(parks.length, 2);
-  assert.equal(grouped.length, 1);
-  // One parkTab per tab, carrying the destination parked group name + where it was.
-  assert.deepEqual(parks.map((p) => p.data.tabId).sort(), [1, 2]);
-  assert.ok(parks.every((p) => p.data.groupName === 'Hearing research'));
-  assert.equal(parks[0].data.windowId, 9);
-  assert.equal(parks[0].data.url, 'https://h1.com');
-  assert.equal(parks[0].data.index, 0);
-  assert.ok(parks.every((p) => p.status === 'pending'));
-  // The open-group match is still a single groupTabs item with both tabs.
-  assert.equal(grouped[0].data.groupName, 'Work');
-  assert.deepEqual(grouped[0].data.tabIds.sort(), [3, 4]);
+  assert.equal(items.length, 2);
+  assert.equal(items.filter((i) => i.action === 'parkTab').length, 0, 'no parkTab items');
+  const parked = items.find((i) => i.data.groupName === 'Hearing research');
+  assert.equal(parked.action, 'groupTabs');
+  assert.equal(parked.data.parkedMatch, true);
+  assert.deepEqual(parked.data.tabIds.sort(), [1, 2]);
+  // Members carry each tab's windowId and index so apply can expand to parkTab.
+  assert.equal(parked.data.members[0].windowId, 9);
+  assert.equal(parked.data.members[0].index, 0);
+  assert.equal(parked.data.members[1].index, 1);
+  // The open-group match is an ordinary groupTabs item with no parkedMatch flag.
+  const work = items.find((i) => i.data.groupName === 'Work');
+  assert.equal(work.action, 'groupTabs');
+  assert.equal(work.data.parkedMatch, undefined);
+  assert.deepEqual(work.data.tabIds.sort(), [3, 4]);
 });
 
-test('mapGroupResult prefers an open group over a parked record of the same name (groupTabs, not parkTab)', () => {
+test('mapGroupResult keeps a single parked-name match as a one-tab parkedMatch group', () => {
+  const tabs = [{ tabId: 1, title: 'A', url: 'https://a.com', windowId: 9, index: 0, pinned: false }];
+  const byId = indexById(tabs);
+  const items = mapGroupResult([{ name: 'Someday', color: 'grey', tabIds: [1] }], byId, { parkedNames: ['Someday'] });
+  assert.equal(items.length, 1);
+  assert.equal(items[0].action, 'groupTabs');
+  assert.equal(items[0].data.parkedMatch, true);
+  assert.deepEqual(items[0].data.tabIds, [1]);
+});
+
+test('mapGroupResult prefers an open group over a parked record of the same name (plain groupTabs, no parkedMatch)', () => {
   const tabs = [{ tabId: 1, title: 'A', url: 'https://a.com', windowId: 9, index: 0, pinned: false }];
   const byId = indexById(tabs);
   // "Reading" is both parked and open in window 9 — the open group wins, so a
-  // single-tab join is a groupTabs item, not a parkTab.
+  // single-tab join is a plain groupTabs item without the parkedMatch flag.
   const items = mapGroupResult([{ name: 'Reading', color: 'red', tabIds: [1] }], byId, {
     openNamesByWindow: new Map([[9, ['Reading']]]), parkedNames: ['Reading'],
   });
   assert.equal(items.length, 1);
   assert.equal(items[0].action, 'groupTabs');
+  assert.equal(items[0].data.parkedMatch, undefined);
   assert.deepEqual(items[0].data.tabIds, [1]);
 });

@@ -50,6 +50,55 @@ export function isSelectedMode() {
   return selectedMode;
 }
 
+// The parked-match checkbox the result card shows when the plan has groupTabs
+// items flagged data.parkedMatch. Unchecked by default: the tabs form live
+// groups unless the user opts to file them into the matching parked groups.
+let parkedCheckbox = null;
+
+// Whether the user has opted to file parked-name matches into the parked record.
+// The apply path (plan-view) reads this to set the message's fileIntoParked.
+export function fileIntoParkedChecked() {
+  return !!(parkedCheckbox && parkedCheckbox.checked);
+}
+
+// A per-group count line for the label, e.g. "Hearing research 1, Someday 1",
+// built from the parkedMatch items in first-seen order.
+function parkedBreakdown(parked) {
+  const byGroup = new Map();
+  for (const it of parked) {
+    const name = (it.data && it.data.groupName) || '';
+    byGroup.set(name, (byGroup.get(name) || 0) + 1);
+  }
+  return [...byGroup.entries()].map(([name, n]) => `${name} ${n}`).join(', ');
+}
+
+// Add or remove the parked-match checkbox under the summary. Shown only when the
+// plan has parkedMatch groupTabs items; rebuilt each paint so its label/count
+// track the current plan, and always starts unchecked.
+function paintParkedToggle(card, items) {
+  if (parkedCheckbox && parkedCheckbox._row && parkedCheckbox._row.parentNode) {
+    parkedCheckbox._row.parentNode.removeChild(parkedCheckbox._row);
+  }
+  parkedCheckbox = null;
+  const parked = items.filter((it) => it.action === 'groupTabs' && it.data && it.data.parkedMatch);
+  if (!parked.length) return;
+  const row = document.createElement('label');
+  row.className = 'parkedToggle';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.id = 'fileIntoParked';
+  box.checked = false;
+  const text = document.createElement('span');
+  text.textContent = `File the ${parked.length} tab${parked.length === 1 ? '' : 's'} that match parked groups into those groups instead (${parkedBreakdown(parked)}). This saves and closes them.`;
+  row.appendChild(box);
+  row.appendChild(text);
+  box._row = row;
+  parkedCheckbox = box;
+  const summary = $('resultSummary');
+  if (summary && summary.parentNode === card) summary.insertAdjacentElement('afterend', row);
+  else card.appendChild(row);
+}
+
 // Update the result card from the current plan: one plain summary line plus the
 // "N suggestions." count (shown only here, not in the status line above). The
 // card is shown whenever there's a plan to apply.
@@ -64,6 +113,7 @@ export function updateResultCard(plan) {
   if (summary) summary.textContent = line;
   const count = $('resultCount');
   if (count) count.textContent = hasResult ? `${items.length} suggestion${items.length === 1 ? '' : 's'}.` : '';
+  paintParkedToggle(card, items);
 }
 
 // Review toggles the detailed suggestion list (and its toolbar/actions), which

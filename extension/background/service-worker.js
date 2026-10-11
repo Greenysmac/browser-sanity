@@ -414,6 +414,39 @@ async function handleUpdatePlan(m) {
   return storePlan(m.items || []).then(() => ({ ok: true }));
 }
 
+// When `fileIntoParked` is set, each chosen groupTabs item flagged
+// `data.parkedMatch` is filed into the parked record instead of forming a live
+// group: it expands into one parkTab item per member (the exact shape
+// mapGroupResult used to emit) so the park path, undo and the board's "+N new"
+// count all keep working. The original item counts as applied when every part
+// applied, so it leaves the stored plan. Items that aren't expanded pass
+// through unchanged. Returns { toApply, expansions } where `expansions` maps an
+// original itemId to its part itemIds.
+// Exported for unit tests.
+export function expandParkedMatches(chosen, fileIntoParked) {
+  if (!fileIntoParked) return { toApply: chosen, expansions: new Map() };
+  const toApply = [];
+  const expansions = new Map();
+  for (const item of chosen) {
+    if (item.action !== 'groupTabs' || !(item.data && item.data.parkedMatch)) { toApply.push(item); continue; }
+    const members = (item.data && item.data.members) || [];
+    const partIds = [];
+    members.forEach((m, i) => {
+      const partId = `${item.itemId}-park-${i}`;
+      partIds.push(partId);
+      toApply.push({
+        itemId: partId,
+        action: 'parkTab',
+        status: 'pending',
+        reason: `File into parked group "${item.data.groupName}"`,
+        data: { tabId: m.tabId, url: m.url, title: m.title, groupName: item.data.groupName, windowId: m.windowId, index: m.index },
+      });
+    });
+    expansions.set(item.itemId, partIds);
+  }
+  return { toApply, expansions };
+}
+
 async function handleApply(m) {
   // Snapshot the open group titles before applying so we can tell which groups a
   // re-sort emptied (existed before, gone after) and report them as dissolved.
@@ -424,6 +457,9 @@ async function handleApply(m) {
   const res = await withLock('currentPlan', async () => {
     const { currentPlan = [] } = await chrome.storage.local.get('currentPlan');
     const chosen = currentPlan.filter((i) => m.itemIds.includes(i.itemId));
+    // Opt-in: file parked-name matches into the parked record (park-and-close)
+    // instead of forming live groups. Default (false) applies them as groups.
+    const { toApply, expansions } = expandParkedMatches(chosen, m.fileIntoParked === true);
     const runId = uniqueId('run-');
     // Fetch settings/folder structure fresh (not whatever was current when the
     // plan was built) so a protection added while the plan sat unreviewed still
@@ -435,16 +471,23 @@ async function handleApply(m) {
     const nativeClient = await makeClient(settings);
     let applyRes;
     try {
-      applyRes = await applyItems(chosen, { runId, applyItem: (i) => applyItem(i, { runId, settings, folders, rootIds, barId, otherId, nativeClient }), recordUndo });
+      applyRes = await applyItems(toApply, { runId, applyItem: (i) => applyItem(i, { runId, settings, folders, rootIds, barId, otherId, nativeClient }), recordUndo });
     } finally {
       nativeClient.disconnect();
     }
-    const remaining = currentPlan.filter((i) => !applyRes.applied.includes(i.itemId));
+    // An expanded original counts as applied once every one of its parts applied,
+    // so it leaves the stored plan like any other applied item.
+    const appliedSet = new Set(applyRes.applied);
+    const applied = applyRes.applied.filter((id) => ![...expansions.values()].some((parts) => parts.includes(id)));
+    for (const [originalId, partIds] of expansions) {
+      if (partIds.length && partIds.every((id) => appliedSet.has(id))) applied.push(originalId);
+    }
+    const remaining = currentPlan.filter((i) => !applied.includes(i.itemId));
     await chrome.storage.local.set({ currentPlan: remaining, currentPlanAt: Date.now() });
     // Remember how many tabs each parked group just received so the board can
     // flag it with a "+n new" badge until the user opens/expands that card.
-    await bumpParkedNewCounts(chosen.filter((i) => i.action === 'parkTab' && applyRes.applied.includes(i.itemId)));
-    return { ok: true, ...applyRes };
+    await bumpParkedNewCounts(toApply.filter((i) => i.action === 'parkTab' && appliedSet.has(i.itemId)));
+    return { ok: true, applied, failed: applyRes.failed };
   });
   // Refresh the on-disk index to match the now-applied tab state. Best-effort:
   // syncIndex never throws, and a failed sync must not fail the apply. Groups

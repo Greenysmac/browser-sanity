@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { installChromeMock } from './helpers/chrome-mock.js';
 import { planSummaryLine, modelsInUseLine } from '../extension/sidepanel/viewmodel.js';
-import { initMainPanel, updateResultCard, isSelectedMode, hideResults } from '../extension/sidepanel/main-panel.js';
+import { initMainPanel, updateResultCard, isSelectedMode, hideResults, fileIntoParkedChecked } from '../extension/sidepanel/main-panel.js';
 
 const html = readFileSync(new URL('../extension/sidepanel/sidepanel.html', import.meta.url), 'utf8');
 
@@ -119,8 +119,10 @@ function el(extra = {}) {
     hidden: false,
     textContent: '',
     value: '',
+    checked: false,
     dataset: {},
     children: [],
+    parentNode: null,
     listeners: {},
     addEventListener(ev, fn) { this.listeners[ev] = fn; },
     setAttribute(k, v) { this.attrs[k] = String(v); },
@@ -131,6 +133,11 @@ function el(extra = {}) {
       toggle: (c, force) => { if (force) node.classes.add(c); else node.classes.delete(c); },
       contains: (c) => node.classes.has(c),
     },
+    appendChild(child) { child.parentNode = node; node.children.push(child); return child; },
+    removeChild(child) { node.children = node.children.filter((c) => c !== child); child.parentNode = null; return child; },
+    insertAdjacentElement(_pos, child) { child.parentNode = node.parentNode; if (node.parentNode) node.parentNode.children.push(child); return child; },
+    get className() { return [...node.classes].join(' '); },
+    set className(v) { node.classes = new Set(String(v).split(/\s+/).filter(Boolean)); },
     click() { if (this.listeners.click) this.listeners.click({ preventDefault() {}, stopImmediatePropagation() {} }); },
     ...extra,
   };
@@ -163,7 +170,13 @@ function makeHarness({ manifest = {}, settings = {} } = {}) {
     planActions: el(),
     summary: el(),
   };
-  globalThis.document = { getElementById: (id) => els[id] || null };
+  // The parked-match toggle inserts itself after the summary, which lives in the card.
+  els.resultCard.children.push(els.resultSummary);
+  els.resultSummary.parentNode = els.resultCard;
+  globalThis.document = {
+    getElementById: (id) => els[id] || null,
+    createElement: () => el(),
+  };
   installChromeMock({
     runtime: { id: 'ext', getManifest: () => manifest },
   });
@@ -269,4 +282,44 @@ test('hideResults clears the result card and collapses the detailed list', () =>
     assert.ok(els[id].classes.has('reviewHidden'), `${id} collapsed after hideResults`);
   }
   assert.equal(els.reviewToggle.getAttribute('aria-expanded'), 'false');
+});
+
+// ---- Parked-match toggle (TASK 1) -------------------------------------------
+
+// A groupTabs item flagged parkedMatch (as mapGroupResult now emits for a
+// parked-name match with no open group).
+const parkedMatch = (name) => ({ action: 'groupTabs', data: { groupName: name, parkedMatch: true, tabIds: [1], members: [{ tabId: 1 }] } });
+
+test('the result card shows the parked-match checkbox only when parkedMatch items exist, unchecked by default', () => {
+  const { els } = makeHarness();
+  initMainPanel();
+
+  // A plan with no parkedMatch items shows no checkbox.
+  updateResultCard([{ action: 'groupTabs', data: { groupName: 'Work', tabIds: [1, 2], members: [{ tabId: 1 }, { tabId: 2 }] } }]);
+  assert.equal(fileIntoParkedChecked(), false, 'no checkbox → reads as unchecked');
+  assert.ok(!els.resultCard.children.some((c) => c.children.some((cc) => cc.attrs.type === 'checkbox' || cc.type === 'checkbox')), 'no checkbox element');
+
+  // A plan with two parkedMatch groups shows one checkbox, unchecked, labelled
+  // with the per-group breakdown.
+  updateResultCard([parkedMatch('Hearing research'), parkedMatch('Someday')]);
+  const row = els.resultCard.children.find((c) => c.classes.has('parkedToggle'));
+  assert.ok(row, 'the toggle row is inserted into the card');
+  const box = row.children.find((c) => c.type === 'checkbox');
+  assert.ok(box, 'a checkbox is built');
+  assert.equal(box.checked, false, 'unchecked by default');
+  assert.equal(fileIntoParkedChecked(), false);
+  const label = row.children.find((c) => c !== box);
+  assert.equal(
+    label.textContent,
+    'File the 2 tabs that match parked groups into those groups instead (Hearing research 1, Someday 1). This saves and closes them.',
+  );
+
+  // Ticking it is reflected by fileIntoParkedChecked().
+  box.checked = true;
+  assert.equal(fileIntoParkedChecked(), true);
+
+  // A later plan with no parked matches removes the checkbox again.
+  updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }]);
+  assert.equal(fileIntoParkedChecked(), false, 'checkbox gone → unchecked');
+  assert.ok(!els.resultCard.children.some((c) => c.classes.has('parkedToggle')), 'toggle row removed');
 });
