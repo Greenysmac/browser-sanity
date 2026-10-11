@@ -1,7 +1,7 @@
 // The tidy-parked proposal card: when "Re-analyze parked groups…" produces a proposal
 // (merges + splits over the parked groups), this fills the result card with one
-// line per proposal. Each merge shows its reason and a checked Apply checkbox;
-// each split shows its reason and a "Split…" button that starts the existing
+// line per proposal. Each merge shows its reason and an unchecked Apply checkbox
+// (the user ticks what they want); each split shows its reason and a "Split…" button that starts the existing
 // split flow for that group. "Apply merges" sends 'mergeParked' for the checked
 // merges, then re-renders the board. Nothing changes until the user acts.
 //
@@ -21,15 +21,16 @@ export function tidySummaryText(proposal) {
   return `Re-analyze parked groups: ${parts.join(', ')}`;
 }
 
-// One merge line: a checked checkbox, "Merge <from…> into <into>" and its reason
-// in muted text. The checkbox element is returned on the <li> as `.checkbox` so
-// Apply can read which merges stay checked.
+// One merge line: an unchecked checkbox, "Merge <from…> into <into>" and its
+// reason in muted text. The user ticks the merges they want. The checkbox
+// element is returned on the <li> as `.checkbox` so Apply can read which merges
+// are checked.
 function mergeLine(m) {
   const li = document.createElement('li');
   li.className = 'tidyMerge';
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.checked = true;
+  checkbox.checked = false;
   const label = document.createElement('span');
   label.className = 'tidyMergeLabel';
   label.textContent = `Merge ${(m.from || []).join(', ')} into ${m.into}`;
@@ -75,7 +76,7 @@ function splitLine(s, onSplit) {
 // the split flow for a parked group; `onDone` is called after Apply so the host
 // can refresh the board. Returns nothing — it mutates the given elements.
 export function showTidyProposal({ proposal, els, send, setStatus = () => {}, onSplit = () => {}, onDone = () => {} }) {
-  const { card, summary, list, apply } = els;
+  const { card, summary, list, apply, dismiss } = els;
   if (!proposal || !card) return;
   const merges = Array.isArray(proposal.merge) ? proposal.merge : [];
   const splits = Array.isArray(proposal.split) ? proposal.split : [];
@@ -105,6 +106,11 @@ export function showTidyProposal({ proposal, els, send, setStatus = () => {}, on
       setStatus(`Merged ${checked.length} ${checked.length === 1 ? 'group set' : 'group sets'}.`);
       await onDone();
     };
+  }
+
+  if (dismiss) {
+    // Dismiss just hides the card; the proposal was never persisted.
+    dismiss.onclick = () => { card.hidden = true; };
   }
 
   card.hidden = false;

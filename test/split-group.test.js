@@ -184,6 +184,7 @@ function makeSplitEls() {
     review: makeEl('button'),
     reviewList: makeEl('ul'),
     apply: makeEl('button'),
+    dismiss: makeEl('button'),
   };
 }
 
@@ -212,6 +213,17 @@ test('Review lists each sub-group with name, count, description and tab titles; 
   assert.equal(els.reviewList.hidden, false, 'Review reveals the list');
 
   assert.equal(sent.length, 0, 'nothing is sent before Apply');
+});
+
+test('Dismiss hides the split card and clears the stored proposal', () => {
+  installFakeDocument();
+  const els = makeSplitEls();
+  const { sent, send } = makeRecordingSend();
+  showSplitProposal({ proposal: PROPOSAL_OPEN, els, send });
+  assert.equal(els.card.hidden, false, 'card starts shown');
+  els.dismiss.click();
+  assert.equal(els.card.hidden, true, 'Dismiss hides the card');
+  assert.deepEqual(sent, [{ cmd: 'clearSplitProposal' }], 'Dismiss clears the stored proposal');
 });
 
 test('Apply for an open group issues groupTabs per sub-group then groupsSplit', async () => {

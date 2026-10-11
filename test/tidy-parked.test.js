@@ -216,7 +216,7 @@ function allText(el) { return walk(el).map((n) => n.textContent).filter(Boolean)
 function byClass(el, cls) { return walk(el).filter((n) => n.className === cls); }
 
 function makeTidyEls() {
-  return { card: makeEl('section'), summary: makeEl('p'), list: makeEl('ul'), apply: makeEl('button') };
+  return { card: makeEl('section'), summary: makeEl('p'), list: makeEl('ul'), apply: makeEl('button'), dismiss: makeEl('button') };
 }
 function makeRecordingSend() {
   const sent = [];
@@ -254,7 +254,7 @@ test('showTidyProposal renders each merge (checkbox + reason) and each split (re
 
   const checkboxes = walk(els.list).filter((n) => n.type === 'checkbox');
   assert.equal(checkboxes.length, 2, 'one checkbox per merge');
-  assert.ok(checkboxes.every((c) => c.checked), 'merges are checked by default');
+  assert.ok(checkboxes.every((c) => !c.checked), 'merges start unchecked; the user ticks what they want');
   assert.equal(byClass(els.list, 'tidySplitBtn').length, 1, 'one Split… button per split');
 });
 
@@ -275,9 +275,9 @@ test('Apply merges sends mergeParked for only the checked merges, then refreshes
   let done = 0;
   showTidyProposal({ proposal: PROPOSAL, els, send, onDone: () => { done += 1; } });
 
-  // Uncheck the second merge (Dev).
+  // Check only the first merge (Travel); the second (Dev) stays unchecked.
   const checkboxes = walk(els.list).filter((n) => n.type === 'checkbox');
-  checkboxes[1].checked = false;
+  checkboxes[0].checked = true;
 
   await els.apply.click();
 
@@ -297,6 +297,100 @@ test('Apply with every merge unchecked sends nothing and keeps the card', async 
   await els.apply.click();
   assert.equal(sent.filter((m) => m.cmd === 'mergeParked').length, 0, 'nothing sent');
   assert.equal(els.card.hidden, false, 'card stays visible');
+});
+
+test('showTidyProposal wires a Dismiss button that hides the card without sending anything', () => {
+  installFakeDocument();
+  const els = makeTidyEls();
+  const { sent, send } = makeRecordingSend();
+  showTidyProposal({ proposal: PROPOSAL, els, send });
+  assert.equal(els.card.hidden, false, 'card starts shown');
+  els.dismiss.click();
+  assert.equal(els.card.hidden, true, 'Dismiss hides the card');
+  assert.equal(sent.length, 0, 'Dismiss sends nothing');
+});
+
+// ---- prompt: the 30-tab guardrail -------------------------------------------
+
+test('tidy prompt tells the model never to merge past 30 tabs and to split any group over 30', () => {
+  const p = buildTidyParkedPrompt([{ name: 'A', tabs: [] }]);
+  assert.match(p, /never|Never/);
+  assert.match(p, /30 tabs/);
+  assert.match(p, /SPLIT for any group past 30 tabs/);
+});
+
+// ---- dispatch: tidy-parked drops merges that would exceed 30 tabs -----------
+
+test('organize/tidy-parked drops a merge whose into + from tab counts exceed 30', async () => {
+  // Learning Claude Code 34, Claude skills and plugins 24, AI writing cleanup 10
+  // → 68 tabs if merged, so the merge must be dropped. A small merge survives.
+  const mk = (name, n) => ({ name, tabs: Array.from({ length: n }, (_, i) => ({ title: `${name}-${i}`, url: `https://x/${name}/${i}` })) });
+  const out = JSON.stringify({
+    merge: [
+      { into: 'Learning Claude Code', from: ['Claude skills and plugins', 'AI writing cleanup'], reason: 'all AI' },
+      { into: 'Travel', from: ['Trips'], reason: 'same' },
+    ],
+    split: [],
+  });
+  const r = await handle(
+    { type: 'organize', task: 'tidy-parked', payload: { groups: [
+      mk('Learning Claude Code', 34), mk('Claude skills and plugins', 24), mk('AI writing cleanup', 10),
+      mk('Travel', 2), mk('Trips', 1),
+    ] } },
+    { getAdapter: fakeGetAdapter(out) },
+  );
+  assert.deepEqual(r.merge, [{ into: 'Travel', from: ['Trips'], reason: 'same' }], 'the 68-tab merge is dropped, the small one kept');
+});
+
+test('organize/tidy-parked uses tabCount when a sent group has no tabs array', async () => {
+  const out = JSON.stringify({ merge: [{ into: 'A', from: ['B'], reason: 'x' }], split: [] });
+  const r = await handle(
+    { type: 'organize', task: 'tidy-parked', payload: { groups: [{ name: 'A', tabCount: 20 }, { name: 'B', tabCount: 20 }] } },
+    { getAdapter: fakeGetAdapter(out) },
+  );
+  assert.deepEqual(r.merge, [], '40 tabs by count exceeds 30, so the merge is dropped');
+});
+
+// ---- dispatch: merge-parked keeps the groups file in step -------------------
+
+test('merge-parked calls writeGroupMerge after a successful merge', async () => {
+  let merged = null;
+  const r = await handle(
+    { type: 'merge-parked', payload: { into: 'Homelab', from: ['Squad Watch', 'hardware'] } },
+    {
+      getAdapter: fakeGetAdapter(''),
+      mergeParkedGroups: () => ({ ok: true, tabs: 5 }),
+      writeGroupMerge: (into, from) => { merged = { into, from }; return { ok: true }; },
+    },
+  );
+  assert.deepEqual(r, { ok: true, tabs: 5 });
+  assert.deepEqual(merged, { into: 'Homelab', from: ['Squad Watch', 'hardware'] });
+});
+
+test('merge-parked skips the groups file when the merge fails', async () => {
+  let called = false;
+  const r = await handle(
+    { type: 'merge-parked', payload: { into: 'A', from: ['Nope'] } },
+    {
+      getAdapter: fakeGetAdapter(''),
+      mergeParkedGroups: () => ({ ok: false, error: 'none' }),
+      writeGroupMerge: () => { called = true; return { ok: true }; },
+    },
+  );
+  assert.equal(r.ok, false);
+  assert.equal(called, false, 'no groups-file write when the merge did not happen');
+});
+
+test('merge-parked still succeeds when the groups-file write throws (best effort)', async () => {
+  const r = await handle(
+    { type: 'merge-parked', payload: { into: 'A', from: ['B'] } },
+    {
+      getAdapter: fakeGetAdapter(''),
+      mergeParkedGroups: () => ({ ok: true, tabs: 2 }),
+      writeGroupMerge: () => { throw new Error('disk full'); },
+    },
+  );
+  assert.deepEqual(r, { ok: true, tabs: 2 }, 'a groups-file failure never fails the merge');
 });
 
 // ---- board: the "Re-analyze parked groups…" button in the Parked header ----------

@@ -92,7 +92,7 @@ function buildReviewList(proposal) {
 // line; `onDone` is called after a successful Apply so the host can refresh the
 // board. Returns nothing — it mutates the given elements.
 export function showSplitProposal({ proposal, els, send, setStatus = () => {}, onDone = () => {} }) {
-  const { card, summary, review, reviewList, apply } = els;
+  const { card, summary, review, reviewList, apply, dismiss } = els;
   if (!proposal || !card) return;
   if (summary) summary.textContent = splitSummaryText(proposal);
   if (reviewList) {
@@ -120,6 +120,10 @@ export function showSplitProposal({ proposal, els, send, setStatus = () => {}, o
       setStatus(`Split "${proposal.name}" into ${(proposal.subGroups || []).length} groups.`);
       await onDone();
     };
+  }
+  if (dismiss) {
+    // Dismiss hides the card and clears the stored proposal so it can't return.
+    dismiss.onclick = () => { card.hidden = true; send({ cmd: 'clearSplitProposal' }); };
   }
   card.hidden = false;
 }

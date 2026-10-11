@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { writeIndex, splitParkedGroup, readIndex } from '../native-host/index-file.js';
-import { splitGroupLines, writeGroupSplit } from '../native-host/groups-file.js';
+import { splitGroupLines, writeGroupSplit, mergeGroupLines, writeGroupMerge } from '../native-host/groups-file.js';
 import { handle } from '../native-host/dispatch.js';
 
 function tempDir() {
@@ -192,4 +192,89 @@ test('health advertises the split-parked and groups-split message types', async 
   const r = await handle({ type: 'health' }, { getAdapter });
   assert.ok(r.capabilities.types.includes('split-parked'));
   assert.ok(r.capabilities.types.includes('groups-split'));
+});
+
+// ---- Someday is the catch-all: splitting it keeps its line ------------------
+
+test('splitGroupLines keeps the Someday line and inserts new lines after it', () => {
+  const text = 'Intro.\n- Someday: catch-all\n- Play: games';
+  const out = splitGroupLines(text, 'someday', [{ name: 'Alpha', description: 'a' }, { name: 'Beta', description: 'b' }]);
+  assert.equal(out, 'Intro.\n- Someday: catch-all\n- Alpha: a\n- Beta: b\n- Play: games');
+});
+
+test('splitGroupLines still replaces a non-Someday group', () => {
+  const out = splitGroupLines('- Work: old\n- Someday: catch-all', 'Work', [{ name: 'Alpha', description: 'a' }]);
+  assert.equal(out, '- Alpha: a\n- Someday: catch-all');
+});
+
+// ---- mergeGroupLines --------------------------------------------------------
+
+test('mergeGroupLines drops each from line and keeps the existing into line', () => {
+  const text = 'Intro.\n- Homelab: my servers\n- Squad Watch: s\n- hardware: h\n- Play: games';
+  const out = mergeGroupLines(text, 'Homelab', ['Squad Watch', 'hardware']);
+  assert.equal(out, 'Intro.\n- Homelab: my servers\n- Play: games');
+});
+
+test('mergeGroupLines matches names trimmed and case-insensitively', () => {
+  const out = mergeGroupLines('- Travel: t\n- Trips: p', '  travel  ', ['TRIPS']);
+  assert.equal(out, '- Travel: t');
+});
+
+test('mergeGroupLines promotes the first from line to into when into has no line', () => {
+  // No "Combined" line exists; the first dropped source (A) is renamed to
+  // Combined, keeping A's description and its position.
+  const out = mergeGroupLines('- A: alpha\n- B: beta\n- Keep: k', 'Combined', ['A', 'B']);
+  assert.equal(out, '- Combined: alpha\n- Keep: k');
+});
+
+test('mergeGroupLines ignores a from equal to into and leaves unknown names alone', () => {
+  const out = mergeGroupLines('- A: a\n- B: b', 'A', ['A', 'Ghost']);
+  assert.equal(out, '- A: a\n- B: b');
+});
+
+test('mergeGroupLines on empty text yields empty text', () => {
+  assert.equal(mergeGroupLines('', 'A', ['B']), '');
+});
+
+// ---- writeGroupMerge --------------------------------------------------------
+
+test('writeGroupMerge writes the merge back through the file path', () => {
+  const file = groupsTempFile();
+  fs.writeFileSync(file, '- Homelab: servers\n- Squad Watch: s\n- hardware: h');
+  const res = writeGroupMerge('Homelab', ['Squad Watch', 'hardware'], {
+    env: { BROWSER_ORGANIZER_GROUPS_FILE: file },
+  });
+  assert.deepEqual(res, { ok: true });
+  assert.equal(fs.readFileSync(file, 'utf8'), '- Homelab: servers');
+});
+
+test('dispatch merge-parked updates the groups file after a successful merge', async () => {
+  const dir = tempDir();
+  const file = path.join(dir, 'groups.md');
+  fs.writeFileSync(file, '- Homelab: servers\n- Squad Watch: s\n- hardware: h');
+  // Seed and park three groups so the real mergeParkedGroups has something to do.
+  writeIndex({
+    groups: [
+      { name: 'Homelab', color: 'green', tabs: [{ title: 'H', url: 'https://h' }] },
+      { name: 'Squad Watch', color: 'blue', tabs: [{ title: 'S', url: 'https://s' }] },
+      { name: 'hardware', color: 'red', tabs: [{ title: 'HW', url: 'https://hw' }] },
+    ],
+    ungrouped: [],
+  }, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
+  writeIndex({ groups: [], ungrouped: [] }, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-02T00:00:00.000Z' });
+
+  const prevIdx = process.env.BROWSER_ORGANIZER_INDEX_DIR;
+  const prevGrp = process.env.BROWSER_ORGANIZER_GROUPS_FILE;
+  process.env.BROWSER_ORGANIZER_INDEX_DIR = dir;
+  process.env.BROWSER_ORGANIZER_GROUPS_FILE = file;
+  try {
+    const res = await handle({ type: 'merge-parked', payload: { into: 'Homelab', from: ['Squad Watch', 'hardware'] } });
+    assert.equal(res.ok, true);
+    assert.equal(fs.readFileSync(file, 'utf8'), '- Homelab: servers', 'the merged-away source lines are gone');
+  } finally {
+    if (prevIdx === undefined) delete process.env.BROWSER_ORGANIZER_INDEX_DIR;
+    else process.env.BROWSER_ORGANIZER_INDEX_DIR = prevIdx;
+    if (prevGrp === undefined) delete process.env.BROWSER_ORGANIZER_GROUPS_FILE;
+    else process.env.BROWSER_ORGANIZER_GROUPS_FILE = prevGrp;
+  }
 });

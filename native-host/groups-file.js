@@ -83,6 +83,8 @@ export function setGroupDescription(text, name, description) {
 // the parent has no line, the sub-group lines are appended after the last group
 // line (or at the end when there are no group lines yet), just like
 // setGroupDescription. Blank-named sub-groups are skipped so no empty line forms.
+// "Someday" is the groups file's catch-all: splitting it keeps its line and
+// inserts the sub-group lines after it instead of replacing it.
 export function splitGroupLines(text, name, subGroups = []) {
   const key = String(name || '').trim().toLowerCase();
   const subs = (Array.isArray(subGroups) ? subGroups : [])
@@ -97,7 +99,10 @@ export function splitGroupLines(text, name, subGroups = []) {
     if (!g) continue;
     lastGroupIndex = i;
     if (g.name.toLowerCase() === key) {
-      lines.splice(i, 1, ...newLines);
+      // "Someday" is the groups file's catch-all: never replace it. Keep its
+      // line and insert the new sub-group lines right after it.
+      if (key === 'someday') lines.splice(i + 1, 0, ...newLines);
+      else lines.splice(i, 1, ...newLines);
       return lines.join('\n');
     }
   }
@@ -108,8 +113,37 @@ export function splitGroupLines(text, name, subGroups = []) {
   return lines.join('\n');
 }
 
-// Read and parse the groups file into [{ name, description }]. A missing or
-// unreadable file yields [], never throws.
+// Return new text reflecting a merge of the `from` groups into `into`: every
+// `from` group's line is removed. If `into` already has a line it is kept as-is
+// (its description stays); if it has no line, the first removed `from` line is
+// renamed to `into` (keeping that group's description) and left in that first
+// group's position. All names are matched trimmed and case-insensitively; a
+// `from` equal to `into` is ignored. All other lines are kept exactly.
+export function mergeGroupLines(text, into, from = []) {
+  const intoKey = String(into || '').trim().toLowerCase();
+  const fromKeys = new Set((Array.isArray(from) ? from : [])
+    .map((f) => String(f || '').trim().toLowerCase())
+    .filter((k) => k && k !== intoKey));
+  const str = String(text || '');
+  const lines = str === '' ? [] : str.split('\n');
+  const hasInto = lines.some((l) => { const g = matchGroupLine(l); return g && g.name.toLowerCase() === intoKey; });
+  const out = [];
+  let renamed = false;
+  for (const line of lines) {
+    const g = matchGroupLine(line);
+    if (g && fromKeys.has(g.name.toLowerCase())) {
+      // Drop each `from` line. When `into` has no line of its own, promote the
+      // first dropped line to `into`, keeping its description and position.
+      if (!hasInto && !renamed) {
+        renamed = true;
+        out.push(`- ${String(into || '').trim()}: ${g.description}`);
+      }
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join('\n');
+}
 export function readGroups({ env = process.env, readFile = fs.readFileSync } = {}) {
   try {
     return parseGroups(String(readFile(groupsFilePath(env), 'utf8')));
@@ -154,6 +188,27 @@ export function writeGroupSplit(name, subGroups, {
     text = '';
   }
   writeFile(file, splitGroupLines(text, name, subGroups));
+  return { ok: true };
+}
+
+// Apply a merge to the groups file: remove each `from` group's line, keeping the
+// `into` line (or promoting the first `from` line to `into` when it has none),
+// writing it back through the same path (which may be a symlink). A missing file
+// starts from empty text. The file work lives in mergeGroupLines.
+// Returns { ok: true }.
+export function writeGroupMerge(into, from, {
+  env = process.env,
+  readFile = fs.readFileSync,
+  writeFile = fs.writeFileSync,
+} = {}) {
+  const file = groupsFilePath(env);
+  let text = '';
+  try {
+    text = String(readFile(file, 'utf8'));
+  } catch {
+    text = '';
+  }
+  writeFile(file, mergeGroupLines(text, into, from));
   return { ok: true };
 }
 

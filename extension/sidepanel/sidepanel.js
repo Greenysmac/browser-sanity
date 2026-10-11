@@ -35,12 +35,14 @@ function initBoardView() {
     review: $('splitReview'),
     reviewList: $('splitReviewList'),
     apply: $('splitApply'),
+    dismiss: $('splitDismiss'),
   };
   const tidyEls = {
     card: $('tidyCard'),
     summary: $('tidySummary'),
     list: $('tidyList'),
     apply: $('tidyApply'),
+    dismiss: $('tidyDismiss'),
   };
   const paint = () => renderBoard($('boardBody'), { send, setStatus, onSplitProposal, onTidyParked });
   // Once a proposal is on screen, drop the stored copy so it can't come back

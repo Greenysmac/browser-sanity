@@ -4,7 +4,7 @@ import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandP
 import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseTidyResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
-import { loadGroupsFile, readGroups, writeGroupDescription, writeGroupSplit } from './groups-file.js';
+import { loadGroupsFile, readGroups, writeGroupDescription, writeGroupSplit, writeGroupMerge } from './groups-file.js';
 import { writeIndex, parkGroup, readIndex, listIndexHistory, restoreIndexHistory, splitParkedGroup, mergeParkedGroups } from './index-file.js';
 import { loadProposals } from './proposals-file.js';
 
@@ -120,11 +120,24 @@ export async function handle(msg, deps = {}) {
     // groups) and splits (crowded or many-topic groups). Like split, the groups
     // file is deliberately NOT fed in: this concerns the parked list alone. The
     // parser keeps only group names that were actually sent and drops self-merges.
+    // We also have each sent group's tabs here, so a merge whose into + from tab
+    // counts add up to more than 30 is dropped — a merge must never make a group
+    // too big to be useful (the prompt asks for a split instead).
     if (task === 'tidy-parked') {
       const groups = Array.isArray(payload.groups) ? payload.groups : [];
       const names = groups.map((g) => String((g && g.name) || ''));
       const out = await adapter.run(buildTidyParkedPrompt(groups), opts);
-      return { task, ...parseTidyResult(out, names) };
+      const parsed = parseTidyResult(out, names);
+      const countFor = (name) => {
+        const g = groups.find((x) => String((x && x.name) || '').trim().toLowerCase() === String(name || '').trim().toLowerCase());
+        if (!g) return 0;
+        return Array.isArray(g.tabs) ? g.tabs.length : (Number(g.tabCount) || 0);
+      };
+      const merge = parsed.merge.filter((m) => {
+        const total = countFor(m.into) + m.from.reduce((n, f) => n + countFor(f), 0);
+        return total <= 30;
+      });
+      return { task, merge, split: parsed.split };
     }
     // Split one group into sub-groups. The groups file is deliberately NOT fed
     // in here (via rules): the split concerns this single group alone, so the
@@ -181,8 +194,15 @@ export async function handle(msg, deps = {}) {
   // file work lives in index-file.js; returns { ok, tabs } or { ok: false }.
   if (msg.type === 'merge-parked') {
     const merge = deps.mergeParkedGroups || mergeParkedGroups;
+    const writeMerge = deps.writeGroupMerge || writeGroupMerge;
     const payload = msg.payload || {};
-    return merge({ into: payload.into, from: payload.from });
+    const res = merge({ into: payload.into, from: payload.from });
+    // Keep the groups file in step: drop the merged-away source lines. Best
+    // effort — a groups-file failure must never fail the merge itself.
+    if (res && res.ok) {
+      try { writeMerge(payload.into, payload.from); } catch { /* groups file is best effort */ }
+    }
+    return res;
   }
 
   // Read the parsed index.json so the extension can reopen a parked group. A
