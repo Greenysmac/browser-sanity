@@ -1,4 +1,10 @@
-# Browser Organizer
+# Browser Sanity
+
+Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) by Lusk Technologies, used and shared under the [MIT License](LICENSE). Thank you to Lusk Technologies for the original extension, its native helper and its AI backends, which Browser Sanity builds on.
+
+> The rest of this README still describes the original Browser Organizer and is being rewritten for Browser Sanity.
+
+## Original README: Browser Organizer
 
 A Chrome and Edge extension that cleans up your tabs and bookmarks with an AI backend you bring yourself. Point it at a local AI CLI you've already signed into, or at any OpenAI-compatible API key. It groups open tabs by topic, flags the ones you forgot were open, files the pages worth keeping into bookmark folders, and clears out stale, dead, and duplicate bookmarks. Nothing happens until you approve it.
 
