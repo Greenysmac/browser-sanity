@@ -37,10 +37,10 @@ test('run rejects on non-zero exit', async () => {
 });
 
 test('resolveCommand defaults to kiro-cli and honors the env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_KIRO_CMD;
-  delete process.env.BROWSER_ORGANIZER_KIRO_CMD;
+  const prev = process.env.BROWSER_SANITY_KIRO_CMD;
+  delete process.env.BROWSER_SANITY_KIRO_CMD;
   assert.equal(resolveCommand(), 'kiro-cli');
-  process.env.BROWSER_ORGANIZER_KIRO_CMD = '/usr/local/bin/kiro-cli';
+  process.env.BROWSER_SANITY_KIRO_CMD = '/usr/local/bin/kiro-cli';
   assert.equal(resolveCommand(), '/usr/local/bin/kiro-cli');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_KIRO_CMD; else process.env.BROWSER_ORGANIZER_KIRO_CMD = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_KIRO_CMD; else process.env.BROWSER_SANITY_KIRO_CMD = prev;
 });

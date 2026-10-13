@@ -14,16 +14,16 @@ test('run passes prompt last, sandboxed, without auto-approving tools', async ()
   assert.ok(!seen.args.includes('--dangerously-skip-permissions')); // tools not auto-approved
 });
 
-test('BROWSER_ORGANIZER_ANTIGRAVITY_ARGS overrides the flags (prompt still last)', async () => {
-  const prev = process.env.BROWSER_ORGANIZER_ANTIGRAVITY_ARGS;
-  process.env.BROWSER_ORGANIZER_ANTIGRAVITY_ARGS = '--print --sandbox';
+test('BROWSER_SANITY_ANTIGRAVITY_ARGS overrides the flags (prompt still last)', async () => {
+  const prev = process.env.BROWSER_SANITY_ANTIGRAVITY_ARGS;
+  process.env.BROWSER_SANITY_ANTIGRAVITY_ARGS = '--print --sandbox';
   let seen = null;
   const spawnFn = makeFakeSpawn((stdin, command, args) => { seen = args; return { stdout: '{}' }; });
   await antigravityAdapter.run('PROMPT', { spawnFn });
   // The prompt flag (-p) is appended adjacent to the prompt, after the overridden
   // flags, so an extra flag can never be swallowed as -p's value.
   assert.deepEqual(seen, ['--print', '--sandbox', '-p', 'PROMPT']);
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_ANTIGRAVITY_ARGS; else process.env.BROWSER_ORGANIZER_ANTIGRAVITY_ARGS = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_ANTIGRAVITY_ARGS; else process.env.BROWSER_SANITY_ANTIGRAVITY_ARGS = prev;
 });
 
 test('health returns the CLI version', async () => {
@@ -38,12 +38,12 @@ test('run rejects on non-zero exit with stderr', async () => {
 });
 
 test('resolveCommand defaults to agy and honors the env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_ANTIGRAVITY_CMD;
-  delete process.env.BROWSER_ORGANIZER_ANTIGRAVITY_CMD;
+  const prev = process.env.BROWSER_SANITY_ANTIGRAVITY_CMD;
+  delete process.env.BROWSER_SANITY_ANTIGRAVITY_CMD;
   assert.equal(resolveCommand(), 'agy');
-  process.env.BROWSER_ORGANIZER_ANTIGRAVITY_CMD = '/opt/agy/bin/agy';
+  process.env.BROWSER_SANITY_ANTIGRAVITY_CMD = '/opt/agy/bin/agy';
   assert.equal(resolveCommand(), '/opt/agy/bin/agy');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_ANTIGRAVITY_CMD; else process.env.BROWSER_ORGANIZER_ANTIGRAVITY_CMD = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_ANTIGRAVITY_CMD; else process.env.BROWSER_SANITY_ANTIGRAVITY_CMD = prev;
 });
 
 test('extra flags go before -p so the prompt stays the -p value (no splice)', async () => {

@@ -25,7 +25,7 @@ export async function showUndoToast() {
   });
   toast.append(msg, undoBtn);
   // It stays until Undo is used or the next Analyze clears it: an 8-second
-  // toast was easy to miss (Jeff, 2026-10-11: "And no undo?").
+  // toast was easy to miss.
   toast.hidden = false;
 }
 

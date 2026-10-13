@@ -17,7 +17,7 @@ function readJson(dir) {
 
 // Seed a parked parent between two other groups so position can be checked.
 function seedParked(dir) {
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   // writeIndex marks every incoming group 'open'; parking Work makes it 'parked'
   // but a split works on any entry, so just write it directly as the shape used.
   writeIndex(
@@ -163,7 +163,7 @@ test('writeGroupSplit writes the split back through the file path', () => {
   const file = groupsTempFile();
   fs.writeFileSync(file, 'Intro.\n- Work: old');
   const res = writeGroupSplit('Work', [{ name: 'Alpha', description: 'a' }, { name: 'Beta', description: 'b' }], {
-    env: { BROWSER_ORGANIZER_GROUPS_FILE: file },
+    env: { BROWSER_SANITY_GROUPS_FILE: file },
   });
   assert.deepEqual(res, { ok: true });
   assert.equal(fs.readFileSync(file, 'utf8'), 'Intro.\n- Alpha: a\n- Beta: b');
@@ -172,8 +172,8 @@ test('writeGroupSplit writes the split back through the file path', () => {
 test('dispatch groups-split writes the split through the real file', async () => {
   const file = groupsTempFile();
   fs.writeFileSync(file, 'Intro.\n- Work: old\n- Play: games');
-  const prev = process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-  process.env.BROWSER_ORGANIZER_GROUPS_FILE = file;
+  const prev = process.env.BROWSER_SANITY_GROUPS_FILE;
+  process.env.BROWSER_SANITY_GROUPS_FILE = file;
   try {
     const res = await handle({
       type: 'groups-split',
@@ -182,8 +182,8 @@ test('dispatch groups-split writes the split through the real file', async () =>
     assert.deepEqual(res, { ok: true });
     assert.equal(fs.readFileSync(file, 'utf8'), 'Intro.\n- Alpha: a\n- Beta: b\n- Play: games');
   } finally {
-    if (prev === undefined) delete process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-    else process.env.BROWSER_ORGANIZER_GROUPS_FILE = prev;
+    if (prev === undefined) delete process.env.BROWSER_SANITY_GROUPS_FILE;
+    else process.env.BROWSER_SANITY_GROUPS_FILE = prev;
   }
 });
 
@@ -242,7 +242,7 @@ test('writeGroupMerge writes the merge back through the file path', () => {
   const file = groupsTempFile();
   fs.writeFileSync(file, '- Homelab: servers\n- Squad Watch: s\n- hardware: h');
   const res = writeGroupMerge('Homelab', ['Squad Watch', 'hardware'], {
-    env: { BROWSER_ORGANIZER_GROUPS_FILE: file },
+    env: { BROWSER_SANITY_GROUPS_FILE: file },
   });
   assert.deepEqual(res, { ok: true });
   assert.equal(fs.readFileSync(file, 'utf8'), '- Homelab: servers');
@@ -260,21 +260,21 @@ test('dispatch merge-parked updates the groups file after a successful merge', a
       { name: 'hardware', color: 'red', tabs: [{ title: 'HW', url: 'https://hw' }] },
     ],
     ungrouped: [],
-  }, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
-  writeIndex({ groups: [], ungrouped: [] }, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-02T00:00:00.000Z' });
+  }, { env: { BROWSER_SANITY_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
+  writeIndex({ groups: [], ungrouped: [] }, { env: { BROWSER_SANITY_INDEX_DIR: dir }, now: '2026-10-02T00:00:00.000Z' });
 
-  const prevIdx = process.env.BROWSER_ORGANIZER_INDEX_DIR;
-  const prevGrp = process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-  process.env.BROWSER_ORGANIZER_INDEX_DIR = dir;
-  process.env.BROWSER_ORGANIZER_GROUPS_FILE = file;
+  const prevIdx = process.env.BROWSER_SANITY_INDEX_DIR;
+  const prevGrp = process.env.BROWSER_SANITY_GROUPS_FILE;
+  process.env.BROWSER_SANITY_INDEX_DIR = dir;
+  process.env.BROWSER_SANITY_GROUPS_FILE = file;
   try {
     const res = await handle({ type: 'merge-parked', payload: { into: 'Homelab', from: ['Squad Watch', 'hardware'] } });
     assert.equal(res.ok, true);
     assert.equal(fs.readFileSync(file, 'utf8'), '- Homelab: servers', 'the merged-away source lines are gone');
   } finally {
-    if (prevIdx === undefined) delete process.env.BROWSER_ORGANIZER_INDEX_DIR;
-    else process.env.BROWSER_ORGANIZER_INDEX_DIR = prevIdx;
-    if (prevGrp === undefined) delete process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-    else process.env.BROWSER_ORGANIZER_GROUPS_FILE = prevGrp;
+    if (prevIdx === undefined) delete process.env.BROWSER_SANITY_INDEX_DIR;
+    else process.env.BROWSER_SANITY_INDEX_DIR = prevIdx;
+    if (prevGrp === undefined) delete process.env.BROWSER_SANITY_GROUPS_FILE;
+    else process.env.BROWSER_SANITY_GROUPS_FILE = prevGrp;
   }
 });

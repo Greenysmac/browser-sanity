@@ -1,6 +1,6 @@
-# Installing Browser Organizer
+# Installing Browser Sanity
 
-Browser Organizer has two parts:
+Browser Sanity has two parts:
 1. **The extension** — loads into Chrome or Edge.
 2. **A local helper** ("native host") — a small program on your computer that runs your AI
    backend. The extension talks to it; **nothing is sent to any server we run.**
@@ -29,49 +29,49 @@ Pick whichever fits you:
 **A. One command (needs [Node.js 20+](https://nodejs.org)) — works from any directory:**
 
 ```
-npx @lusktech/browser-organizer-host
+npx browser-sanity-host
 ```
 
 That copies the helper into a stable per-user location and registers it for Chrome and Edge
 using the published extension ID — no need to be inside any project folder. Target specific
-browsers with `npx @lusktech/browser-organizer-host install chrome`, repair a broken install
+browsers with `npx browser-sanity-host install chrome`, repair a broken install
 with `… repair`, and remove it with `… uninstall`.
 
 > **`npm install -g` is not enough on its own.** A global (or local) `npm install` only puts
-> the `browser-organizer-host` command on your PATH — it does **not** register the helper
+> the `browser-sanity-host` command on your PATH — it does **not** register the helper
 > (there's no postinstall step). If you install that way, you must then run the command once to
 > register it:
 > ```sh
-> npm install -g @lusktech/browser-organizer-host
-> browser-organizer-host
+> npm install -g browser-sanity-host
+> browser-sanity-host
 > ```
 > `npx` is simpler because it fetches **and runs** the installer in one step. Either way, the
 > register step copies the current version into the stable location the browser launches, so
 > after installing a new version you must re-run it to update the registered helper — and use
 > `@latest` (or a pinned version) so `npx` doesn't reuse a cached older one:
 > ```sh
-> npx @lusktech/browser-organizer-host@latest
+> npx browser-sanity-host@latest
 > ```
 
 **B. No Node / prefer a double-click:** download the installer for your OS from the
-[releases page](https://github.com/LUSKTECH/browser-organizer/releases) and run it. It ships
+[releases page](https://github.com/Greenysmac/browser-sanity/releases) and run it. It ships
 a self-contained helper (no Node required) and registers it for Chrome and Edge. On Windows
-this is `BrowserOrganizerSetup.exe` — a **per-user** install (no admin rights).
+this is `BrowserSanitySetup.exe` — a **per-user** install (no admin rights).
 
 **B2. Windows administrators (per-machine MSI):** for fleet deployment, use
-`BrowserOrganizer.msi` instead of the EXE. It installs the helper under `Program Files` and
+`BrowserSanity.msi` instead of the EXE. It installs the helper under `Program Files` and
 registers the native-messaging host in **HKLM** so every user on the machine can reach it
 (requires elevation). It supports silent install and standard `msiexec` deployment flags
 (each line below is a complete, copy-pasteable command):
 
 ```
-msiexec /i BrowserOrganizer.msi /qn /norestart
-msiexec /i BrowserOrganizer.msi /qn /l*v install.log
-msiexec /i BrowserOrganizer.msi INSTALLFOLDER="C:\Apps\BrowserOrganizer" /qn
-msiexec /i BrowserOrganizer.msi EDGE=0 /qn
-msiexec /i BrowserOrganizer.msi CHROME=0 /qn
-msiexec /i BrowserOrganizer.msi CHROMIUM=1 /qn
-msiexec /x BrowserOrganizer.msi /qn
+msiexec /i BrowserSanity.msi /qn /norestart
+msiexec /i BrowserSanity.msi /qn /l*v install.log
+msiexec /i BrowserSanity.msi INSTALLFOLDER="C:\Apps\BrowserSanity" /qn
+msiexec /i BrowserSanity.msi EDGE=0 /qn
+msiexec /i BrowserSanity.msi CHROME=0 /qn
+msiexec /i BrowserSanity.msi CHROMIUM=1 /qn
+msiexec /x BrowserSanity.msi /qn
 ```
 
 In order: silent install; silent install with a verbose log; install to a custom folder;
@@ -90,8 +90,8 @@ node native-host/installer.js <EXTENSION_ID> chrome,edge       # or: explicit ID
 node native-host/installer.js uninstall                        # remove
 ```
 
-The helper is copied to `~/.browser-organizer` (macOS/Linux) or
-`%LOCALAPPDATA%\BrowserOrganizer` (Windows), so the repo or bundle can be deleted afterward.
+The helper is copied to `~/.browser-sanity` (macOS/Linux) or
+`%LOCALAPPDATA%\BrowserSanity` (Windows), so the repo or bundle can be deleted afterward.
 
 ## Step 3 — Choose and configure a backend
 
@@ -102,7 +102,7 @@ Pick **OpenAI-compatible API** in Settings and enter your **API key** there (plu
 optional base URL and model). The key is stored **encrypted** in this browser only
 (never synced). Point the base URL at OpenAI, OpenRouter, Groq, or a local
 LM Studio/vLLM server. _(Advanced/headless: you can instead set
-`BROWSER_ORGANIZER_OPENAI_API_KEY` / `_BASE_URL` / `_MODEL` in the host environment.)_
+`BROWSER_SANITY_OPENAI_API_KEY` / `_BASE_URL` / `_MODEL` in the host environment.)_
 
 **Power users — a local AI CLI:**
 Install and sign into one of: Claude Code (`claude`), Antigravity (`agy`), Kiro (`kiro-cli`),
@@ -127,7 +127,7 @@ address bar, or enable scheduled auto-mode in Settings.
 
 ## Troubleshooting
 - **Panel says it can't reach the helper** — re-run Step 2 (e.g.
-  `npx @lusktech/browser-organizer-host repair`), then click the reload icon on the extension
+  `npx browser-sanity-host repair`), then click the reload icon on the extension
   and reopen the panel.
 - **Panel says the backend didn't start** — for a CLI, confirm `"<cli> --version"` works in a
   terminal; for the API backend, confirm the env vars above are set where the browser launches.

@@ -7,9 +7,9 @@ discussions.**
 
 Report privately using GitHub's built-in private vulnerability reporting:
 
-1. Open the repository's **[Security tab](https://github.com/LUSKTECH/browser-organizer/security)**.
+1. Open the repository's **[Security tab](https://github.com/Greenysmac/browser-sanity/security)**.
 2. Click **"Report a vulnerability"** (or use
-   [this link](https://github.com/LUSKTECH/browser-organizer/security/advisories/new)) to open a
+   [this link](https://github.com/Greenysmac/browser-sanity/security/advisories/new)) to open a
    private security advisory.
 3. Include the affected component (extension, native host, or installer), the version, and clear
    steps to reproduce (proof-of-concept if you have one).

@@ -230,8 +230,7 @@ test('openSidePanel returns false when sidePanel is missing', async () => {
   assert.equal(await openSidePanel({ sidePanel: {} }), false, 'no open()');
 });
 
-// The new-tab page's "Re-analyze parked groups…" link had no handler (Jeff,
-// 2026-10-10). It now leaves a pendingReanalyze flag for the side panel and
+// The new-tab page's "Re-analyze parked groups…" link had no handler. It now leaves a pendingReanalyze flag for the side panel and
 // opens the panel, where the result card lives.
 test('Re-analyze parked groups on the new-tab page flags the panel and opens it', async () => {
   installFakeDocument();

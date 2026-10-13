@@ -38,7 +38,7 @@ test('describeIgnoreKey renders a human label', () => {
 });
 
 test('installCommand embeds the extension id', () => {
-  assert.equal(installCommand('abc123'), 'npx @lusktech/browser-organizer-host install chrome,edge abc123');
+  assert.equal(installCommand('abc123'), 'node native-host/cli.js install chrome,edge abc123');
 });
 
 test('moveMember reassigns a tab between proposed groups', () => {
@@ -156,7 +156,7 @@ test('healthMessage reports connected vs not', () => {
   // A genuine native-messaging failure → "reinstall the helper" guidance.
   const bad = healthMessage({ ready: false, error: 'Specified native messaging host not found' });
   assert.equal(bad.ok, false);
-  assert.match(bad.text, /browser-organizer-host/);
+  assert.match(bad.text, /native-host\/cli\.js install/);
 });
 
 test('healthMessage: a reachable helper whose CLI failed points at the CLI, not the host', () => {
@@ -165,7 +165,7 @@ test('healthMessage: a reachable helper whose CLI failed points at the CLI, not 
   for (const error of ['spawn claude ENOENT', 'claude: command not found', 'CLI exited 1: 403 forbidden']) {
     const m = healthMessage({ ready: false, error });
     assert.equal(m.ok, false);
-    assert.doesNotMatch(m.text, /browser-organizer-host install/, `"${error}" should give CLI guidance`);
+    assert.doesNotMatch(m.text, /native-host\/cli\.js install/, `"${error}" should give CLI guidance`);
     assert.match(m.text, /command is installed/); // "make sure the ... command is installed"
   }
 });
@@ -218,13 +218,13 @@ test('healthMessage: openai adapter gives API-key guidance, not a CLI install st
   assert.match(m.text, /API key/i);
   assert.match(m.text, /Settings/);
   assert.match(m.text, /OpenAI-compatible API/);
-  assert.doesNotMatch(m.text, /browser-organizer-host|--version/); // not CLI-flavored
+  assert.doesNotMatch(m.text, /native-host\/cli\.js install|--version/); // not CLI-flavored
 });
 
 test('healthMessage: host-missing error gives the install step with the real extension id', () => {
   const m = healthMessage({ ready: false, error: 'Specified native messaging host not found.' }, 'abcdef123');
   assert.equal(m.ok, false);
-  assert.match(m.text, /browser-organizer-host install chrome,edge abcdef123/);
+  assert.match(m.text, /node native-host\/cli\.js install chrome,edge abcdef123/);
   assert.match(m.text, /reload/i);           // tells the user to reload
   assert.doesNotMatch(m.text, /<EXTENSION_ID>/); // no literal placeholder
 });
@@ -233,7 +233,7 @@ test('healthMessage: CLI-missing error points at the claude CLI, not install-hos
   const m = healthMessage({ ready: false, error: 'spawn claude ENOENT' }, 'abcdef123');
   assert.equal(m.ok, false);
   assert.match(m.text, /claude --version/);
-  assert.doesNotMatch(m.text, /browser-organizer-host/); // wrong fix for this cause
+  assert.doesNotMatch(m.text, /native-host\/cli\.js install/); // wrong fix for this cause
 });
 
 test('progressLabel formats phase progress', () => {

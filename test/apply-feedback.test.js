@@ -1,5 +1,5 @@
 // "Applied 12. 1 failed." said nothing about which or why, and the Undo toast
-// vanished after 8 seconds (Jeff, 2026-10-11: "And no undo?"). applyItems now
+// vanished after 8 seconds and was easy to miss. applyItems now
 // returns why each item failed, the panel names it, and the Undo stays put.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

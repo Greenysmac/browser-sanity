@@ -1,11 +1,11 @@
 {
-  "name": "browser-organizer",
+  "name": "browser-sanity",
   "version": "0.6.1",
-  "description": "Browser Sanity: sort Chrome tabs into need-based groups with your own AI. A fork of Browser Organizer by Lusk Technologies.",
+  "description": "Browser Sanity: sort Chrome tabs into need-based groups with your own AI. A fork of Browser Sanity by Lusk Technologies.",
   "license": "MIT",
   "author": "Jeff Greenberg",
   "contributors": [
-    "Lusk Technologies (original Browser Organizer, https://github.com/LUSKTECH/browser-organizer)"
+    "Lusk Technologies (original Browser Sanity, https://github.com/Greenysmac/browser-sanity)"
   ],
   "private": true,
   "type": "module",
@@ -28,5 +28,10 @@
     "eslint": "^9.39.5",
     "eslint-plugin-no-unsanitized": "^4.1.5",
     "playwright": "^1.61.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Greenysmac/browser-sanity.git"
+  },
+  "homepage": "https://github.com/Greenysmac/browser-sanity"
 }

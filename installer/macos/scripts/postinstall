@@ -1,16 +1,16 @@
 #!/bin/sh
-# Browser Organizer — macOS .pkg postinstall (runs as root during install).
+# Browser Sanity — macOS .pkg postinstall (runs as root during install).
 #
 # Native-messaging manifests are per-user, so we install into the *logged-in*
 # user's home rather than root's: copy the staged binary into
-# ~/.browser-organizer and run it with --install so it self-registers the
+# ~/.browser-sanity and run it with --install so it self-registers the
 # manifest for Chrome and Edge. Run as that user via `su` so the manifest and
 # home dir are user-owned, not root-owned.
 #
 # This file is packaged by build-pkg.sh; it is not executed in the Linux sandbox.
 set -eu
 
-STAGED="/usr/local/browser-organizer/browser-organizer-host"
+STAGED="/usr/local/browser-sanity/browser-sanity-host"
 
 # The console user is the human running the GUI installer (not root).
 CONSOLE_USER="$(stat -f%Su /dev/console)"
@@ -19,8 +19,8 @@ if [ -z "$CONSOLE_USER" ] || [ "$CONSOLE_USER" = "root" ]; then
   exit 1
 fi
 USER_HOME="$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory | awk '{print $2}')"
-DEST_DIR="$USER_HOME/.browser-organizer"
-DEST_BIN="$DEST_DIR/browser-organizer-host"
+DEST_DIR="$USER_HOME/.browser-sanity"
+DEST_BIN="$DEST_DIR/browser-sanity-host"
 
 install -d -o "$CONSOLE_USER" "$DEST_DIR"
 cp "$STAGED" "$DEST_BIN"
@@ -28,7 +28,7 @@ chown "$CONSOLE_USER" "$DEST_BIN"
 chmod 700 "$DEST_BIN"
 
 # Register per-user, as the console user, so ~/.../NativeMessagingHosts is owned
-# by them. The binary detects it lives in ~/.browser-organizer and points the
+# by them. The binary detects it lives in ~/.browser-sanity and points the
 # manifest at itself.
 su "$CONSOLE_USER" -c "'$DEST_BIN' --install chrome,edge"
 

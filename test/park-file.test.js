@@ -20,7 +20,7 @@ function readMd(dir) {
 
 test('parkGroup writes a parked group with status parked and lastSeen now', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   const count = parkGroup(
     { name: 'Work', color: 'blue', tabs: [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }] },
     { env, now: '2026-10-07T00:00:00.000Z' },
@@ -39,7 +39,7 @@ test('parkGroup writes a parked group with status parked and lastSeen now', () =
 
 test('parkGroup merges into an existing entry with the same name (trimmed, case-insensitive)', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   // Seed an open Work group plus a Play group via writeIndex.
   writeIndex(
     { groups: [{ name: 'Work', tabs: [{ title: 'Old', url: 'https://old' }] }, { name: 'Play', tabs: [{ title: 'P', url: 'https://p' }] }], ungrouped: [{ title: 'U', url: 'https://u' }] },
@@ -65,7 +65,7 @@ test('parkGroup merges into an existing entry with the same name (trimmed, case-
 
 test('parkGroup with zero tabs leaves an existing entry untouched', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex(
     { groups: [{ name: 'Work', color: 'blue', tabs: [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }] }], ungrouped: [] },
     { env, now: '2026-10-01T00:00:00.000Z' },
@@ -81,7 +81,7 @@ test('parkGroup with zero tabs leaves an existing entry untouched', () => {
 
 test('readIndex returns the parsed index.json shape', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [{ title: 'U', url: 'https://u' }] }, { env, now: '2026-10-07T00:00:00.000Z' });
   const idx = readIndex({ env });
   assert.equal(idx.updated, '2026-10-07T00:00:00.000Z');
@@ -92,14 +92,14 @@ test('readIndex returns the parsed index.json shape', () => {
 
 test('readIndex returns the empty shape when the file is missing', () => {
   const dir = tempDir();
-  const idx = readIndex({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
+  const idx = readIndex({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
   assert.deepEqual(idx, { groups: [], ungrouped: [] });
 });
 
 test('readIndex returns the empty shape when the file is broken', () => {
   const dir = tempDir();
   fs.writeFileSync(path.join(dir, 'index.json'), '{ not json');
-  const idx = readIndex({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
+  const idx = readIndex({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
   assert.deepEqual(idx, { groups: [], ungrouped: [] });
 });
 

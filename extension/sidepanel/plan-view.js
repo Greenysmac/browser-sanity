@@ -445,8 +445,8 @@ async function applyItems(itemIds) {
 }
 
 // " 1 failed: Group "Reading" (3 tabs): No tab with id: 12." for the status
-// line, so a failure says what and why instead of only a count (Jeff,
-// 2026-10-11: "Applied 12. 1 failed."). More than one names the first.
+// line, so a failure says what and why instead of only a count ("Applied 12.
+// 1 failed." said neither). More than one names the first.
 function failedText(res) {
   const n = (res.failed || []).length;
   if (!n) return '';
@@ -547,7 +547,7 @@ export async function initPlanView() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'browser-organizer-export.md';
+      a.download = 'browser-sanity-export.md';
       a.click();
       URL.revokeObjectURL(url);
       setStatus('Markdown downloaded.');

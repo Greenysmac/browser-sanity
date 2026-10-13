@@ -94,7 +94,7 @@ export function mapImportantResult(important, tabsById) {
         action: 'createBookmark',
         status: 'pending',
         reason: i.reason || 'Worth keeping',
-        data: { tabId: t.tabId, url: t.url, title: t.title, folderPath: i.folderPath.length ? i.folderPath : ['Browser Organizer'] },
+        data: { tabId: t.tabId, url: t.url, title: t.title, folderPath: i.folderPath.length ? i.folderPath : ['Browser Sanity'] },
       };
     })
     .filter(Boolean);

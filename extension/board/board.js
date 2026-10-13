@@ -462,7 +462,7 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
   name.textContent = group.name || '(unnamed)';
   const meta = document.createElement('span');
   meta.className = 'boardCount';
-  // Just the count on the row (Jeff, 2026-10-08); the date shows on hover so
+  // Just the count on the row; the date shows on hover so
   // long names aren't cut off.
   meta.textContent = `${group.tabCount} tabs`;
   meta.title = lastSeenText(group.lastSeen);

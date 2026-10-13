@@ -79,7 +79,7 @@ export function initSessionsView() {
     const blob = new Blob([JSON.stringify(sessions, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'browser-organizer-sessions.json'; a.click();
+    a.href = url; a.download = 'browser-sanity-sessions.json'; a.click();
     URL.revokeObjectURL(url);
     setStatus(`Exported ${sessions.length} session${sessions.length === 1 ? '' : 's'}.`);
   });

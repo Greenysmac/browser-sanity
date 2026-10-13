@@ -9,10 +9,10 @@ const MAX_GROUPS_CHARS = 16000;
 // the file or smuggle in extra lines.
 const MAX_DESCRIPTION_CHARS = 500;
 
-// The path to the groups file: BROWSER_ORGANIZER_GROUPS_FILE when set, else
+// The path to the groups file: BROWSER_SANITY_GROUPS_FILE when set, else
 // groups.md in the host home. Shared by loadGroupsFile and the read/write helpers.
 function groupsFilePath(env = process.env) {
-  return env.BROWSER_ORGANIZER_GROUPS_FILE || path.join(hostHome(), 'groups.md');
+  return env.BROWSER_SANITY_GROUPS_FILE || path.join(hostHome(), 'groups.md');
 }
 
 // A group line is '- Name: description'; the first colon splits name from
@@ -213,11 +213,11 @@ export function writeGroupMerge(into, from, {
 }
 
 // Load the user's optional "my groups" file. Its path is
-// BROWSER_ORGANIZER_GROUPS_FILE when set, else groups.md in the host home.
+// BROWSER_SANITY_GROUPS_FILE when set, else groups.md in the host home.
 // Returns the trimmed text (capped), or '' when the file is missing, empty,
 // or unreadable — never throws, so a bad file silently disables the feature.
 export function loadGroupsFile({ env = process.env, readFile = fs.readFileSync } = {}) {
-  const file = env.BROWSER_ORGANIZER_GROUPS_FILE || path.join(hostHome(), 'groups.md');
+  const file = env.BROWSER_SANITY_GROUPS_FILE || path.join(hostHome(), 'groups.md');
   try {
     return String(readFile(file, 'utf8')).trim().slice(0, MAX_GROUPS_CHARS);
   } catch {

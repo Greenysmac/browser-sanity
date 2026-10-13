@@ -102,7 +102,7 @@ export function describeIgnoreKey(key) {
 // live extension id so it works for unpacked/dev installs too (where the id
 // differs from the pinned store id the package defaults to).
 export function installCommand(extensionId) {
-  return `npx @lusktech/browser-organizer-host install chrome,edge ${extensionId}`;
+  return `node native-host/cli.js install chrome,edge ${extensionId}`;
 }
 
 // Reassign a member tab from one proposed group to another (used by the editor).
@@ -198,7 +198,7 @@ export function needsBulkConfirm(items, threshold = 10) {
 }
 
 const ADAPTER_NOTES = {
-  copilot: 'Lower assurance: Copilot CLI is agentic and runs with its default tool policy. Lock it down by setting BROWSER_ORGANIZER_COPILOT_ARGS to a read-only/tool-deny flag list.',
+  copilot: 'Lower assurance: Copilot CLI is agentic and runs with its default tool policy. Lock it down by setting BROWSER_SANITY_COPILOT_ARGS to a read-only/tool-deny flag list.',
 };
 
 // A caution note for adapters that can't be sandboxed as tightly as the others.
@@ -244,7 +244,7 @@ export function healthMessage(health, extensionId = '<your-extension-id>') {
     const r = { ok: true, text: `${label} connected (${health.version || 'ok'})${bridge}` };
     // The installed helper is older than this extension needs — nudge an update.
     if (health.hostVersion && health.hostVersion !== 'unknown' && semverLt(health.hostVersion, MIN_HOST_VERSION)) {
-      r.update = `Helper out of date (v${health.hostVersion}, needs v${MIN_HOST_VERSION}). Update it: run  npx @lusktech/browser-organizer-host@latest  then reload the extension.`;
+      r.update = `Helper out of date (v${health.hostVersion}, needs v${MIN_HOST_VERSION}). Update it: in the Browser Sanity folder run  git pull  then  npm run install-host , then reload the extension.`;
     }
     return r;
   }
@@ -276,8 +276,8 @@ export function healthMessage(health, extensionId = '<your-extension-id>') {
       ok: false,
       text: [
         `Can't reach the helper app that runs your AI CLI (${label}).`,
-        'Fix: open a terminal (Node 20+) and run:',
-        `    npx @lusktech/browser-organizer-host install chrome,edge ${extensionId}`,
+        'Fix: open a terminal in the Browser Sanity folder (Node 20+) and run:',
+        `    node native-host/cli.js install chrome,edge ${extensionId}`,
         'Then click the reload icon on this extension and reopen this panel.',
       ].join('\n'),
     };

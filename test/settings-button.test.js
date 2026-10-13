@@ -12,8 +12,7 @@ const html = readFileSync(new URL('../extension/sidepanel/sidepanel.html', impor
 
 // The Tools live in the More view, which shows on its own (views switch by
 // hiding), so their place in the markup no longer matters. The Review list
-// belongs to the Open tabs part: after its result card, before Parked groups
-// (Mycroft, 2026-10-11).
+// belongs to the Open tabs part: after its result card, before Parked groups.
 test('the suggestion list (id="plan") sits in the Open tabs part', () => {
   const resultIdx = html.indexOf('id="resultCard"');
   const planIdx = html.indexOf('id="plan"');

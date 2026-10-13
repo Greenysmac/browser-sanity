@@ -152,7 +152,7 @@ function historyFiles(dir) {
 
 test('mergeParkedGroups moves tabs, dedupes by url, removes emptied entries, and makes a history copy', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   // Seed three parked groups; Travel and Trips overlap on one url.
   writeIndex({
     groups: [
@@ -184,7 +184,7 @@ test('mergeParkedGroups moves tabs, dedupes by url, removes emptied entries, and
 
 test('mergeParkedGroups creates the survivor from the first source color when into is missing', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({
     groups: [
       { name: 'A', color: 'purple', tabs: [{ title: 'a', url: 'https://a' }] },
@@ -206,7 +206,7 @@ test('mergeParkedGroups creates the survivor from the first source color when in
 
 test('mergeParkedGroups reports no sources when none of the from names exist', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [], ungrouped: [] }, { env, now: '2026-10-02T00:00:00.000Z' });
   const res = mergeParkedGroups({ into: 'A', from: ['Nope'] }, { env, now: '2026-10-03T00:00:00.000Z' });

@@ -1,4 +1,4 @@
-/* Browser Organizer — side panel styles.
+/* Browser Sanity — side panel styles.
    Theme-aware developer-tool aesthetic: slate neutrals + a green "run" accent.
    No remote assets (extension CSP / offline): system font stack, inline SVG. */
 
@@ -1099,13 +1099,13 @@ li.nonHttp span:not(.tabTag) { color: var(--text-muted); }
   * { animation: none !important; transition: none !important; }
 }
 
-/* Real-browser fixes (Mycroft, 2026-10-07): the count never wraps under the
+/* Real-browser fixes: the count never wraps under the
    name, and an opened row's expanded area or editor sits on its own line. */
 .boardName { flex: 0 1 auto; }
 .boardCount { white-space: nowrap; flex: none; }
 .boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; }
 
-/* Real-browser fixes for 0.5.0 (Mycroft, 2026-10-08): the name shrinks first so
+/* Real-browser fixes for 0.5.0: the name shrinks first so
    the count and the ⋯ button stay on the first line; only an opened card's
    description area wraps to its own line. */
 .boardRow > .boardName { flex: 1 1 0; min-width: 0; }

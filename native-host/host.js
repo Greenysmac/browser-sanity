@@ -59,7 +59,7 @@ function runMessaging() {
   process.stdin.on('end', () => process.exit(0));
 }
 
-// When the per-OS installer runs `browser-organizer-host --install`, register the
+// When the per-OS installer runs `browser-sanity-host --install`, register the
 // host against this very executable. Detect SEA so the manifest points at the
 // binary (process.execPath IS the binary) rather than at `node`.
 async function runInstaller(mode, argv) {
@@ -84,7 +84,7 @@ async function runInstaller(mode, argv) {
   } else {
     const written = install(opts);
     runRegistryCommands(written._registryCommands); // win32: register the host in the registry (no-op elsewhere)
-    process.stdout.write('Installed Browser Organizer host:\n' + written.map((f) => '  ' + f).join('\n') + '\n');
+    process.stdout.write('Installed Browser Sanity host:\n' + written.map((f) => '  ' + f).join('\n') + '\n');
   }
 }
 

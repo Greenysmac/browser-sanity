@@ -1,5 +1,4 @@
-// No leftovers (Jeff, 2026-10-11: "On restart/new run, there shouldn't be any
-// leftover"). A browser restart (onStartup) or an extension reload/update
+// No leftover suggestions after a restart or a new run. A browser restart (onStartup) or an extension reload/update
 // (onInstalled) clears the stored plan, split proposal and re-analyze flag, and
 // a stored split proposal is served only within two minutes of being made.
 // Driven with a hand-rolled chrome mock and the worker's registered listeners.

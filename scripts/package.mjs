@@ -1,5 +1,5 @@
 // Builds distributable zips (dependency-free ZIP writer: zlib deflate + CRC32).
-//   npm run package            → browser-organizer-extension-<ver>.zip: extension/ ONLY (Web Store / Edge upload)
+//   npm run package            → browser-sanity-extension-<ver>.zip: extension/ ONLY (Web Store / Edge upload)
 //   npm run package:selfhost   → self-host bundle: extension/ + native-host/ + install/ + docs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -86,6 +86,6 @@ const eocd = Buffer.alloc(22);
 eocd.writeUInt32LE(0x06054b50, 0);
 eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
 eocd.writeUInt32LE(centralBuf.length, 12); eocd.writeUInt32LE(offset, 16);
-const outPath = path.join(outDir, `browser-organizer-${mode === 'store' ? 'extension' : 'selfhost'}-${version}.zip`);
+const outPath = path.join(outDir, `browser-sanity-${mode === 'store' ? 'extension' : 'selfhost'}-${version}.zip`);
 fs.writeFileSync(outPath, Buffer.concat([...parts, centralBuf, eocd]));
 console.log(`[${mode}] packaged ${files.length} files → ${path.relative(ROOT, outPath)} (${(fs.statSync(outPath).size / 1024).toFixed(1)} KB)`);

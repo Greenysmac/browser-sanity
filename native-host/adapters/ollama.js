@@ -4,7 +4,7 @@
 // text; we return it raw and let the dispatcher extract the JSON the prompt
 // requested. No subscription/auth (local); OLLAMA_HOST is passed through for
 // users pointing at a remote Ollama server. The model is configurable via
-// BROWSER_ORGANIZER_OLLAMA_MODEL (default: llama3.2).
+// BROWSER_SANITY_OLLAMA_MODEL (default: llama3.2).
 //
 // Note: smaller local models follow the strict-JSON instruction less reliably
 // than frontier CLIs; the lenient JSON extraction downstream helps, but pick a
@@ -13,8 +13,8 @@
 import { runCli, cliVersion } from './run-cli.js';
 import { hostEnv } from '../config.js';
 
-const ENV_VAR = 'BROWSER_ORGANIZER_OLLAMA_CMD';
-const MODEL_VAR = 'BROWSER_ORGANIZER_OLLAMA_MODEL';
+const ENV_VAR = 'BROWSER_SANITY_OLLAMA_CMD';
+const MODEL_VAR = 'BROWSER_SANITY_OLLAMA_MODEL';
 const DEFAULT_MODEL = 'llama3.2';
 const PASS_ENV = ['OLLAMA_HOST'];
 

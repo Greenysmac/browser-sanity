@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { hostHome } from './paths.js';
 
-// The directory the index lives in: BROWSER_ORGANIZER_INDEX_DIR when set, else
+// The directory the index lives in: BROWSER_SANITY_INDEX_DIR when set, else
 // the host home. Kept separate so tests can point it at a temp directory.
 function indexDir(env = process.env) {
-  return env.BROWSER_ORGANIZER_INDEX_DIR || hostHome();
+  return env.BROWSER_SANITY_INDEX_DIR || hostHome();
 }
 
 // Key a group by name, trimmed and lowercased, so matches survive case and

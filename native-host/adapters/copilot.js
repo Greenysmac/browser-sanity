@@ -13,15 +13,15 @@
 // SECURITY: Copilot CLI is agentic. `--no-ask-user` prevents interactive pauses
 // but the tool policy is the CLI's default — this adapter is LOWER-ASSURANCE than
 // claude/ollama. Lock it down for your Copilot CLI version by overriding
-// BROWSER_ORGANIZER_COPILOT_ARGS with an explicit tool-deny/read-only flag list.
+// BROWSER_SANITY_COPILOT_ARGS with an explicit tool-deny/read-only flag list.
 
 import { makeCliAdapter } from './cli-adapter.js';
 
 export const copilotAdapter = makeCliAdapter({
   name: 'copilot',
-  cmdEnv: 'BROWSER_ORGANIZER_COPILOT_CMD',
+  cmdEnv: 'BROWSER_SANITY_COPILOT_CMD',
   defaultCmd: 'copilot',
-  argsEnv: 'BROWSER_ORGANIZER_COPILOT_ARGS',
+  argsEnv: 'BROWSER_SANITY_COPILOT_ARGS',
   defaultArgs: ['-s', '--no-ask-user'],
   promptFlag: '-p',
   authEnv: ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],

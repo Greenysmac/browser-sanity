@@ -359,7 +359,7 @@
           <summary>Advanced</summary>
           <p class="advancedWarn">⚠ These change how the local AI CLI is launched. Wrong values can break scans or send more data to your AI backend. Dangerous flags (tool/file/permission grants) are ignored for safety.</p>
           <label><input type="checkbox" name="debugLogging" /> Debug logging (verbose console output)</label>
-          <label><input type="checkbox" name="checkHostUpdates" /> Check npm for a newer helper (a network request to registry.npmjs.org)</label>
+          <label hidden><input type="checkbox" name="checkHostUpdates" /> Check npm for a newer helper (a network request to registry.npmjs.org)</label>
           <label><input type="checkbox" name="loadMcpServers" /> Claude: load MCP servers (off = faster, no side effects)</label>
           <label><input type="checkbox" name="loadPluginsSettings" /> Claude: load plugins &amp; settings</label>
           <label>Extra CLI flags for <strong id="extraArgsAdapter">the selected backend</strong>

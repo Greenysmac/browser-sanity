@@ -25,14 +25,14 @@ export function main(argv = process.argv.slice(2)) {
   }
   const fn = cmd === 'repair' ? repair : install;
   const written = fn({ extensionId, browsers });
-  console.log(`${cmd === 'repair' ? 'Repaired' : 'Installed'} Browser Organizer host:\n` +
+  console.log(`${cmd === 'repair' ? 'Repaired' : 'Installed'} Browser Sanity host:\n` +
     written.map((f) => '  ' + f).join('\n'));
   runRegistryCommands(written._registryCommands); // win32: register the host in the registry
   console.log('\nOpen the extension side panel and click the reload icon.');
 }
 
 // Run when invoked directly OR via the `bin` symlink (npx). realpath collapses
-// the node_modules/.bin/browser-organizer-host symlink to the real cli.js path.
+// the node_modules/.bin/browser-sanity-host symlink to the real cli.js path.
 function invokedDirectly() {
   if (!process.argv[1]) return false;
   try { return fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }

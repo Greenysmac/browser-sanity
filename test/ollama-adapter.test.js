@@ -13,12 +13,12 @@ test('run pipes the prompt on stdin to `run <model>` and returns trimmed text', 
 });
 
 test('resolveModel honors the model env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_OLLAMA_MODEL;
-  delete process.env.BROWSER_ORGANIZER_OLLAMA_MODEL;
+  const prev = process.env.BROWSER_SANITY_OLLAMA_MODEL;
+  delete process.env.BROWSER_SANITY_OLLAMA_MODEL;
   assert.equal(resolveModel(), 'llama3.2');
-  process.env.BROWSER_ORGANIZER_OLLAMA_MODEL = 'qwen2.5:14b';
+  process.env.BROWSER_SANITY_OLLAMA_MODEL = 'qwen2.5:14b';
   assert.equal(resolveModel(), 'qwen2.5:14b');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_OLLAMA_MODEL; else process.env.BROWSER_ORGANIZER_OLLAMA_MODEL = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_OLLAMA_MODEL; else process.env.BROWSER_SANITY_OLLAMA_MODEL = prev;
 });
 
 test('health returns the CLI version', async () => {
@@ -28,10 +28,10 @@ test('health returns the CLI version', async () => {
 });
 
 test('resolveCommand defaults to ollama and honors the env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_OLLAMA_CMD;
-  delete process.env.BROWSER_ORGANIZER_OLLAMA_CMD;
+  const prev = process.env.BROWSER_SANITY_OLLAMA_CMD;
+  delete process.env.BROWSER_SANITY_OLLAMA_CMD;
   assert.equal(resolveCommand(), 'ollama');
-  process.env.BROWSER_ORGANIZER_OLLAMA_CMD = '/usr/local/bin/ollama';
+  process.env.BROWSER_SANITY_OLLAMA_CMD = '/usr/local/bin/ollama';
   assert.equal(resolveCommand(), '/usr/local/bin/ollama');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_OLLAMA_CMD; else process.env.BROWSER_ORGANIZER_OLLAMA_CMD = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_OLLAMA_CMD; else process.env.BROWSER_SANITY_OLLAMA_CMD = prev;
 });

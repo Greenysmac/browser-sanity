@@ -13,7 +13,7 @@
 // use the host-side env var instead.
 import { encryptWith, decryptWith } from './crypto-box.js';
 
-const DB_NAME = 'browser-organizer';
+const DB_NAME = 'browser-sanity';
 const STORE = 'keys';
 const KEY_ID = 'secretKey';
 

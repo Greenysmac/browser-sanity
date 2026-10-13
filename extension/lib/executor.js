@@ -81,7 +81,7 @@ async function applyItemInner(item, c, deps = {}) {
       let savedBookmarkId = null;
       if (bookmarkFirst) {
         const targetRoot = (deps.settings?.protectBookmarkBar !== false && (deps.otherId || OTHER_ID)) ? (deps.otherId || OTHER_ID) : (deps.barId || BAR_ID);
-        const folder = await ensureFolder(['Browser Organizer', 'Saved before closing'], c, targetRoot);
+        const folder = await ensureFolder(['Browser Sanity', 'Saved before closing'], c, targetRoot);
         const bm = await c.bookmarks.create({ parentId: folder.id, title: title || url, url });
         savedBookmarkId = bm && bm.id;
       }

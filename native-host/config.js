@@ -7,7 +7,7 @@ const MIN_TIMEOUT = 1000;
 // The CLI binary is resolved from a host-controlled env var (set by the
 // installer) or defaults to the PATH lookup 'claude'. NEVER from a message.
 export function resolveCommand() {
-  return process.env.BROWSER_ORGANIZER_CLI || 'claude';
+  return process.env.BROWSER_SANITY_CLI || 'claude';
 }
 
 // `cli` is the sanitized Advanced-settings object (see sanitizeCli). Default

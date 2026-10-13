@@ -10,7 +10,7 @@ import { handle } from '../native-host/dispatch.js';
 test('loadGroupsFile reads the env-configured path', () => {
   let seen = null;
   const text = loadGroupsFile({
-    env: { BROWSER_ORGANIZER_GROUPS_FILE: '/custom/groups.md' },
+    env: { BROWSER_SANITY_GROUPS_FILE: '/custom/groups.md' },
     readFile: (file) => { seen = file; return '  Work\nPersonal  '; },
   });
   assert.equal(seen, '/custom/groups.md');
@@ -132,14 +132,14 @@ test('dispatch groups-read returns the injected reader output', async () => {
 test('dispatch groups-read reads the env-configured file via the real reader', async () => {
   const file = groupsTempFile();
   fs.writeFileSync(file, 'Intro.\n- Work: job\n- Play: games');
-  const prev = process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-  process.env.BROWSER_ORGANIZER_GROUPS_FILE = file;
+  const prev = process.env.BROWSER_SANITY_GROUPS_FILE;
+  process.env.BROWSER_SANITY_GROUPS_FILE = file;
   try {
     const res = await handle({ type: 'groups-read' });
     assert.deepEqual(res, { groups: [{ name: 'Work', description: 'job' }, { name: 'Play', description: 'games' }] });
   } finally {
-    if (prev === undefined) delete process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-    else process.env.BROWSER_ORGANIZER_GROUPS_FILE = prev;
+    if (prev === undefined) delete process.env.BROWSER_SANITY_GROUPS_FILE;
+    else process.env.BROWSER_SANITY_GROUPS_FILE = prev;
   }
 });
 
@@ -149,16 +149,16 @@ test('dispatch groups-write writes the description back through the file path (a
   // Point a symlink at the real file; writing through it must update the target.
   const link = `${file}.link`;
   fs.symlinkSync(file, link);
-  const prev = process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-  process.env.BROWSER_ORGANIZER_GROUPS_FILE = link;
+  const prev = process.env.BROWSER_SANITY_GROUPS_FILE;
+  process.env.BROWSER_SANITY_GROUPS_FILE = link;
   try {
     const res = await handle({ type: 'groups-write', payload: { name: 'Work', description: 'new\ndesc' } });
     assert.deepEqual(res, { ok: true });
     assert.equal(fs.readFileSync(file, 'utf8'), 'Intro.\n- Work: new desc');
     assert.ok(fs.lstatSync(link).isSymbolicLink()); // the symlink itself is preserved
   } finally {
-    if (prev === undefined) delete process.env.BROWSER_ORGANIZER_GROUPS_FILE;
-    else process.env.BROWSER_ORGANIZER_GROUPS_FILE = prev;
+    if (prev === undefined) delete process.env.BROWSER_SANITY_GROUPS_FILE;
+    else process.env.BROWSER_SANITY_GROUPS_FILE = prev;
   }
 });
 

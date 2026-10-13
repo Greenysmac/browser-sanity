@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { CLI_ADAPTERS } from './adapters/catalog.js';
 import { PROD_EXTENSION_ID, hostHome, hostBinName } from './paths.js';
 
-export const HOST_NAME = 'com.browser_organizer.host';
+export const HOST_NAME = 'com.browser_sanity.host';
 
 const DIRS = {
   linux: {
@@ -33,7 +33,7 @@ export function manifestDir(browser, platform = process.platform, home = os.home
 export function buildHostManifest({ execPath, extensionId }) {
   return {
     name: HOST_NAME,
-    description: 'Browser Organizer native host',
+    description: 'Browser Sanity native host',
     path: execPath,
     type: 'stdio',
     allowed_origins: [`chrome-extension://${extensionId}/`],

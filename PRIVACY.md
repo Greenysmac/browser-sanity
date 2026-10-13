@@ -1,8 +1,8 @@
-# Privacy Policy — Browser Organizer
+# Privacy Policy — Browser Sanity
 
 _Last updated: 2026-07-14_
 
-Browser Organizer runs a helper program on your own computer, which invokes your
+Browser Sanity runs a helper program on your own computer, which invokes your
 locally-installed AI CLI (Claude Code, Antigravity, Kiro, Copilot, Codex, or local Ollama)
 or an OpenAI-compatible API endpoint you configure. That backend transmits some of your data
 to its AI provider under your own subscription/key — this is not a "stays fully local" tool
@@ -25,4 +25,4 @@ extension operator receives none of this data and operates no server that stores
 
 Contact: hello@lusk.dev
 
-Policy URL: https://lusk.dev/browser-organizer/privacy
+Policy URL: https://lusk.dev/browser-sanity/privacy

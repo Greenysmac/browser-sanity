@@ -53,12 +53,12 @@ test('resolveArgs toggles MCP/settings flags; extraArgs reads opts.cli', () => {
 });
 
 test('resolveCommand defaults to claude and honors env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_CLI;
-  delete process.env.BROWSER_ORGANIZER_CLI;
+  const prev = process.env.BROWSER_SANITY_CLI;
+  delete process.env.BROWSER_SANITY_CLI;
   assert.equal(resolveCommand(), 'claude');
-  process.env.BROWSER_ORGANIZER_CLI = '/opt/claude/bin/claude';
+  process.env.BROWSER_SANITY_CLI = '/opt/claude/bin/claude';
   assert.equal(resolveCommand(), '/opt/claude/bin/claude');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_CLI; else process.env.BROWSER_ORGANIZER_CLI = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_CLI; else process.env.BROWSER_SANITY_CLI = prev;
 });
 
 test('resolveArgs returns headless json args and disables tools', () => {

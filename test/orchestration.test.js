@@ -429,7 +429,7 @@ test('loadProposals maps proposal URLs to open tabs and builds group/close items
   const nativeClient = { request: async (m) => {
     assert.equal(m.type, 'proposals');
     return {
-      from: 'Mycroft',
+      from: 'My agent',
       note: 'tidy up',
       groups: [{ name: 'Private AI', color: 'purple', urls: ['https://a.com', 'https://b.com'] }],
       close: [{ url: 'https://c.com', reason: 'duplicate' }],
@@ -437,7 +437,7 @@ test('loadProposals maps proposal URLs to open tabs and builds group/close items
   } };
   const { items, note, from } = await loadProposals({ nativeClient, chromeApi, settings: { adapter: 'claude' } });
   assert.equal(note, 'tidy up');
-  assert.equal(from, 'Mycroft');
+  assert.equal(from, 'My agent');
   const group = items.find((i) => i.action === 'groupTabs');
   assert.ok(group, 'a groupTabs item was built');
   assert.equal(group.data.groupName, 'Private AI');

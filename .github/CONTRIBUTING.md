@@ -1,6 +1,6 @@
-# Contributing to Browser Organizer
+# Contributing to Browser Sanity
 
-Thanks for your interest! Browser Organizer is a Chrome/Edge extension (`extension/`) plus a
+Thanks for your interest! Browser Sanity is a Chrome/Edge extension (`extension/`) plus a
 small Node native-messaging host (`native-host/`) that runs your chosen AI backend locally.
 
 ## Getting started

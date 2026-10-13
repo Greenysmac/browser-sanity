@@ -36,7 +36,7 @@ execFileSync(process.execPath, ['--experimental-sea-config', 'native-host/sea-co
 
 // 3) Copy the running Node binary and inject the blob into it.
 const isMac = process.platform === 'darwin';
-const bin = path.join(outDir, isWin ? 'browser-organizer-host.exe' : 'browser-organizer-host');
+const bin = path.join(outDir, isWin ? 'browser-sanity-host.exe' : 'browser-sanity-host');
 fs.copyFileSync(process.execPath, bin);
 
 const postjectArgs = [bin, 'NODE_SEA_BLOB', `${outDir}/sea-prep.blob`,

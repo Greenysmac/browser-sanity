@@ -38,10 +38,10 @@ test('run rejects when the CLI is killed by a signal (code null), not treated as
 });
 
 test('resolveCommand defaults to codex and honors the env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_CODEX_CMD;
-  delete process.env.BROWSER_ORGANIZER_CODEX_CMD;
+  const prev = process.env.BROWSER_SANITY_CODEX_CMD;
+  delete process.env.BROWSER_SANITY_CODEX_CMD;
   assert.equal(resolveCommand(), 'codex');
-  process.env.BROWSER_ORGANIZER_CODEX_CMD = '/opt/codex/bin/codex';
+  process.env.BROWSER_SANITY_CODEX_CMD = '/opt/codex/bin/codex';
   assert.equal(resolveCommand(), '/opt/codex/bin/codex');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_CODEX_CMD; else process.env.BROWSER_ORGANIZER_CODEX_CMD = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_CODEX_CMD; else process.env.BROWSER_SANITY_CODEX_CMD = prev;
 });

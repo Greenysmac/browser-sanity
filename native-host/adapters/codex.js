@@ -8,16 +8,16 @@
 //
 // SECURITY: codex exec is agentic. We pin `--sandbox read-only` so a prompt-
 // injected tab title cannot make it write files or run networked commands.
-// (read-only still permits local reads — tighten via BROWSER_ORGANIZER_CODEX_ARGS
+// (read-only still permits local reads — tighten via BROWSER_SANITY_CODEX_ARGS
 // against your codex version if needed.) The prompt is a trailing positional arg.
 
 import { makeCliAdapter } from './cli-adapter.js';
 
 export const codexAdapter = makeCliAdapter({
   name: 'codex',
-  cmdEnv: 'BROWSER_ORGANIZER_CODEX_CMD',
+  cmdEnv: 'BROWSER_SANITY_CODEX_CMD',
   defaultCmd: 'codex',
-  argsEnv: 'BROWSER_ORGANIZER_CODEX_ARGS',
+  argsEnv: 'BROWSER_SANITY_CODEX_ARGS',
   defaultArgs: ['exec', '--sandbox', 'read-only', '--skip-git-repo-check'],
   authEnv: ['OPENAI_API_KEY', 'CODEX_API_KEY'],
   // Advanced-settings flags the extension may add (config.sanitizeCli). Only model

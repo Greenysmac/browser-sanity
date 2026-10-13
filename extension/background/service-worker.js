@@ -22,8 +22,8 @@ import { apiKeyForProvider } from '../lib/providers.js';
 // rather than serve yesterday's suggestions.
 const PLAN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
-// Suggestions belong to the click that made them (Jeff, 2026-10-11: "On
-// restart/new run, there shouldn't be any leftover"). A browser restart or an
+// Suggestions belong to the click that made them, so nothing is left over
+// after a restart or a new run. A browser restart or an
 // extension reload or update clears every stored suggestion, and a stored split
 // proposal is shown only within two minutes of being made, which is long enough
 // for the new-tab page to hand it to the panel.

@@ -7,16 +7,16 @@
 // OpenAI, OpenRouter, Groq, Together, LM Studio, vLLM, and any other endpoint
 // that speaks the /chat/completions shape.
 //
-//   BROWSER_ORGANIZER_OPENAI_API_KEY   required — bearer token (host env only)
-//   BROWSER_ORGANIZER_OPENAI_BASE_URL  default https://api.openai.com/v1
-//   BROWSER_ORGANIZER_OPENAI_MODEL     default gpt-4o-mini
+//   BROWSER_SANITY_OPENAI_API_KEY   required — bearer token (host env only)
+//   BROWSER_SANITY_OPENAI_BASE_URL  default https://api.openai.com/v1
+//   BROWSER_SANITY_OPENAI_MODEL     default gpt-4o-mini
 //
 // Returns the assistant message text raw; the dispatcher extracts the JSON the
 // prompt asked for (same lenient path as the CLI adapters).
 
-const KEY_VAR = 'BROWSER_ORGANIZER_OPENAI_API_KEY';
-const BASE_VAR = 'BROWSER_ORGANIZER_OPENAI_BASE_URL';
-const MODEL_VAR = 'BROWSER_ORGANIZER_OPENAI_MODEL';
+const KEY_VAR = 'BROWSER_SANITY_OPENAI_API_KEY';
+const BASE_VAR = 'BROWSER_SANITY_OPENAI_BASE_URL';
+const MODEL_VAR = 'BROWSER_SANITY_OPENAI_MODEL';
 const DEFAULT_BASE = 'https://api.openai.com/v1';
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TIMEOUT = 120000;
@@ -33,7 +33,7 @@ const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // mirror the CLI adapters' output c
 // its own server. If the message chose the endpoint, it must also supply the key.
 export function resolveKey(cfg) {
   if (cfg && cfg.baseUrl && !cfg.apiKey && process.env[KEY_VAR]) {
-    throw new Error('Refusing to send the host API key to a client-supplied base URL. Enter your API key in the extension, or set the endpoint host-side via BROWSER_ORGANIZER_OPENAI_BASE_URL.');
+    throw new Error('Refusing to send the host API key to a client-supplied base URL. Enter your API key in the extension, or set the endpoint host-side via BROWSER_SANITY_OPENAI_BASE_URL.');
   }
   return (cfg && cfg.apiKey) || process.env[KEY_VAR] || '';
 }
@@ -118,7 +118,7 @@ export const openaiAdapter = {
   async run(prompt, opts = {}) {
     const cfg = opts.config;
     const key = resolveKey(cfg);
-    if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_ORGANIZER_OPENAI_API_KEY).');
+    if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_SANITY_OPENAI_API_KEY).');
     const fetchFn = opts.fetchFn || globalThis.fetch;
     const timeoutMs = opts.timeoutMs || DEFAULT_TIMEOUT;
     const body = JSON.stringify({
@@ -138,7 +138,7 @@ export const openaiAdapter = {
   async health(opts = {}) {
     const cfg = opts.config;
     const key = resolveKey(cfg);
-    if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_ORGANIZER_OPENAI_API_KEY).');
+    if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_SANITY_OPENAI_API_KEY).');
     const fetchFn = opts.fetchFn || globalThis.fetch;
     const res = await fetchWithTimeout(fetchFn, `${checkedBase(cfg)}/models`, { method: 'GET', headers: authHeaders(key) }, HEALTH_TIMEOUT);
     if (!res.ok) throw new Error(`OpenAI API ${res.status}`);
@@ -154,7 +154,7 @@ export const openaiAdapter = {
 export async function listModels(opts = {}) {
   const cfg = opts.config;
   const key = resolveKey(cfg);
-  if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_ORGANIZER_OPENAI_API_KEY).');
+  if (!key) throw new Error('OpenAI API key not set — add it in Settings (or set BROWSER_SANITY_OPENAI_API_KEY).');
   const fetchFn = opts.fetchFn || globalThis.fetch;
   const timeoutMs = opts.timeoutMs || HEALTH_TIMEOUT;
   const res = await fetchWithTimeout(fetchFn, `${checkedBase(cfg)}/models`, { method: 'GET', headers: authHeaders(key) }, timeoutMs);

@@ -1,9 +1,0 @@
-{
-  "name": "com.browser_organizer.host",
-  "description": "Browser Organizer native host",
-  "path": "browser-organizer-host.exe",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://jjacbpnaekkhbfpncfhmignbiocddocc/"
-  ]
-}

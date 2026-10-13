@@ -1,4 +1,4 @@
-// Playwright test fixtures for the Browser Organizer extension.
+// Playwright test fixtures for the Browser Sanity extension.
 //
 // Provides an extension-loaded persistent Chrome-for-Testing context with the
 // native-messaging host registered so the full pipe (panel -> service worker ->
@@ -16,7 +16,7 @@ import { install, buildHostManifest, HOST_NAME } from '../native-host/installer.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extPath = path.join(repoRoot, 'extension');
 // The extension id is stable — derived from the manifest's pinned key.
-const EXT_ID = process.env.BORG_EXT_ID || 'jjacbpnaekkhbfpncfhmignbiocddocc';
+const EXT_ID = process.env.BORG_EXT_ID || 'kebmdofdghcjmknaecnojcglkibcacgn';
 
 // Pages the local server serves, titled to give the model something to cluster.
 const PAGES = {

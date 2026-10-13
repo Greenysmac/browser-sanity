@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 // In a real browser element.children is an HTMLCollection, not an Array, so
 // .find/.filter/.includes/.some on it throw. The unit tests' fake DOM uses real
-// arrays and can't catch that (found by Mycroft in a real browser, 2026-10-07).
+// arrays and can't catch that (found in a real browser).
 test('board.js never calls array methods directly on element.children', () => {
   const src = fs.readFileSync(new URL('../extension/board/board.js', import.meta.url), 'utf8');
   const bad = src.match(/(?<!Array\.from)\(\s*\w+\.children\s*\|\|\s*\[\]\s*\)\.(find|filter|includes|some|map|forEach)\(/g) || [];

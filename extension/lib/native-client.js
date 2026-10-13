@@ -1,7 +1,7 @@
 import { uniqueId } from './ids.js';
 
 // Must byte-match native-host/installer.js HOST_NAME (asserted by test/host-name.test.js).
-export const HOST_NAME = 'com.browser_organizer.host';
+export const HOST_NAME = 'com.browser_sanity.host';
 
 // A long-lived native messaging port keeps the service worker alive while a
 // request is in flight, which matters because the CLI can take many seconds.

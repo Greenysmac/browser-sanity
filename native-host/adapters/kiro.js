@@ -12,9 +12,9 @@ import { makeCliAdapter } from './cli-adapter.js';
 
 export const kiroAdapter = makeCliAdapter({
   name: 'kiro',
-  cmdEnv: 'BROWSER_ORGANIZER_KIRO_CMD',
+  cmdEnv: 'BROWSER_SANITY_KIRO_CMD',
   defaultCmd: 'kiro-cli',
-  argsEnv: 'BROWSER_ORGANIZER_KIRO_ARGS',
+  argsEnv: 'BROWSER_SANITY_KIRO_ARGS',
   defaultArgs: ['chat', '--no-interactive', '--trust-tools='],
   authEnv: ['KIRO_API_KEY'],
   allowedExtraFlags: { '--model': 'value' },

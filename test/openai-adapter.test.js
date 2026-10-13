@@ -7,9 +7,9 @@ test('the registry resolves the openai adapter by name', () => {
   assert.equal(getAdapter('openai').name, 'openai');
 });
 
-const KEY = 'BROWSER_ORGANIZER_OPENAI_API_KEY';
-const BASE = 'BROWSER_ORGANIZER_OPENAI_BASE_URL';
-const MODEL = 'BROWSER_ORGANIZER_OPENAI_MODEL';
+const KEY = 'BROWSER_SANITY_OPENAI_API_KEY';
+const BASE = 'BROWSER_SANITY_OPENAI_BASE_URL';
+const MODEL = 'BROWSER_SANITY_OPENAI_MODEL';
 
 // Snapshot + restore the three env vars around each test so they don't leak.
 function withEnv(vars, fn) {

@@ -1,6 +1,6 @@
 {
   "appName": { "message": "Browser Sanity", "description": "Extension name shown in the browser and store." },
-  "appDesc": { "message": "Group tabs, close forgotten ones, and tidy bookmarks with your local AI CLI. Titles and URLs go to your own AI provider.", "description": "Extension description shown in the store (manifest description, max 132 chars)." },
+  "appDesc": { "message": "Sort your tabs into groups built around what you need, using your own AI. Park groups and reopen them later.", "description": "Extension description shown in the store (manifest description, max 132 chars)." },
   "panelTitle": { "message": "Browser Sanity", "description": "Side-panel heading." },
   "analyzeButton": { "message": "Analyze", "description": "Primary action button." },
   "settingsTitle": { "message": "Settings", "description": "Settings section heading." },

@@ -20,13 +20,13 @@ function readJson(dir) {
 
 test('writeIndex makes no history copy on the very first write (no prior index)', () => {
   const dir = tempDir();
-  writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [] }, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
+  writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [] }, { env: { BROWSER_SANITY_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
   assert.equal(fs.existsSync(path.join(dir, 'index-history')), false);
 });
 
 test('writeIndex copies the current index.json into index-history before each later write', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [{ name: 'B', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-02T12:30:45.000Z' });
   const copies = historyFiles(dir);
@@ -40,7 +40,7 @@ test('writeIndex copies the current index.json into index-history before each la
 
 test('parkGroup also snapshots the current index before writing', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   parkGroup({ name: 'B', tabs: [{ title: 't', url: 'https://b' }] }, { env, now: '2026-10-03T00:00:00.000Z' });
   const copies = historyFiles(dir);
@@ -50,7 +50,7 @@ test('parkGroup also snapshots the current index before writing', () => {
 
 test('history keeps only the newest 50 copies', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   // 53 writes: the first makes no copy, the other 52 each snapshot the prior.
   for (let i = 0; i < 53; i += 1) {
     const now = `2026-11-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`;
@@ -66,7 +66,7 @@ test('history keeps only the newest 50 copies', () => {
 
 test('listIndexHistory returns name and time, newest first', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [], ungrouped: [] }, { env, now: '2026-10-02T00:00:00.000Z' });
   writeIndex({ groups: [], ungrouped: [] }, { env, now: '2026-10-03T00:00:00.000Z' });
@@ -80,12 +80,12 @@ test('listIndexHistory returns name and time, newest first', () => {
 
 test('listIndexHistory yields an empty list when there is no history folder', () => {
   const dir = tempDir();
-  assert.deepEqual(listIndexHistory({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } }), []);
+  assert.deepEqual(listIndexHistory({ env: { BROWSER_SANITY_INDEX_DIR: dir } }), []);
 });
 
 test('restoreIndexHistory restores a copy as index.json and rewrites index.md', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'Original', tabs: [{ title: 'A', url: 'https://a' }] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [{ name: 'Changed', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-02T00:00:00.000Z' });
   // The snapshot taken before the second write holds the Original group.
@@ -100,7 +100,7 @@ test('restoreIndexHistory restores a copy as index.json and rewrites index.md', 
 
 test('restoreIndexHistory snapshots the current index before overwriting it', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'V1', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [{ name: 'V2', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-02T00:00:00.000Z' });
   const copy = historyFiles(dir)[0]; // snapshot of V1
@@ -113,7 +113,7 @@ test('restoreIndexHistory snapshots the current index before overwriting it', ()
 
 test('restoreIndexHistory refuses a name with a slash or ..', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   assert.throws(() => restoreIndexHistory('../index.json', { env }), /Invalid history name/);
   assert.throws(() => restoreIndexHistory('sub/index.json', { env }), /Invalid history name/);
   assert.throws(() => restoreIndexHistory('..', { env }), /Invalid history name/);
@@ -122,7 +122,7 @@ test('restoreIndexHistory refuses a name with a slash or ..', () => {
 
 test('a failing snapshot never fails the write', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'A', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   // mkdir throws only for the history folder; the main write still proceeds.
   const mkdir = (p, opts) => {

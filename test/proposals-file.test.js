@@ -17,13 +17,13 @@ function write(dir, content) {
 test('loadProposals reads a present proposals.json, keeping groups/close and the note', () => {
   const dir = tempDir();
   write(dir, JSON.stringify({
-    from: 'Mycroft',
+    from: 'My agent',
     note: 'tidy up',
     groups: [{ name: 'Private AI', color: 'purple', urls: ['https://a'] }],
     close: [{ url: 'https://b', reason: 'duplicate' }],
   }));
-  const r = loadProposals({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
-  assert.equal(r.from, 'Mycroft');
+  const r = loadProposals({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
+  assert.equal(r.from, 'My agent');
   assert.equal(r.note, 'tidy up');
   assert.deepEqual(r.groups, [{ name: 'Private AI', color: 'purple', urls: ['https://a'] }]);
   assert.deepEqual(r.close, [{ url: 'https://b', reason: 'duplicate' }]);
@@ -31,49 +31,49 @@ test('loadProposals reads a present proposals.json, keeping groups/close and the
 
 test('loadProposals returns the empty shape when the file is missing', () => {
   const dir = tempDir(); // no file written
-  const r = loadProposals({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
+  const r = loadProposals({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
   assert.deepEqual(r, { groups: [], close: [] });
 });
 
 test('loadProposals returns the empty shape on invalid JSON', () => {
   const dir = tempDir();
   write(dir, '{ not valid json');
-  const r = loadProposals({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
+  const r = loadProposals({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
   assert.deepEqual(r, { groups: [], close: [] });
 });
 
 test('loadProposals returns the empty shape when the parsed value is not an object', () => {
   const dir = tempDir();
   write(dir, '[1,2,3]');
-  const r = loadProposals({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
+  const r = loadProposals({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
   assert.deepEqual(r, { groups: [], close: [] });
 });
 
 test('loadProposals tolerates missing/wrong-typed groups and close arrays', () => {
   const dir = tempDir();
   write(dir, JSON.stringify({ note: 'x', groups: 'nope' })); // groups not an array, no close
-  const r = loadProposals({ env: { BROWSER_ORGANIZER_INDEX_DIR: dir } });
+  const r = loadProposals({ env: { BROWSER_SANITY_INDEX_DIR: dir } });
   assert.deepEqual(r.groups, []);
   assert.deepEqual(r.close, []);
   assert.equal(r.note, 'x');
 });
 
 test('dispatch proposals type returns the loaded proposals', async () => {
-  const canned = { from: 'Mycroft', note: 'hi', groups: [{ name: 'G', urls: ['https://a'] }], close: [] };
+  const canned = { from: 'My agent', note: 'hi', groups: [{ name: 'G', urls: ['https://a'] }], close: [] };
   const r = await handle({ type: 'proposals' }, { loadProposals: () => canned });
   assert.deepEqual(r, canned);
 });
 
 test('dispatch proposals falls back to the empty shape via the real loader when none configured', async () => {
   const dir = tempDir(); // no file → empty shape
-  const prev = process.env.BROWSER_ORGANIZER_INDEX_DIR;
-  process.env.BROWSER_ORGANIZER_INDEX_DIR = dir;
+  const prev = process.env.BROWSER_SANITY_INDEX_DIR;
+  process.env.BROWSER_SANITY_INDEX_DIR = dir;
   try {
     const r = await handle({ type: 'proposals' });
     assert.deepEqual(r, { groups: [], close: [] });
   } finally {
-    if (prev === undefined) delete process.env.BROWSER_ORGANIZER_INDEX_DIR;
-    else process.env.BROWSER_ORGANIZER_INDEX_DIR = prev;
+    if (prev === undefined) delete process.env.BROWSER_SANITY_INDEX_DIR;
+    else process.env.BROWSER_SANITY_INDEX_DIR = prev;
   }
 });
 

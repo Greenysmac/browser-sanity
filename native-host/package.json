@@ -1,17 +1,39 @@
 {
-  "name": "@lusktech/browser-organizer-host",
+  "name": "browser-sanity-host",
   "version": "0.6.1",
-  "description": "Native messaging host + installer for the Browser Organizer extension.",
+  "description": "Native messaging host + installer for the Browser Sanity extension (a fork of Browser Organizer by Lusk Technologies).",
   "type": "module",
-  "engines": { "node": ">=20" },
-  "bin": { "browser-organizer-host": "cli.js" },
-  "files": ["*.js", "adapters/**/*.js"],
-  "keywords": ["chrome-extension", "native-messaging", "browser-organizer", "native-host"],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "browser-sanity-host": "cli.js"
+  },
+  "files": [
+    "*.js",
+    "adapters/**/*.js"
+  ],
+  "keywords": [
+    "chrome-extension",
+    "native-messaging",
+    "browser-sanity",
+    "native-host"
+  ],
   "license": "MIT",
-  "author": "Lusk Technologies",
-  "homepage": "https://lusk.dev/browser-organizer",
-  "repository": { "type": "git", "url": "git+https://github.com/LUSKTECH/browser-organizer.git" },
-  "bugs": { "url": "https://github.com/LUSKTECH/browser-organizer/issues" },
-  "publishConfig": { "access": "public" },
-  "scripts": { "prepublishOnly": "cd .. && node --test test/*.test.js" }
+  "author": "Jeff Greenberg",
+  "homepage": "https://github.com/Greenysmac/browser-sanity",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Greenysmac/browser-sanity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Greenysmac/browser-sanity/issues"
+  },
+  "scripts": {
+    "prepublishOnly": "cd .. && node --test test/*.test.js"
+  },
+  "private": true,
+  "contributors": [
+    "Lusk Technologies (original Browser Organizer host, https://github.com/LUSKTECH/browser-organizer)"
+  ]
 }

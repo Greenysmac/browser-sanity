@@ -26,42 +26,42 @@ test('buildHostManifest wires name, path, and allowed_origins', () => {
 });
 
 test('unix launcher exports the CLI path and a PATH before exec', () => {
-  const s = buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_ORGANIZER_CLI', '/home/u/.local/bin/claude']] });
+  const s = buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_SANITY_CLI', '/home/u/.local/bin/claude']] });
   assert.match(s, /^#!\/bin\/sh/);
-  assert.match(s, /BROWSER_ORGANIZER_CLI="\/home\/u\/\.local\/bin\/claude"/);
+  assert.match(s, /BROWSER_SANITY_CLI="\/home\/u\/\.local\/bin\/claude"/);
   assert.match(s, /export PATH=/);
   assert.match(s, /exec "\/usr\/bin\/node" "\/x\/host\.js"/);
 });
 
 test('win32 launcher still works normally for an ordinary Windows path', () => {
-  const s = buildLauncherScript({ platform: 'win32', nodePath: 'C:\\node.exe', hostEntry: 'C:\\Users\\u\\host.js', vars: [['BROWSER_ORGANIZER_CLI', 'C:\\Users\\u\\claude.exe']] });
+  const s = buildLauncherScript({ platform: 'win32', nodePath: 'C:\\node.exe', hostEntry: 'C:\\Users\\u\\host.js', vars: [['BROWSER_SANITY_CLI', 'C:\\Users\\u\\claude.exe']] });
   assert.match(s, /^@echo off/);
-  assert.match(s, /set "BROWSER_ORGANIZER_CLI=C:\\Users\\u\\claude\.exe"/);
+  assert.match(s, /set "BROWSER_SANITY_CLI=C:\\Users\\u\\claude\.exe"/);
   assert.match(s, /"C:\\node\.exe" "C:\\Users\\u\\host\.js" %\*/);
 });
 
 test('buildLauncherScript rejects a CLI path containing shell metacharacters instead of interpolating it verbatim', () => {
   const evil = '/usr/bin/claude"; rm -rf ~; echo "';
   assert.throws(
-    () => buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_ORGANIZER_CLI', evil]] }),
+    () => buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_SANITY_CLI', evil]] }),
     /Unsafe launcher value/,
   );
 });
 
 test('buildLauncherScript rejects shell-expansion metacharacters ($ and `) on POSIX', () => {
   assert.throws(
-    () => buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_ORGANIZER_CLI', '/usr/bin/$(rm -rf ~)']] }),
+    () => buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_SANITY_CLI', '/usr/bin/$(rm -rf ~)']] }),
     /Unsafe launcher value/,
   );
   assert.throws(
-    () => buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_ORGANIZER_CLI', '/usr/bin/`rm -rf ~`']] }),
+    () => buildLauncherScript({ platform: 'linux', nodePath: '/usr/bin/node', hostEntry: '/x/host.js', vars: [['BROWSER_SANITY_CLI', '/usr/bin/`rm -rf ~`']] }),
     /Unsafe launcher value/,
   );
 });
 
 test('buildLauncherScript rejects batch variable-expansion metacharacters (%) on win32', () => {
   assert.throws(
-    () => buildLauncherScript({ platform: 'win32', nodePath: 'C:\\node.exe', hostEntry: 'C:\\host.js', vars: [['BROWSER_ORGANIZER_CLI', 'C:\\%WINDIR%\\evil.exe']] }),
+    () => buildLauncherScript({ platform: 'win32', nodePath: 'C:\\node.exe', hostEntry: 'C:\\host.js', vars: [['BROWSER_SANITY_CLI', 'C:\\%WINDIR%\\evil.exe']] }),
     /Unsafe launcher value/,
   );
 });
@@ -78,16 +78,16 @@ test('buildLauncherScript rejects an unsafe nodePath or hostEntry, not just vars
 });
 
 test('registryCommands builds HKCU reg add argv (no shell) for chrome and edge', () => {
-  const cmds = registryCommands(['chrome', 'edge'], 'C:\\hosts\\com.browser_organizer.host.json');
+  const cmds = registryCommands(['chrome', 'edge'], 'C:\\hosts\\com.browser_sanity.host.json');
   assert.equal(cmds.length, 2);
-  assert.deepEqual(cmds[0].slice(0, 3), ['reg', 'add', 'HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.browser_organizer.host']);
+  assert.deepEqual(cmds[0].slice(0, 3), ['reg', 'add', 'HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.browser_sanity.host']);
   assert.ok(cmds[1][2].includes('Microsoft\\Edge'));
-  assert.ok(cmds[0].includes('C:\\hosts\\com.browser_organizer.host.json'));
+  assert.ok(cmds[0].includes('C:\\hosts\\com.browser_sanity.host.json'));
   assert.equal(cmds[0].at(-1), '/f');
 });
 
 test('winManifestPath is under the native host dir', () => {
-  assert.match(winManifestPath('C:\\ext\\native-host'), /native-host.*com\.browser_organizer\.host\.json$/);
+  assert.match(winManifestPath('C:\\ext\\native-host'), /native-host.*com\.browser_sanity\.host\.json$/);
 });
 
 // --- stable-home install (Phase A) ---
@@ -114,7 +114,7 @@ test('copyHostTo copies host sources but not generated launchers', () => {
 test('install copies the host into a stable home and points the manifest there', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-home-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     const written = install({ browsers: ['chrome'], platform: 'linux', home, copyTo });
     assert.ok(written.some((f) => f.startsWith(copyTo)));
     const manifestFile = written.find((f) => f.endsWith('.json'));
@@ -140,7 +140,7 @@ test('install defaults extensionId to the pinned production id', () => {
 test('uninstall removes the copied host home and the manifests', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-unins-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     install({ browsers: ['chrome'], platform: 'linux', home, copyTo });
     assert.ok(fs.existsSync(path.join(copyTo, 'host.js')));
     const removed = uninstall({ browsers: ['chrome'], platform: 'linux', home, copyTo });
@@ -154,7 +154,7 @@ test('uninstall removes the copied host home and the manifests', () => {
 test('repair is idempotent — re-running yields a working manifest', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-repair-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     install({ browsers: ['chrome'], platform: 'linux', home, copyTo });
     const written = repair({ browsers: ['chrome'], platform: 'linux', home, copyTo });
     const manifest = JSON.parse(fs.readFileSync(written.find((f) => f.endsWith('.json')), 'utf8'));
@@ -169,7 +169,7 @@ test('repair is idempotent — re-running yields a working manifest', () => {
 test('install points the manifest at a pre-existing SEA binary and skips run.sh', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-sea-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     // A packaged installer drops the binary into copyTo before registering it.
     fs.mkdirSync(copyTo, { recursive: true });
     const bin = path.join(copyTo, hostBinName('linux'));
@@ -190,7 +190,7 @@ test('install points the manifest at a pre-existing SEA binary and skips run.sh'
 test('install without a binary still copies sources and writes run.sh (npx path)', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-nosea-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     const written = install({ browsers: ['chrome'], platform: 'linux', home, copyTo });
     const launcher = path.join(copyTo, 'run.sh');
     assert.ok(fs.existsSync(launcher));
@@ -258,7 +258,7 @@ test('runRegistryCommands tolerates an already-absent key on delete, but not oth
 test('uninstall of one browser keeps the shared host home for the other', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-uninstall-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     fs.mkdirSync(copyTo, { recursive: true });
     fs.writeFileSync(path.join(copyTo, 'host.js'), '// stub');
     for (const b of ['chrome', 'edge']) {
@@ -282,7 +282,7 @@ test('uninstall of one browser keeps the shared host home for the other', () => 
 test('install() and repair() default browsers and do not throw when browsers option is omitted', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'borg-default-browsers-'));
   try {
-    const copyTo = path.join(home, '.browser-organizer');
+    const copyTo = path.join(home, '.browser-sanity');
     const written = install({ platform: 'linux', home, copyTo });
     assert.ok(written.length >= 3); // launcher + chrome manifest + edge manifest
     assert.ok(fs.existsSync(path.join(manifestDir('chrome', 'linux', home), `${HOST_NAME}.json`)));

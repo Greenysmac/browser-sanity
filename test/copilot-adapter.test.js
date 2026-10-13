@@ -23,12 +23,12 @@ test('run rejects on non-zero exit', async () => {
 });
 
 test('resolveCommand defaults to copilot and honors the env override', () => {
-  const prev = process.env.BROWSER_ORGANIZER_COPILOT_CMD;
-  delete process.env.BROWSER_ORGANIZER_COPILOT_CMD;
+  const prev = process.env.BROWSER_SANITY_COPILOT_CMD;
+  delete process.env.BROWSER_SANITY_COPILOT_CMD;
   assert.equal(resolveCommand(), 'copilot');
-  process.env.BROWSER_ORGANIZER_COPILOT_CMD = '/usr/local/bin/copilot';
+  process.env.BROWSER_SANITY_COPILOT_CMD = '/usr/local/bin/copilot';
   assert.equal(resolveCommand(), '/usr/local/bin/copilot');
-  if (prev === undefined) delete process.env.BROWSER_ORGANIZER_COPILOT_CMD; else process.env.BROWSER_ORGANIZER_COPILOT_CMD = prev;
+  if (prev === undefined) delete process.env.BROWSER_SANITY_COPILOT_CMD; else process.env.BROWSER_SANITY_COPILOT_CMD = prev;
 });
 
 test('extra flags go before -p so the prompt stays the -p value (no splice)', async () => {

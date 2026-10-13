@@ -1,0 +1,9 @@
+{
+  "name": "com.browser_sanity.host",
+  "description": "Browser Sanity native host",
+  "path": "browser-sanity-host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://kebmdofdghcjmknaecnojcglkibcacgn/"
+  ]
+}

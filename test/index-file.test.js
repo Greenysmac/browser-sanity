@@ -24,7 +24,7 @@ test('writeIndex writes index.json and index.md on a first write', () => {
     groups: [{ name: 'Work', color: 'blue', windowId: 1, tabs: [{ title: 'Docs', url: 'https://docs' }] }],
     ungrouped: [{ title: 'Random', url: 'https://random' }],
   };
-  const count = writeIndex(payload, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-07T00:00:00.000Z' });
+  const count = writeIndex(payload, { env: { BROWSER_SANITY_INDEX_DIR: dir }, now: '2026-10-07T00:00:00.000Z' });
   assert.equal(count, 1);
   const json = readJson(dir);
   assert.equal(json.groups.length, 1);
@@ -38,7 +38,7 @@ test('writeIndex writes index.json and index.md on a first write', () => {
 
 test('writeIndex merges, keeping a now-missing group as parked with its old tabs and lastSeen', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex(
     { groups: [{ name: 'Work', color: 'blue', windowId: 1, tabs: [{ title: 'A', url: 'https://a' }] }], ungrouped: [] },
     { env, now: '2026-10-01T00:00:00.000Z' },
@@ -61,7 +61,7 @@ test('writeIndex merges, keeping a now-missing group as parked with its old tabs
 
 test('writeIndex reopens a parked group when it appears again (match by trimmed, case-insensitive name)', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'Work', tabs: [{ title: 'A', url: 'https://a' }] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [], ungrouped: [] }, { env, now: '2026-10-02T00:00:00.000Z' }); // Work goes parked
   const beforeReopen = readJson(dir).groups.find((g) => g.name === 'Work');
@@ -82,7 +82,7 @@ function groupName(g) {
 
 test('writeIndex treats a broken previous index.json as empty, never erroring', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   fs.writeFileSync(path.join(dir, 'index.json'), '{ not valid json');
   const count = writeIndex({ groups: [{ name: 'Fresh', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-07T00:00:00.000Z' });
   assert.equal(count, 1);
@@ -94,7 +94,7 @@ test('writeIndex treats a broken previous index.json as empty, never erroring', 
 
 test('index.md uses the documented markdown format', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'Work', tabs: [{ title: 'A', url: 'https://a' }] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex(
     {
@@ -119,7 +119,7 @@ test('index.md uses the documented markdown format', () => {
 
 test('writeIndex reads an old index.json that says "closed" as parked', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   // Seed a legacy index.json where a now-missing group still uses the old
   // 'closed' status.
   fs.writeFileSync(
@@ -140,7 +140,7 @@ test('writeIndex reads an old index.json that says "closed" as parked', () => {
 
 test('writeIndex drops a dissolved group instead of parking it', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex(
     { groups: [{ name: 'Work', tabs: [{ title: 'A', url: 'https://a' }] }, { name: 'Play', tabs: [{ title: 'B', url: 'https://b' }] }], ungrouped: [] },
     { env, now: '2026-10-01T00:00:00.000Z' },
@@ -160,7 +160,7 @@ test('writeIndex drops a dissolved group instead of parking it', () => {
 
 test('writeIndex matches dissolved names by trimmed, case-insensitive name', () => {
   const dir = tempDir();
-  const env = { BROWSER_ORGANIZER_INDEX_DIR: dir };
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
   writeIndex({ groups: [{ name: 'Work', tabs: [] }], ungrouped: [] }, { env, now: '2026-10-01T00:00:00.000Z' });
   writeIndex({ groups: [], ungrouped: [], dissolved: ['  work  '] }, { env, now: '2026-10-07T00:00:00.000Z' });
   const json = readJson(dir);
@@ -169,7 +169,7 @@ test('writeIndex matches dissolved names by trimmed, case-insensitive name', () 
 
 test('dispatch index type writes the index and returns the group count', async () => {
   const dir = tempDir();
-  writeIndex({ groups: [], ungrouped: [] }, { env: { BROWSER_ORGANIZER_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
+  writeIndex({ groups: [], ungrouped: [] }, { env: { BROWSER_SANITY_INDEX_DIR: dir }, now: '2026-10-01T00:00:00.000Z' });
   let seenPayload = null;
   const r = await handle(
     { type: 'index', payload: { groups: [{ name: 'A', tabs: [] }, { name: 'B', tabs: [] }], ungrouped: [] } },

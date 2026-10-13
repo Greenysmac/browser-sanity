@@ -16,9 +16,9 @@ import { makeCliAdapter } from './cli-adapter.js';
 
 export const antigravityAdapter = makeCliAdapter({
   name: 'antigravity',
-  cmdEnv: 'BROWSER_ORGANIZER_ANTIGRAVITY_CMD',
+  cmdEnv: 'BROWSER_SANITY_ANTIGRAVITY_CMD',
   defaultCmd: 'agy',
-  argsEnv: 'BROWSER_ORGANIZER_ANTIGRAVITY_ARGS',
+  argsEnv: 'BROWSER_SANITY_ANTIGRAVITY_ARGS',
   defaultArgs: ['--sandbox'],
   promptFlag: '-p',
   authEnv: ['GEMINI_API_KEY', 'ANTIGRAVITY_API_KEY'],

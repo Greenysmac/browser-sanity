@@ -1,8 +1,8 @@
-# Security Model — Browser Organizer
+# Security Model — Browser Sanity
 
 - **CLI command is host-controlled.** Each adapter (claude / antigravity / kiro)
-  resolves its binary from its own environment override (`BROWSER_ORGANIZER_CLI`,
-  `BROWSER_ORGANIZER_ANTIGRAVITY_CMD`, `BROWSER_ORGANIZER_KIRO_CMD`) or PATH, and
+  resolves its binary from its own environment override (`BROWSER_SANITY_CLI`,
+  `BROWSER_SANITY_ANTIGRAVITY_CMD`, `BROWSER_SANITY_KIRO_CMD`) or PATH, and
   uses fixed arguments. The host never accepts an executable path, arguments, or
   environment from an extension message — only a bounded `timeoutMs` and an
   adapter *name* that selects from a fixed registry. The message can pick *which*
@@ -12,7 +12,7 @@
   `KIRO_API_KEY`) passed through from the host's own environment — never from a
   message.
 - **The HTTP (`openai`) adapter — two credential paths, both constrained.**
-  1. *Host env* (`BROWSER_ORGANIZER_OPENAI_API_KEY` / `_BASE_URL` / `_MODEL`) — key
+  1. *Host env* (`BROWSER_SANITY_OPENAI_API_KEY` / `_BASE_URL` / `_MODEL`) — key
      never enters the browser; strongest.
   2. *UI-entered* — the user pastes the key in Settings; it is stored **encrypted at
      rest** (AES-GCM, non-extractable WebCrypto key in IndexedDB, ciphertext in
@@ -27,7 +27,7 @@
   the native-messaging protocol to `run.sh`. The host can only run one of the fixed
   registered CLIs with fixed arguments over a private temp dir. Keep `run.sh`
   permissions at 0700. The host is installed into a per-user home
-  (`~/.browser-organizer`, or `%LOCALAPPDATA%\BrowserOrganizer` on Windows) and the
+  (`~/.browser-sanity`, or `%LOCALAPPDATA%\BrowserSanity` on Windows) and the
   browser's host manifest points there — a stable, per-user, non-elevated location;
   the install path change carries none of the message-surface invariants above.
 - **Agentic CLIs run tool-restricted.** Several backends are agentic (can run shell
@@ -39,10 +39,10 @@
   - **kiro** — `--trust-tools=` (trusts no tools).
   - **codex** — `--sandbox read-only` (no writes/network; local reads still possible).
   - **copilot** — LOWER ASSURANCE: runs with its default tool policy; lock down via
-    `BROWSER_ORGANIZER_COPILOT_ARGS`.
+    `BROWSER_SANITY_COPILOT_ARGS`.
 
   Flags are host-controlled and overridable per adapter via
-  `BROWSER_ORGANIZER_<NAME>_ARGS` (never from a message). For the strongest
+  `BROWSER_SANITY_<NAME>_ARGS` (never from a message). For the strongest
   guarantee use **claude** or **ollama**. Flag defaults are best-effort per the
   CLIs' current docs; verify against your installed version.
 - **Untrusted input.** Tab titles/URLs are treated as data, not instructions, in
