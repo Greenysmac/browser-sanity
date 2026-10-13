@@ -64,8 +64,8 @@ body:
     id: versions
     attributes:
       label: Extension version and host install method
-      description: Extension version (from chrome://extensions) and how you installed the host (npx / per-OS installer / clone).
-      placeholder: "extension 0.1.0, host via npx"
+      description: Extension version (from chrome://extensions) and how you installed the helper (npm run install-host, or another way).
+      placeholder: "extension 0.6.1, helper via npm run install-host"
   - type: textarea
     id: logs
     attributes:

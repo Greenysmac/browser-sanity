@@ -1,28 +1,13 @@
-# Privacy Policy — Browser Sanity
+# Privacy: Browser Sanity
 
-_Last updated: 2026-07-14_
+_Last updated: 2026-10-12_
 
-Browser Sanity runs a helper program on your own computer, which invokes your
-locally-installed AI CLI (Claude Code, Antigravity, Kiro, Copilot, Codex, or local Ollama)
-or an OpenAI-compatible API endpoint you configure. That backend transmits some of your data
-to its AI provider under your own subscription/key — this is not a "stays fully local" tool
-unless you choose a local backend (Ollama, or a local OpenAI-compatible server). The
-extension operator receives none of this data and operates no server that stores it.
+Browser Sanity runs a helper program on your own computer. The helper runs the AI backend you chose: an AI command-line tool you've installed and signed into (Claude Code, Antigravity, Kiro, Copilot, Codex, or Ollama), or an OpenAI-style API you configured. That backend sends some of your data to its AI provider, under your own account or key. Choose a local backend (Ollama, or a local OpenAI-style server) and nothing leaves your machine. Browser Sanity has no server and receives none of your data.
 
-- **What we access:** open tab titles/URLs, bookmarks, browsing-history visit times for
-  bookmarked URLs, and HTTP status of bookmarked URLs (for dead-link checks).
-- **What is sent to the AI provider:** open tab titles and URLs are sent to your selected
-  backend to compute groupings, stale-tab suggestions, and bookmark recommendations. Before
-  sending, query strings and fragments are stripped, embedded credentials are removed, and
-  private/loopback hosts are reduced to their origin. This happens under your own AI
-  subscription/key and is subject to that provider's policy.
-- **What stays local:** bookmarks, browsing history, and dead-link HTTP checks are
-  processed entirely on your machine and are never sent anywhere.
-- **What we store:** your settings, tab-activity timestamps, an undo log, and — if you use
-  the OpenAI-compatible API backend — your API key **encrypted at rest** (AES-GCM). All of
-  this lives in the browser's local storage on your device and is never synced off it.
-- **What we never do:** sell data, run analytics, or transmit your data to the developer.
+- **What it reads:** your open tabs' titles and URLs, and your tab groups.
+- **What goes to the AI provider:** tab titles and URLs, and your groups file if you wrote one. Before sending, query strings and fragments are stripped, embedded credentials are removed, and private or loopback hosts are reduced to their origin. Your provider's own policy applies.
+- **What stays on your machine:** the index of your groups (`index.json`, `index.md`), its history copies, your groups file, and agent suggestions (`proposals.json`), all in `~/.browser-sanity`; and, in the browser's local storage, your settings, tab activity times, an undo log, and an API key if you entered one, encrypted at rest (AES-GCM). None of it is synced off your device.
+- **Bookmarks:** the extension still has the bookmarks permission it inherited from Browser Organizer. Its bookmark tools are hidden and switched off in Browser Sanity. Bookmarks never leave your machine.
+- **What it never does:** sell data, run analytics, or send your data to the developer.
 
-Contact: hello@lusk.dev
-
-Policy URL: https://lusk.dev/browser-sanity/privacy
+Questions: open an issue at https://github.com/Greenysmac/browser-sanity/issues.

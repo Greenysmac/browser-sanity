@@ -1,134 +1,62 @@
 # Changelog
 
+Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
+
+## 0.7.0 — 2026-10-12
+- Browser Sanity has its own identity, so it can sit beside Browser Organizer: its own extension ID, helper name (`com.browser_sanity.host`), helper folder (`~/.browser-sanity`) and `BROWSER_SANITY_` settings. Moving from an earlier Browser Sanity means loading the extension again and running `npm run install-host`.
+- The helper installs from the project folder (`npm run install-host`); it isn't published to npm, and the panel's help and update messages say so instead of pointing at the original's package.
+- New README, install guide and privacy page; the original project's store listing, release process and hosted privacy page are gone. Lusk Technologies is credited in every license and package file.
+
 ## 0.6.1 — 2026-10-11
-**By Mycroft, from Jeff ("Applied 12. 1 failed." / "And no undo?")**
-- A failed suggestion says what and why: "Applied 12. 1 failed: Group "Someday" (1 tab): No tab with id: 13." (the reason used to go only to the background console).
-- The Undo after Apply stays until you use it or run Analyze again (it used to vanish after 8 seconds), and sits right under the Open tabs result. "Restore before sort" at the top still undoes the latest Apply.
+- A failed suggestion says what and why ("Applied 12. 1 failed: Group "Someday" (1 tab): No tab with id: 13.").
+- The Undo after Apply stays under the result until you use it or run Analyze again. "Restore before sort" in the header also undoes the latest Apply.
 
 ## 0.6.0 — 2026-10-11
-**Run 14 (Kiro, five tasks, all first try, 25 minutes, 5.5 credits; reviewed by Mycroft)**
-- Tabs go into live groups by default. A tab matching a parked group joins an open group with that name; an unchecked box on the result card offers to file them into the parked groups instead (saves and closes them).
-- Re-analyze parked groups is safer: nothing is checked until you check it, no merge that ends up over 30 tabs, merges update the groups file, splitting Someday keeps Someday, and the re-analyze and split cards have Dismiss.
-- The side panel has two parts: Open tabs (Analyze), Parked groups (Re-analyze), each with one line saying what it touches. Run one, the Bookmarks settings and Sessions are hidden.
+- Tabs go into live groups by default. A tab that matches a parked group joins an open group with that name; an unchecked box offers to file it into the parked group instead (which saves and closes it).
+- Re-analyze parked groups is safer: nothing is checked until you check it, no merge that ends up over 30 tabs, merges update the groups file, splitting the catch-all group keeps it, and the cards have Dismiss.
+- The side panel has two parts, Open tabs (Analyze) and Parked groups (Re-analyze), each with one line saying what it touches. The bookmark tools, Run one and Sessions are hidden.
 - Every suggestion card says what made it and when ("From Analyze: Put into my groups, 9:40 AM").
 - Re-analyze splits are checkboxes showing the proposed sub-group names; one "Apply checked" does merges, then splits.
-
-**Fixed by Mycroft in review** (real-browser check of every button, both themes): the new From line crashed the re-analyze and split cards in real Chrome (`.find` on a children list); the hidden Run one row and Bookmarks settings still showed (a class display rule beat `hidden`; now `[hidden]` always wins); an applied split could come back as a split card; the parked checkbox counted groups, not tabs, and lost its state on edits; renaming a parked-match group kept it filing into the parked group; the suggestion list sat under the Board (now under Open tabs) and the "No suggestions yet" box is gone. Guard tests for the children trap now cover every page.
+- Real-browser fixes: the From line, hidden elements that still showed, an applied split that could come back, the parked checkbox counting groups instead of tabs.
 
 ## 0.5.3 — 2026-10-11
-**No leftovers, by Mycroft (Jeff: "On restart/new run, there shouldn't be any leftover")**
-- Reloading or updating the extension, or restarting Chrome, clears every stored suggestion: the sort plan, a split proposal, and a pending re-analyze.
-- A stored split proposal is shown only within two minutes of being made (the new-tab page's hand-off to the panel), and the panel drops it as soon as it's on screen.
-- The restart cleanup never ran before: it loaded code with import(), which Chrome refuses in a service worker, so the handler stopped on its first line. Now a plain import.
+- No leftovers: reloading or updating the extension, or restarting the browser, clears stored suggestions; a stored split proposal shows only within two minutes of being made.
+- The restart cleanup now runs (it used import(), which Chrome refuses in a service worker).
 
 ## 0.5.2 — 2026-10-10
-**Fixes by Mycroft, from Jeff's report**
-- Split… did nothing: the split card crashed in real Chrome (it assigned to a read-only `children`), so no proposal ever showed. Fixed, and the review list now shows every sub-group (looping the live list skipped every other one). The panel also says "Working out a split for <group>…" while it waits, and says so when a split fails.
-- "Tidy parked groups…" is now "Re-analyze parked groups…".
-- On the new-tab page that link did nothing; it now opens the side panel and runs the re-analysis there.
-- Guard tests: no extension page assigns to `children` or loops the live list directly.
-
-**Real-browser check:** Re-analyze from the panel, Split… on a suggestion, Review showing all three sub-groups, and the new-tab link opening the panel and starting the re-analysis. No errors.
+- Split works in real Chrome (the split card crashed before showing), and its review lists every sub-group.
+- "Tidy parked groups…" is now "Re-analyze parked groups…", and the new-tab page's link opens the side panel to run it.
 
 ## 0.5.1 — 2026-10-08
-**Run 13 (Kiro, two tasks, first try; reviewed by Mycroft)**
-- A new Analyze clears the old suggestions; a stored plan older than 6 hours comes back empty, and items for tabs that no longer exist are dropped.
-- A calmer side panel header: mark, name, Restore before sort on one line, ⋯ and the gear; the version moved into the More view.
-
-**New icon by Mycroft** (Jeff's pick): a level with the bubble centered, green on a dark tile; a simpler drawing for 16 and 32 pixels so it reads in the toolbar; the same mark in the panel header. Source in extension/icons/icon.svg.
+- A new Analyze clears the old suggestions; a plan older than 6 hours, or pointing at closed tabs, drops on its own.
+- A calmer header, and a new icon: a level with the bubble centered.
 
 ## 0.5.0 — 2026-10-08
-**Runs 11 and 12 (Kiro, five tasks; reviewed by Mycroft).** Run 11 stopped on task 4 when the Mac went offline; run 12 finished it. The runner now waits out network drops without counting them, and uses a wall-clock time limit.
-- Cards: the tab count at the top right with the 30+ badge; clicking a card shows its description, then at most five tabs with the site in bold and "+ N more"; several cards can be open.
-- "Restore before sort" is a labelled button that undoes the latest sort; the full undo history is in More.
-- Analyze first counts loose tabs and duplicates (no model call), then you choose Put into my groups or Suggest new groups. Re-sort all groups and Close duplicates are occasional actions under it, not settings; the confusing grouping switch is gone. A single tab can join an existing group.
-- Tabs that belong to a parked group are filed into it (the tab closes after the helper saves it; undo reopens it); the result line says where tabs go, and the parked card shows "+N new".
-- Tidy parked groups…: suggests merges and splits with reasons; merges apply in the index (history copy first), splits start the Split flow.
-
-**Real-browser check by Mycroft** (fake-Chrome test pages for the side panel and new-tab page, dark mode): Analyze counts and both choices, card description with five bold sites, two cards open, Restore before sort, Tidy link. Fixed there: parked names cut off (the row now shows just the count; the date is on hover), the ⋯ wrapping to a second line, a white Tidy button on the new-tab page, and old "Run one" wording on the empty panel.
+- Cards show the tab count at the top right with a 30+ badge; clicking a card shows its description and its top five tabs with the site in bold; several cards can be open.
+- "Restore before sort" undoes the latest sort.
+- Analyze counts loose tabs and duplicates first, then you choose Put into my groups or Suggest new groups. Re-sort all groups and Close duplicates are occasional actions.
+- Re-analyze parked groups suggests merges and splits.
 
 ## 0.4.0 — 2026-10-07
-**Run 10 (Kiro, three tasks, first try; reviewed by Mycroft): Split**
-- Split this group… in every group's ⋯ menu; a "30+" badge on groups past 30 tabs. The model proposes 2 to 6 sub-groups with descriptions; Review shows names, counts, descriptions and tabs; nothing changes until Apply. Open groups become new Chrome groups (undo works); parked groups split inside the index (only the parent's own tabs, history copy first); the groups file gets the new lines.
+- Split any group into need-based sub-groups, open or parked, from its ⋯ menu.
+- A 30-tab soft cap: groups over 30 are flagged.
 
-**Real-browser fixes by Mycroft** (found by loading the new-tab page in a real dark-mode browser with test data; the unit tests' fake DOM couldn't show them)
-- Clicking a row to expand it, and clicking outside a ⋯ menu to close it, threw errors: board.js treated element.children as an array. Now Array.from everywhere, with a guard test.
-- Once that worked, the click that opened a ⋯ menu also closed it at once; the outside-click listener now attaches on the next tick. Test updated.
-- New-tab rows now lay out in real columns (the grid moved to the details element's content slot); counts don't wrap under names; an opened row's description sits on its own line.
+## 0.3.x — 2026-10-07
+- Dark mode throughout, from theme tokens.
+- Click a group row for its description and tabs.
+- One line per group with a ⋯ menu; the side panel shows only what you need, with everything else in a More view.
+- Park merges into a saved group instead of replacing it, never shrinks a record, and closes the whole group. The helper keeps the newest 50 dated copies of the index and can restore one.
+- Two model slots: big sorts and quick jobs. Runs on a Claude subscription (through Claude Code), Poe, OpenRouter, OpenAI, a local model, or any OpenAI-style service.
+- Suggested group descriptions are saved only when you click Save.
 
-## 0.3.4 — 2026-10-07
-**Run 9 (Kiro, one task, first try; reviewed by Mycroft)**
-- Dark mode: the new-tab page sets color-scheme and uses theme tokens for light and dark; buttons, the filter, rows, the expanded area, the description editor and the ⋯ menu (with hover and focus) draw only from those tokens, on the new-tab page and in the side panel.
-
-## 0.3.3 — 2026-10-07
-**Run 8 (Kiro, two tasks, first try; reviewed by Mycroft)**
-- Click a group row to open it: its description (or the waiting suggestion, or "No description yet") with Edit, and its tab titles; open groups' titles jump to the tab. One row open at a time; Enter or Space works too.
-- New-tab page: title, filter, then Open side panel on the right; rows in real columns; long names cut to one line.
-- Side panel: the result card clears after Apply and hides when there's nothing to apply; no Settings section in the main view (gear only).
-
-## 0.3.2 — 2026-10-07
-**Run 7 (Kiro, three tasks, all first try; reviewed by Mycroft)**: the declutter.
-- One line per group (color, name, count, a dot when a description suggestion waits) with a ⋯ menu: Sort this group, Park or Close group, Add back parked tabs, Description…; parked rows: Open, Description…. Section headers show counts.
-- The side panel shows only the header, the Sort card, the result card and your groups; Update index, Agent suggestions, the extra tools, sessions and muted items live in a More view (⋯ in the header). The connection line shows only when something's wrong.
-- The new-tab page uses the same rows in columns, with just the title, the filter and Open side panel on top.
-
-## 0.3.1 — 2026-10-07
-**Run 6 (Kiro, four tasks, all first try; reviewed by Mycroft)** after Park lost two groups' records on Jeff's machine (recovered by Mycroft).
-- Park merges into a saved group instead of replacing it; an empty Park never shrinks a record; Park closes the whole group, new-tab pages included. Mycroft tested on a copy of the real index: 139 stays 139 after an empty Park, 140 after a Park with one new tab.
-- The helper keeps dated copies of the index (newest 50) and can restore one; bad names refused.
-- Live boards: redraw as tabs and groups change; counts are web tabs; groups with no web pages offer Close group; a parked twin of an open group offers Add them back.
-- Panel cleanup: Sort tabs label, readable model names, one model select with Other, Run one inside More tools, Settings as its own view, the suggestions count inside the result card.
-
-## 0.3.0 — 2026-10-07
-**Run 5 (Kiro, six tasks, all first try; reviewed by Mycroft)**
-- A reopened group shows as open, never as parked (index reads Chrome's pending address; the board hides a parked card when that group is open).
-- Two model slots: big sorts (default Claude Sonnet 5.5) and quick jobs (default Claude Haiku 4.5); per-request model for Claude, per-slot model for OpenAI-style services. Fresh installs suggest only grouping, re-sorting and duplicates.
-- Runs on: Claude subscription, Poe, OpenRouter, OpenAI, a local model, or Other; Load models lists what the service offers.
-- Settings redesign: AI first, What to suggest, More (folded), Advanced.
-- Main panel redesign: header with version, one Sort tabs button with This window / All windows / Selected tabs, a one-line result with Apply and Review, the board, More tools folded.
-- Suggested descriptions on the board, saved only on Save.
-- Known gap: the browser end-to-end tests (e2e/) were written for the old layout and haven't been run against this one.
-
-## 0.2.2 — 2026-10-07
-**Security fix by Mycroft (from a background security review of run 4)**
-- Model-written group descriptions are suggestions only. The helper's 'describe' no longer writes the groups file: tab titles are untrusted page text, and the groups file goes back into every later prompt as rules, so a crafted page title could otherwise plant lasting instructions. Only an explicit Save ('groups-write') stores a description.
-- Suggestions are kept only for groups that were asked about (no new group names from model output), flattened to one line, stripped of control characters, capped at 200 characters. Tests cover an injection-style title.
-- index.md now says its tab titles are untrusted page text, for any agent that reads it.
-
-## 0.2.1 — 2026-10-07
-**Run 4 (Kiro, reviewed by Mycroft)**
-- "Open side panel" button on the new-tab board; "Sort this group" there opens the panel so the suggestions show. (Task 1 failed once, was reverted and logged, and passed on try 2.)
-- Missing group descriptions are written by the model, one sentence each, at most once a day per group; existing descriptions are never overwritten. Held back: the helper with this feature isn't installed yet, because it would also describe the old ATO groups and add them to the groups file; 0.3.0 changes it to show a suggested description that Jeff saves.
-
-## 0.2.0 Browser Sanity — 2026-10-07
-Jeff's fork of Browser Organizer 0.1.8, renamed Browser Sanity. Built by Kiro in three unattended runs (Mycroft's runner: revert on a failed try, three tries then stop), each reviewed by Mycroft.
-
-**Run 1 (2026-10-06)**
-- The helper reads a groups file (`groups.md` in the helper's folder) and sends it with every request, so tabs land in Jeff's need-based groups.
-- Tab data carries each tab's current group; grouping reuses existing group names; up to 15 groups when a groups file is loaded.
-- Applying a group adds tabs to an existing group of the same name instead of making a duplicate.
-- Setting: Re-sort tabs already in groups.
-
-**Fixes by Mycroft (2026-10-07)**
-- Claude backend: pass USER so the CLI finds its saved login (it said "Not logged in" from Chrome).
-- Helper time limit 5 minutes (big re-sorts ran past 2).
-
-**Run 2 (2026-10-07)**
-- Groups apply before duplicate tabs close; tabs that are gone are skipped.
-- Tabs already in the right group stay where they are, so Jeff's order inside a group survives.
-- The index: `index.md` and `index.json` in the helper's folder list every group and its tabs; Update index button; index written after every apply.
-- Suggestions from Mycroft or any agent through `proposals.json`, shown in the normal list for approval.
-- Tools and a Settings button at the top of the panel.
-
-**Run 3 (2026-10-07)**
-- Undo returns moved tabs to the group they came from.
-- Parked: the index keeps groups Jeff puts away; groups a re-sort emptied are dropped.
-- Park and Open from the index.
-- Group descriptions, read and written in the groups file the model reads.
-- Sort one group, or just the selected tabs.
-- The board: Open now and Parked sections, cards with Sort, Park, Open and a description, in the side panel and as the new-tab page.
-
-**Rename (2026-10-07):** Browser Organizer is now Browser Sanity (name, panel, new-tab page, index title).
+## 0.2.x — 2026-10-07
+- Security: model-written descriptions are suggestions only and never written to the groups file on their own (tab titles are untrusted page text and the groups file feeds later prompts).
+- A groups file (`groups.md` in the helper's folder) describes your own need-based groups and goes with every request.
+- Grouping reuses existing group names and adds to an existing group instead of making a duplicate; tabs already in the right group stay put.
+- The index: `index.md` and `index.json` list every group and its tabs, open or parked, for you or any AI agent to read.
+- Suggestions from an AI agent through `proposals.json`, shown in the normal list for approval.
+- Park a group (save and close it) and open it again; sort one group or just the selected tabs.
+- The board: Open now and Parked sections, in the side panel and as the new-tab page.
 
 ## 0.1.8 — 2026-09-22
 UX/UI refresh, accessibility enhancements (WCAG 2.1 AA), and native host packaging for npm.

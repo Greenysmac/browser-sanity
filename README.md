@@ -1,103 +1,85 @@
 # Browser Sanity
 
-Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) by Lusk Technologies, used and shared under the [MIT License](LICENSE). Thank you to Lusk Technologies for the original extension, its native helper and its AI backends, which Browser Sanity builds on.
+Browser Sanity is a Chrome and Edge extension for people who keep a lot of tabs. It treats tab groups as bookmarks you organize by what you need them for, not by which site they came from. Click Analyze and an AI model you choose files your loose tabs into your groups, or suggests new ones. Nothing moves until you approve it, and one click puts it back. Groups you don't need right now can be parked: saved, closed, and reopened later with one click.
 
-> The rest of this README still describes the original Browser Organizer and is being rewritten for Browser Sanity.
+Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) by Lusk Technologies, used and shared under the [MIT License](LICENSE). Thank you to Lusk Technologies for the original extension, its local helper and its AI backends, which Browser Sanity builds on.
 
-## Original README: Browser Organizer
+| The side panel | The new-tab board |
+|:---:|:---:|
+| ![The side panel: Open tabs with Analyze and a result card, Parked groups with Re-analyze suggestions, and the board of groups](docs/screenshots/side-panel.png) | ![The new-tab page: open and parked groups as cards, one opened to show its description and top sites](docs/screenshots/new-tab-board.png) |
 
-A Chrome and Edge extension that cleans up your tabs and bookmarks with an AI backend you bring yourself. Point it at a local AI CLI you've already signed into, or at any OpenAI-compatible API key. It groups open tabs by topic, flags the ones you forgot were open, files the pages worth keeping into bookmark folders, and clears out stale, dead, and duplicate bookmarks. Nothing happens until you approve it.
+## What it does
 
-Your bookmarks and history stay on your machine. The only data that ever leaves is tab titles and URLs, and only to the provider you picked.
+- **Analyze your open tabs.** It counts loose tabs and duplicates first, then you choose **Put into my groups** or **Suggest new groups**. Review the result, apply it, and undo it if you change your mind. **Re-sort all groups** and **Close duplicates** are there for the occasional big cleanup.
+- **Park groups.** A parked group is saved and closed. It stays on the board, and **Open** brings its tabs back. Tabs that match a parked group go into a live group by default; you can choose to file them into the parked group instead.
+- **Keep groups useful.** Each group can carry a one-line description. Groups past 30 tabs are flagged, **Split** breaks one into need-based sub-groups, and **Re-analyze parked groups** suggests merges and splits for you to check off.
+- **See everything on one board,** on the new-tab page and in the side panel. Click a card for its description and its top five sites.
+- **Know what did what.** Every suggestion says what made it and when.
+- **Bring your own AI.** Use a Claude subscription through Claude Code, another AI command-line tool, a local model, or any OpenAI-style service (OpenAI, OpenRouter, Poe and others). Big sorts and quick jobs can use different models.
+- **Let your own AI agent help.** The helper keeps a plain-file index of every group and its tabs that any agent can read, and an agent can leave suggestions in `proposals.json` for you to approve.
 
-## Screenshots
+## Install
 
-| Organize a window | Clean up bookmarks | Bring your own AI |
-|:---:|:---:|:---:|
-| ![Grouping open tabs into named tab groups and reviewing the suggestions](docs/screenshots/overview.png) | ![Reviewing duplicate and dead bookmarks before deleting them](docs/screenshots/bookmark-cleanup.png) | ![Choosing an AI backend and toggling what the extension scans](docs/screenshots/settings.png) |
+You need Chrome 116 or later (or a recent Edge), [Node.js 20+](https://nodejs.org), and one AI backend (see below).
 
-## Requirements
+1. Get the code: `git clone https://github.com/Greenysmac/browser-sanity.git`
+2. Load the extension: open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, and pick the `extension/` folder.
+3. Register the local helper, from the project folder:
+   ```
+   npm run install-host
+   ```
+   This copies the helper to `~/.browser-sanity` (or `%LOCALAPPDATA%\BrowserSanity` on Windows) and registers it for Chrome and Edge. The extension's ID is fixed by the key in its manifest, so the helper already knows it.
+4. Click the toolbar icon to open the side panel, choose your AI in **Settings** (the gear), and click **Analyze**.
 
-- One backend: an OpenAI-compatible API key (nothing to install), or one of six supported AI CLIs you've installed and signed into. See [AI backends](#ai-backends) below.
-- Chrome 116+ or Edge (any recent Chromium build).
-- Node.js 20+ if you register the helper with `npx`. The standalone per-OS installer bundles its own runtime, so it needs no Node.
+[INSTALL.md](INSTALL.md) has the details and troubleshooting.
+
+## Your groups file (optional)
+
+Write the groups you want, one per line, in `~/.browser-sanity/groups.md`, and Browser Sanity sends them with every request so tabs land where you'd put them:
+
+```
+- Home lab: self-hosted apps, home network, Raspberry Pi projects.
+- Trip planning: flights, places to stay, things to do.
+- Someday: long-term ideas and reading that aren't for right now.
+
+A tab that fits none of these goes in Someday.
+```
+
+## Files the helper keeps
+
+All in `~/.browser-sanity`, on your machine only:
+
+- `index.json` and `index.md`: every group, open or parked, with its tabs. Tab titles are copied from web pages, so treat them as untrusted text.
+- `index-history/`: the newest 50 copies of the index, made before each change.
+- `groups.md`: your groups file, if you write one.
+- `proposals.json`: suggestions an AI agent leaves for you to approve, if you use one.
 
 ## AI backends
 
-Choose a backend in **Settings → AI backend**. The extension hands each request to a small local helper (the native host), which runs that backend and returns the result. Secrets live on the host, never in the extension, and the only traffic leaving your machine is the backend's own call to its provider. Ollama is the exception: it runs the model locally, so with it selected nothing leaves at all.
+Pick one in **Settings**. The extension hands each request to the local helper, which runs that backend and returns the result.
 
-Seven backends ship today. The first six are command-line tools; the last talks to an HTTP API directly.
+| Backend | Command | Auth |
+|---------|---------|------|
+| Claude Code *(default)* | `claude -p --output-format json` | your saved `claude` login (a Claude subscription works) |
+| Antigravity | `agy -p "<prompt>" --yes --no-color` | saved `agy` login, or `GEMINI_API_KEY` / `ANTIGRAVITY_API_KEY` |
+| Kiro | `kiro-cli chat --no-interactive "<prompt>"` | `KIRO_API_KEY` |
+| GitHub Copilot | `copilot -p "<prompt>" -s --no-ask-user` | `COPILOT_GITHUB_TOKEN` / `GH_TOKEN`, or a `gh` login |
+| OpenAI Codex | `codex exec --skip-git-repo-check "<prompt>"` | saved ChatGPT login, or `OPENAI_API_KEY` |
+| Ollama | `ollama run <model>` | none; fully local |
+| OpenAI-style API | `POST <base>/chat/completions` | a key entered in **Settings** (encrypted at rest), or `BROWSER_SANITY_OPENAI_API_KEY` |
 
-| Backend | Command / transport | How it's invoked | Auth |
-|---------|---------|------------------|------|
-| Claude Code *(default)* | `claude` | `claude -p --output-format json` | saved `claude` login |
-| Antigravity | `agy` | `agy -p "<prompt>" --yes --no-color` | saved `agy` login, or `GEMINI_API_KEY` / `ANTIGRAVITY_API_KEY` |
-| Kiro | `kiro-cli` | `kiro-cli chat --no-interactive "<prompt>"` | `KIRO_API_KEY` (Kiro Pro and up) |
-| GitHub Copilot | `copilot` | `copilot -p "<prompt>" -s --no-ask-user` | Copilot subscription via `COPILOT_GITHUB_TOKEN` / `GH_TOKEN`, or an existing `gh` login |
-| OpenAI Codex | `codex` | `codex exec --skip-git-repo-check "<prompt>"` | saved ChatGPT login, or `OPENAI_API_KEY` |
-| Ollama | `ollama` | `ollama run <model>` (prompt on stdin) | none; fully local |
-| OpenAI-compatible API | HTTP | `POST <base>/chat/completions` | API key in **Settings** (encrypted at rest), or `BROWSER_ORGANIZER_OPENAI_API_KEY` |
+The OpenAI-style backend covers OpenAI, OpenRouter, Poe, Groq, Together and local servers like LM Studio; change the base URL in Settings. To point the helper at a command-line tool in an unusual place, set `BROWSER_SANITY_CLI` (Claude), `BROWSER_SANITY_ANTIGRAVITY_CMD`, `BROWSER_SANITY_KIRO_CMD`, `BROWSER_SANITY_COPILOT_CMD`, `BROWSER_SANITY_CODEX_CMD` or `BROWSER_SANITY_OLLAMA_CMD`.
 
-Claude Code is the backend the extension falls back to when you haven't picked one; switch to any of the other six in **Settings** and they all work the same way. Five of the six CLIs return plain text and Claude returns JSON, but either way the host pulls out the strict JSON that the extension's prompts request.
+## Privacy
 
-The installer bakes in the absolute path of each CLI it finds. To override where a binary lives, set its env var: `BROWSER_ORGANIZER_CLI` (Claude), `BROWSER_ORGANIZER_ANTIGRAVITY_CMD`, `BROWSER_ORGANIZER_KIRO_CMD`, `BROWSER_ORGANIZER_COPILOT_CMD`, `BROWSER_ORGANIZER_CODEX_CMD`, or `BROWSER_ORGANIZER_OLLAMA_CMD`. Ollama's model comes from `BROWSER_ORGANIZER_OLLAMA_MODEL` (default `llama3.2`). If a CLI authenticates with an API key, export that key in the environment the browser launches from; the host inherits it.
-
-### OpenAI-compatible API backend
-
-This backend calls any `/chat/completions`-shaped endpoint straight from the native host, with no CLI in between.
-
-The simple path: choose **OpenAI-compatible API** in **Settings** and paste your key there, along with an optional base URL and model. The key is encrypted at rest (AES-GCM, using a non-extractable WebCrypto key) in this browser's local storage on this device. It never lands in `storage.sync`, and it never leaves except as a request to the endpoint you configured. On each request the extension hands it to the local helper, and the helper makes the call.
-
-For headless or scripted setups, skip the UI and set host-side env vars instead. They take over when no key is entered in Settings:
-
-- `BROWSER_ORGANIZER_OPENAI_API_KEY`: bearer token
-- `BROWSER_ORGANIZER_OPENAI_BASE_URL`: default `https://api.openai.com/v1`
-- `BROWSER_ORGANIZER_OPENAI_MODEL`: default `gpt-4o-mini`
-
-One adapter covers OpenAI, OpenRouter, Groq, Together, and local servers like LM Studio or vLLM; just repoint the base URL. Unlike the CLI subscriptions, this route is metered per token, and a local endpoint keeps everything on-device.
-
-## Install (developer / unpacked)
-
-> Handing a build to testers before the store release? [docs/TESTING.md](docs/TESTING.md) is a short, cross-platform walkthrough for loading it on Windows, macOS, and Linux.
-
-1. Load the extension.
-   - Chrome: open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and pick `extension/`.
-   - Edge: the same steps at `edge://extensions`.
-
-   The extension ID is pinned by a key in the manifest, so it's identical in both browsers and step 2 already knows it.
-2. Register the native messaging host so the extension can reach your backend. From any directory:
-   ```
-   npx @lusktech/browser-organizer-host
-   ```
-   From a clone you can instead run `node native-host/installer.js`, which defaults to the pinned ID and registers both Chrome and Edge. Either way the host is copied into `~/.browser-organizer` (macOS/Linux) or `%LOCALAPPDATA%\BrowserOrganizer` (Windows), so the repo or bundle is safe to delete afterward. Non-technical users can grab the per-OS installer from the releases page and skip Node entirely; see [INSTALL.md](INSTALL.md).
-3. Open the side panel from the toolbar icon and click **Analyze my tabs & bookmarks**.
-
-## How it works
-
-The extension collects tab and bookmark metadata, then passes it to the local Node host over Chrome Native Messaging. The host runs whichever backend you selected, gets a set of suggestions back, and returns them. The only network traffic is your chosen provider's normal subscription or API call; no server of ours sits in the path. Destructive actions wait for your approval, and in auto mode they're logged so one click undoes them.
+Only tab titles and URLs leave your machine, and only to the AI provider you picked, under your own account. The index, history copies and groups file stay on your machine. There is no Browser Sanity server. See [PRIVACY.md](PRIVACY.md) and [docs/security-model.md](docs/security-model.md).
 
 ## Development
 
-`npm test` runs the unit suite (`node --test`, no browser needed).
+- `npm test` runs the unit tests (`node --test`, no browser needed).
+- `npm run lint` runs ESLint.
+- The Playwright tests in `e2e/` come from the original project and were written for its layout; they haven't been updated for Browser Sanity.
 
-## End-to-end tests
+## License and credits
 
-`npm run e2e` runs the Playwright suite in `e2e/`. It loads the real extension into Chrome for Testing, drives the side panel, and exercises the whole path down through the native host. Most specs are deterministic and need no CLI; a few (marked *CLI*) drive a real backend and can be skipped.
-
-Deterministic specs:
-- **health**: the panel reports the backend connected
-- **tab-panel**: search, filter, and bulk-close on open tabs (no AI); closing the selected tabs, then restoring them with undo
-- **duplicate-tabs**: spots a duplicate open tab, closes it on apply, restores it on undo
-- **sessions**: saves the current window as a session (closing its tabs), then restores them
-- **bookmark-cleanup**: spots a duplicate bookmark, deletes it on apply, restores it on undo
-- **dom-panel**: the real UI from end to end, covering *Clean bookmarks*, *Apply all*, the toast *Undo*, editing a proposed group (rename, drop a tab) followed by *Apply this group*, and the settings form persisting
-- **auto-apply**: `onInstalled` schedules the alarms; auto mode applies tab actions but never auto-deletes bookmarks
-
-CLI-backed specs (they use whichever backend is configured, which defaults to `claude`):
-- **grouping**: clusters tabs and checks that a real Chrome tab group forms
-- **command**: turns a natural-language instruction into an actionable plan
-- **stale-tabs**: seeds a long-idle tab and checks the backend proposes closing or suspending it
-
-Dead-link detection's HTTP logic has its own real-server integration test (`test/dead-link-integration.test.js`, part of `npm test`). The full in-browser dead-link flow isn't automated, because granting the optional `<all_urls>` permission needs a Chrome prompt that can't be accepted headlessly.
-
-To run the suite on Linux, WSL, or CI you need the default CLI (`claude`) on PATH plus `xvfb` for a virtual display; the `e2e` script wraps the run in `xvfb-run`. Google Chrome's branded builds dropped `--load-extension`, so the suite uses Playwright's bundled Chromium (Chrome for Testing); install it once with `npx playwright install chromium`. Set `BORG_SKIP_CLI=1` to skip the CLI-backed grouping test in offline or fast CI. The fixture registers the native host on its own, so there's no manual install-host step.
+MIT. Copyright (c) 2026 Lusk Technologies, and (c) 2026 Jeff Greenberg for the Browser Sanity changes. See [LICENSE](LICENSE). Browser Sanity started from Browser Organizer 0.1.8; its history is in [CHANGELOG.md](CHANGELOG.md).

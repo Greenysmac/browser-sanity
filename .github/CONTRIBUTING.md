@@ -9,9 +9,9 @@ small Node native-messaging host (`native-host/`) that runs your chosen AI backe
 - `npm ci` — install dev dependencies.
 - `npm test` — unit suite (`node --test`, no browser needed).
 - `npm run lint` — ESLint.
-- `npm run e2e` — Playwright end-to-end (loads the real extension; needs `xvfb` on Linux). See
-  the **End-to-end tests** section in the [README](../README.md).
-- To try it in a real browser, follow [docs/TESTING.md](../docs/TESTING.md).
+- `npm run e2e` runs the Playwright tests inherited from Browser Organizer. They were written for
+  its layout and haven't been updated for Browser Sanity yet.
+- To try it in a real browser, follow [INSTALL.md](../INSTALL.md).
 
 ## Making changes
 

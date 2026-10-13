@@ -14,9 +14,9 @@ Report privately using GitHub's built-in private vulnerability reporting:
 3. Include the affected component (extension, native host, or installer), the version, and clear
    steps to reproduce (proof-of-concept if you have one).
 
-We aim to **acknowledge reports within 3 business days** and to share a remediation plan after
-triage. Please give us a reasonable opportunity to fix the issue before any public disclosure;
-we're happy to credit you in the advisory once it's resolved.
+Browser Sanity is maintained by one person, so replies may take a few days. Please allow a
+reasonable time for a fix before any public disclosure; you'll be credited in the advisory once
+it's resolved, if you'd like.
 
 ## Scope
 
@@ -36,8 +36,7 @@ issues that require an already-compromised local machine or account.
 
 ## Supported versions
 
-Security fixes are made against the latest published release; please reproduce on the latest
-version before reporting.
+Security fixes are made on `main`; please reproduce on the latest code before reporting.
 
 ## Security model
 

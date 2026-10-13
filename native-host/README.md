@@ -1,41 +1,31 @@
 # browser-sanity-host
 
-The local **native-messaging host** for the [Browser Sanity](https://lusk.dev/browser-sanity)
-Chrome/Edge extension. The extension is only a front-end; this package is the small Node
-program it talks to, which runs your chosen AI backend (a local AI CLI, or an
-OpenAI-compatible API) and returns organization suggestions. **Nothing is sent to any server
-the developer runs.**
+The local **native-messaging host** for the [Browser Sanity](https://github.com/Greenysmac/browser-sanity) Chrome and Edge extension. The extension is the front end; this is the small Node program it talks to. It runs your chosen AI backend (an AI command-line tool, or an OpenAI-style API) and keeps the index of your groups. Nothing is sent to any server the developer runs.
 
-A native host cannot ship inside a Web Store package, so it's installed once, separately.
+A native host can't ship inside an extension package, so it's installed once, separately, from the project folder.
 
 ## Install
 
-Requires **Node.js 20+**. From any directory:
+Requires **Node.js 20+**. From the Browser Sanity folder:
 
 ```sh
-npx browser-sanity-host
+npm run install-host
 ```
 
-This copies the host into a stable per-user location (`~/.browser-sanity`, or
-`%LOCALAPPDATA%\BrowserSanity` on Windows) and registers it for Chrome and Edge using the
-extension's pinned ID — you don't need to be inside any project folder, and the download can
-be deleted afterward.
+This copies the host into a stable per-user location (`~/.browser-sanity`, or `%LOCALAPPDATA%\BrowserSanity` on Windows) and registers it for Chrome and Edge using the extension's pinned ID.
 
 ```sh
-npx browser-sanity-host install chrome   # specific browser(s)
-npx browser-sanity-host repair           # re-register a broken install
-npx browser-sanity-host uninstall        # remove
+node native-host/cli.js install chrome   # specific browser(s)
+node native-host/cli.js repair           # re-register a broken install
+node native-host/cli.js uninstall        # remove
 ```
 
-Prefer a double-click, no-Node installer? Download the per-OS installer from the
-[releases page](https://github.com/Greenysmac/browser-sanity/releases).
+This package isn't published to npm. A package with a similar name there isn't Browser Sanity's.
 
 ## Security
 
-The host resolves the command, arguments, environment, and any API key **on your machine** —
-an extension message can only pick *which* known backend runs, never *what* runs. See
-[`docs/security-model.md`](https://github.com/Greenysmac/browser-sanity/blob/main/docs/security-model.md).
+The host resolves the command, arguments, environment and any API key on your machine. An extension message can only pick *which* known backend runs, never *what* runs. See [`docs/security-model.md`](../docs/security-model.md).
 
 ## License
 
-MIT © Lusk Technologies
+MIT. Copyright (c) 2026 Lusk Technologies (the original Browser Organizer host) and (c) 2026 Jeff Greenberg (Browser Sanity changes).
