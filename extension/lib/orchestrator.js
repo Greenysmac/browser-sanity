@@ -140,7 +140,12 @@ export async function buildPlan(deps) {
         const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(candidates), rules, mode } });
         items.push(...mapGroupResult(r.groups, byId, { openNamesByWindow, parkedNames }));
       }
-    } catch (e) { console.warn('[organizer] grouping phase failed:', e); } // keep other results
+    } catch (e) {
+      // Keep other results, but say so: a swallowed failure used to show up as
+      // "Nothing to do — your browser looks tidy" with loose tabs on screen.
+      console.warn('[organizer] grouping phase failed:', e);
+      onWarning(`Couldn't sort your tabs: ${(e && e.message) || e}`);
+    }
   }
 
   step('Finding forgotten tabs');

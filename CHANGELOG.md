@@ -2,6 +2,10 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## 0.7.1 — 2026-10-13
+- Put into my groups works when the window already has an open group. It crashed while matching the AI's answer to your tabs, and the panel showed nothing instead of an error.
+- If sorting fails, the panel now says why ("Couldn't sort your tabs: …") instead of "Nothing to do".
+
 ## 0.7.0 — 2026-10-12
 - Browser Sanity has its own identity, so it can sit beside Browser Organizer: its own extension ID, helper name (`com.browser_sanity.host`), helper folder (`~/.browser-sanity`) and `BROWSER_SANITY_` settings. Moving from an earlier Browser Sanity means loading the extension again and running `npm run install-host`.
 - The helper installs from the project folder (`npm run install-host`); it isn't published to npm, and the panel's help and update messages say so instead of pointing at the original's package.

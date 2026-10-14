@@ -24,7 +24,10 @@ export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map()
   const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
   const parkedSet = new Set(parkedNames.map(norm));
   const openSets = new Map();
-  for (const [windowId, names] of openNamesByWindow) openSets.set(windowId, new Set((names || []).map(norm)));
+  // The orchestrator passes a Set of names per window; tests pass arrays. Array.from
+  // takes both (a Set has no .map, and that crash silently emptied every sort
+  // whenever the window already had an open group).
+  for (const [windowId, names] of openNamesByWindow) openSets.set(windowId, new Set(Array.from(names || []).map(norm)));
   const items = [];
   groups.forEach((g, gi) => {
     const byWindow = new Map();
