@@ -116,10 +116,15 @@ export async function buildPlan(deps) {
     // organizer may move tabs between existing groups too. regroupAll is a
     // per-run flag that replaces the old regroupExisting setting.
     // mode 'mine' makes the model reuse existing/parked group names only;
-    // 'suggest' (default) lets it invent new groups.
+    // 'suggest' (default) lets it invent new groups. An explicit deps.groupMode
+    // ('mine' or 'suggest') always wins — in particular, 'suggest' overrides the
+    // onlyTabIds/regroupAll default of 'mine', so "Suggest new groups for the
+    // leftovers" can invent groups for just those tabs.
     try {
       const regroupAll = onlyTabIds || deps.regroupAll;
-      const mode = deps.groupMode === 'mine' ? 'mine' : (onlyTabIds || deps.regroupAll ? 'mine' : 'suggest');
+      const mode = deps.groupMode === 'mine' || deps.groupMode === 'suggest'
+        ? deps.groupMode
+        : (onlyTabIds || deps.regroupAll ? 'mine' : 'suggest');
       const candidates = regroupAll ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
       if (candidates.length) {
         // Pass the live open-group names (per window) and parked-group names so a

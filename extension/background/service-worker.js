@@ -655,6 +655,46 @@ async function handleSortSelected() {
   return sortTabIds(tabIds, 'Select one or more tabs in the tab strip first.', 'Selected tabs');
 }
 
+// A groupTabs item the model dropped into the catch-all "Someday" group, matched
+// by name (trimmed, case-insensitive). Exported for unit tests.
+export function isSomedayItem(item) {
+  return !!(item && item.action === 'groupTabs' && item.data
+    && String(item.data.groupName || '').trim().toLowerCase() === 'someday');
+}
+
+// "Suggest new groups for the leftovers": re-run grouping in 'suggest' mode over
+// just the tabs the previous sort filed into "Someday", then splice the result
+// back into the stored plan — the Someday items are replaced by the newly
+// suggested items, every other item is left untouched. All under the shared
+// 'currentPlan' lock so a concurrent reader/writer can't see a half-updated plan.
+async function handleSuggestLeftovers(m) {
+  const tabIds = (Array.isArray(m.tabIds) ? m.tabIds : []).filter((id) => id != null);
+  const settings = await getSettings();
+  const nativeClient = await makeClient(settings, 'quick');
+  let suggested;
+  const warnings = [];
+  try {
+    suggested = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds, groupMode: 'suggest', onWarning: (w) => warnings.push(w) });
+  } finally {
+    nativeClient.disconnect();
+  }
+  // buildPlan swallows a grouping failure into a warning rather than throwing;
+  // treat that as a failure here so we never wipe the Someday items with an
+  // empty result. The stored plan is left exactly as it was.
+  if (warnings.length) return { ok: false, error: warnings[0] };
+  return withLock('currentPlan', async () => {
+    const { currentPlan = [] } = await chrome.storage.local.get({ currentPlan: [] });
+    // Keep the non-Someday items in order; drop the Someday ones and append the
+    // newly suggested groups in their place.
+    const kept = currentPlan.filter((it) => !isSomedayItem(it));
+    const items = [...kept, ...suggested];
+    const at = Date.now();
+    const origin = { label: 'Suggest new groups for leftovers', at };
+    await chrome.storage.local.set({ currentPlan: items, currentPlanAt: at, currentPlanOrigin: origin });
+    return { ok: true, items, origin };
+  });
+}
+
 async function handleSaveSession(m) {
   const session = await saveCurrentWindowSession(m.name, { chrome, close: m.close !== false, windowId: m.windowId });
   return { ok: true, session };
@@ -1023,6 +1063,7 @@ const HANDLERS = {
   proposals: handleProposals,
   sortGroup: handleSortGroup,
   sortSelected: handleSortSelected,
+  suggestLeftovers: handleSuggestLeftovers,
   saveSession: handleSaveSession,
   renameSession: handleRenameSession,
   listSessions: handleListSessions,

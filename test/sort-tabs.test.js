@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPlan } from '../extension/lib/orchestrator.js';
-
 // --- buildPlan onlyTabIds (sort-just-these mode) ---------------------------
 
 function makeChrome(tabs, overrides = {}) {
@@ -52,6 +51,26 @@ test('buildPlan with onlyTabIds skips the stale/important/bookmark phases', asyn
   assert.ok(!items.some((i) => i.action === 'closeTab'), 'no dupe-tab or stale close items produced');
 });
 
+test("buildPlan honors an explicit groupMode 'suggest' even with onlyTabIds (which otherwise defaults to 'mine')", async () => {
+  const chromeApi = makeChrome([
+    { id: 1, url: 'https://a.com', windowId: 1, index: 0, groupId: -1 },
+    { id: 2, url: 'https://b.com', windowId: 1, index: 1, groupId: -1 },
+  ]);
+  let mode = null;
+  const nativeClient = { request: async (m) => { if (m.task === 'group') mode = m.payload.mode; return { groups: [], stale: [], important: [], moves: [] }; } };
+  await buildPlan({ settings: SORT_SETTINGS, nativeClient, chromeApi, now: 1, onlyTabIds: [1, 2], groupMode: 'suggest' });
+  assert.equal(mode, 'suggest', "explicit 'suggest' wins over the onlyTabIds default of 'mine'");
+
+  // And an explicit 'mine' still works; the onlyTabIds default is unchanged when
+  // no groupMode is given.
+  mode = null;
+  await buildPlan({ settings: SORT_SETTINGS, nativeClient, chromeApi, now: 1, onlyTabIds: [1, 2], groupMode: 'mine' });
+  assert.equal(mode, 'mine');
+  mode = null;
+  await buildPlan({ settings: SORT_SETTINGS, nativeClient, chromeApi, now: 1, onlyTabIds: [1, 2] });
+  assert.equal(mode, 'mine', 'onlyTabIds with no groupMode still defaults to mine');
+});
+
 // --- service-worker handlers (sortGroup / sortSelected) --------------------
 
 // A full-enough chrome mock to import the service worker (which registers many
@@ -83,8 +102,9 @@ const sw = await import('../extension/background/service-worker.js');
 void sw;
 const swOnMessage = bootOnMessage.fns[0]; // the worker's registered onMessage listener
 
-function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null } = {}) {
+function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null, groups = null, groupFails = false, initialLocal = null } = {}) {
   const stored = { local: {}, sync: {} };
+  if (initialLocal) Object.assign(stored.local, initialLocal);
   const requests = [];
   // Every tab the mock knows about, so buildPlan's own tabs.query({}) sees them
   // (it collects all tabs, then filters to onlyTabIds). `webTabs`, when given,
@@ -97,13 +117,24 @@ function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null } = 
     async set(o) { Object.assign(stored[name], o); },
     async remove(k) { delete stored[name][k]; },
   });
-  // Fake native port: on each posted request, reply ok with empty groups.
+  // Fake native port: on each posted request, reply ok with empty groups by
+  // default. When `groups` is given, a grouping request answers with them (so a
+  // test can assert on the mapped plan); when `groupFails` is set the grouping
+  // request errors, to exercise the failure path.
   function makePort() {
     const onMsg = listener();
     const onDisc = listener();
     return {
       onMessage: onMsg, onDisconnect: onDisc,
-      postMessage(msg) { requests.push(msg); setTimeout(() => onMsg.fire({ id: msg.id, ok: true, result: { groups: [], stale: [], important: [], moves: [], ready: true } }), 0); },
+      postMessage(msg) {
+        requests.push(msg);
+        setTimeout(() => {
+          if (msg.task === 'group' && groupFails) { onMsg.fire({ id: msg.id, ok: false, error: 'grouping failed' }); return; }
+          const result = { groups: [], stale: [], important: [], moves: [], ready: true };
+          if (msg.task === 'group' && groups) result.groups = groups;
+          onMsg.fire({ id: msg.id, ok: true, result });
+        }, 0);
+      },
       disconnect() {},
     };
   }
@@ -237,4 +268,71 @@ test('Close duplicates finds duplicate tabs without any helper call', async () =
   assert.equal(res.items[0].action, 'closeTab');
   assert.equal(res.items[0].data.tabId, 2);
   assert.equal(requests.length, 0, 'Close duplicates never opens the native host');
+});
+
+// --- Suggest new groups for the leftovers (TASK 2) -------------------------
+
+// isSomedayItem matches only groupTabs items named "Someday" (trimmed, case-
+// insensitive); everything else — including a Someday close/park item or a
+// differently-named group — is left alone.
+test('isSomedayItem matches only groupTabs items named Someday (trimmed, case-insensitive)', () => {
+  const { isSomedayItem } = sw;
+  assert.equal(isSomedayItem({ action: 'groupTabs', data: { groupName: 'Someday' } }), true);
+  assert.equal(isSomedayItem({ action: 'groupTabs', data: { groupName: '  someday ' } }), true);
+  assert.equal(isSomedayItem({ action: 'groupTabs', data: { groupName: 'SOMEDAY' } }), true);
+  assert.equal(isSomedayItem({ action: 'groupTabs', data: { groupName: 'Someday reading' } }), false);
+  assert.equal(isSomedayItem({ action: 'closeTab', data: { groupName: 'Someday' } }), false);
+  assert.equal(isSomedayItem({ action: 'groupTabs', data: { groupName: 'Work' } }), false);
+  assert.equal(isSomedayItem(null), false);
+});
+
+test('suggestLeftovers replaces only the Someday items with the newly suggested groups, keeping the rest', async () => {
+  const initialPlan = [
+    { itemId: 'g-work', action: 'groupTabs', status: 'pending', reason: 'Work', data: { groupName: 'Work', tabIds: [10, 11] } },
+    { itemId: 'g-someday', action: 'groupTabs', status: 'pending', reason: 'Someday', data: { groupName: 'Someday', tabIds: [1, 2] } },
+    { itemId: 'close-9', action: 'closeTab', status: 'pending', reason: 'dupe', data: { tabId: 9 } },
+  ];
+  const { dispatch, requests } = installSwChrome({
+    // The two leftover tabs the re-sort will look at.
+    webTabs: [
+      { id: 1, url: 'https://news.com', groupId: -1 },
+      { id: 2, url: 'https://sports.com', groupId: -1 },
+    ],
+    // The model's suggested groups for them (two tabs each is kept by mapGroupResult).
+    groups: [{ name: 'News', tabIds: [1, 2] }],
+    initialLocal: { currentPlan: initialPlan, currentPlanAt: Date.now() },
+  });
+  const res = await dispatch({ cmd: 'suggestLeftovers', tabIds: [1, 2] });
+  assert.equal(res.ok, true);
+  // The grouping ran in 'suggest' mode over exactly the two leftover tabs.
+  const groupReq = requests.find((r) => r.task === 'group');
+  assert.ok(groupReq, 'a grouping request was made');
+  assert.equal(groupReq.payload.mode, 'suggest');
+  assert.deepEqual(groupReq.payload.tabs.map((t) => t.tabId).sort(), [1, 2]);
+  // The Someday item is gone; Work and the close item are untouched; the new
+  // "News" group is in the plan.
+  const names = res.items.map((it) => (it.data && it.data.groupName) || it.action);
+  assert.ok(names.includes('Work'), 'Work kept');
+  assert.ok(res.items.some((it) => it.action === 'closeTab' && it.data.tabId === 9), 'close item kept');
+  assert.ok(!res.items.some((it) => sw.isSomedayItem(it)), 'the Someday item is replaced');
+  assert.ok(res.items.some((it) => (it.data && it.data.groupName) === 'News'), 'the suggested group is spliced in');
+  // The origin is stamped for the result card's From line.
+  assert.equal(res.origin.label, 'Suggest new groups for leftovers');
+});
+
+test('suggestLeftovers leaves the plan as it was when the grouping fails', async () => {
+  const initialPlan = [
+    { itemId: 'g-someday', action: 'groupTabs', status: 'pending', reason: 'Someday', data: { groupName: 'Someday', tabIds: [1, 2] } },
+    { itemId: 'close-9', action: 'closeTab', status: 'pending', reason: 'dupe', data: { tabId: 9 } },
+  ];
+  const { dispatch } = installSwChrome({
+    webTabs: [{ id: 1, url: 'https://news.com', groupId: -1 }, { id: 2, url: 'https://sports.com', groupId: -1 }],
+    groupFails: true,
+    initialLocal: { currentPlan: initialPlan, currentPlanAt: Date.now() },
+  });
+  const res = await dispatch({ cmd: 'suggestLeftovers', tabIds: [1, 2] });
+  assert.equal(res.ok, false, 'the handler reports failure');
+  // The stored plan is unchanged — the Someday item is still there.
+  const { currentPlan } = await chrome.storage.local.get({ currentPlan: [] });
+  assert.deepEqual(currentPlan, initialPlan, 'the plan is left exactly as it was on failure');
 });

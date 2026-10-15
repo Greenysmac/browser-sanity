@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { installChromeMock } from './helpers/chrome-mock.js';
 import { planSummaryLine, modelsInUseLine } from '../extension/sidepanel/viewmodel.js';
-import { initMainPanel, updateResultCard, isSelectedMode, hideResults, fileIntoParkedChecked } from '../extension/sidepanel/main-panel.js';
+import { initMainPanel, updateResultCard, isSelectedMode, hideResults, fileIntoParkedChecked, onSuggestLeftovers } from '../extension/sidepanel/main-panel.js';
 
 const html = readFileSync(new URL('../extension/sidepanel/sidepanel.html', import.meta.url), 'utf8');
 
@@ -324,8 +324,70 @@ test('the result card shows the parked-match checkbox only when parkedMatch item
   assert.ok(!els.resultCard.children.some((c) => c.classes.has('parkedToggle')), 'toggle row removed');
 });
 
-// ---- Result-card origin line (TASK 4) ---------------------------------------
+// ---- Suggest new groups for the leftovers (TASK 2) --------------------------
 
+// A groupTabs item named Someday (the catch-all a "Put into my groups" sort uses
+// for tabs with no good home), carrying N tab ids.
+const someday = (tabIds) => ({ action: 'groupTabs', data: { groupName: 'Someday', tabIds } });
+
+test('the result card shows the leftovers button only when Someday items exist, counting their tabs', () => {
+  const { els } = makeHarness();
+  initMainPanel();
+
+  const findBtn = () => els.resultCard.children.find((c) => c.classes.has('leftoversSuggest'));
+
+  // A plan with no Someday items shows no button.
+  updateResultCard([{ action: 'groupTabs', data: { groupName: 'Work', tabIds: [1, 2] } }]);
+  assert.ok(!findBtn(), 'no leftovers button without a Someday group');
+
+  // A plan with Someday items shows the button, labelled with the leftover count
+  // (summed across every Someday item).
+  updateResultCard([
+    { action: 'groupTabs', data: { groupName: 'Work', tabIds: [1, 2] } },
+    someday([3, 4, 5]),
+    someday([6]),
+  ]);
+  const btn = findBtn();
+  assert.ok(btn, 'the leftovers button is inserted into the card');
+  assert.equal(btn.textContent, 'Suggest new groups for the 4 leftovers');
+
+  // One leftover reads singular.
+  updateResultCard([someday([7])]);
+  assert.equal(findBtn().textContent, 'Suggest new groups for the 1 leftover');
+
+  // A later plan with no Someday items removes the button again.
+  updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }]);
+  assert.ok(!findBtn(), 'the leftovers button is removed when no Someday items remain');
+});
+
+test('clicking the leftovers button hands the Someday tab ids to the registered handler and shows the working label', async () => {
+  const { els } = makeHarness();
+  initMainPanel();
+  let got = null;
+  let release;
+  const pending = new Promise((r) => { release = r; });
+  onSuggestLeftovers(async (tabIds) => { got = tabIds; await pending; });
+
+  updateResultCard([someday([3, 4]), someday([5])]);
+  const btn = els.resultCard.children.find((c) => c.classes.has('leftoversSuggest'));
+  assert.ok(btn, 'the button exists');
+
+  btn.click();
+  // While the handler runs, the button is disabled and reads "AI is suggesting…".
+  assert.deepEqual(got, [3, 4, 5], 'all Someday tab ids are passed');
+  assert.equal(btn.disabled, true, 'the button is disabled while it runs');
+  assert.equal(btn.textContent, 'AI is suggesting groups…');
+
+  release();
+  await pending;
+  await Promise.resolve(); // let the finally restore the label
+  // The handler normally re-renders the card; here the button stays in place, so
+  // its label and disabled state are restored.
+  assert.equal(btn.disabled, false);
+  assert.equal(btn.textContent, 'Suggest new groups for the 3 leftovers');
+});
+
+// ---- Result-card origin line (TASK 4) ---------------------------------------
 // A fixed instant so the formatted time is deterministic across machines.
 const ORIGIN_AT = new Date('2026-10-11T09:40:00').getTime();
 const ORIGIN_TIME = new Date(ORIGIN_AT).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });

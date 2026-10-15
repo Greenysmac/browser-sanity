@@ -246,6 +246,21 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 .resultActions button { flex: 1 1 0; }
 .resultActions .apply-primary { color: var(--accent-fg); background: var(--accent); border-color: transparent; font-weight: 600; box-shadow: var(--shadow-1); }
 .resultActions .apply-primary:hover { background: var(--accent-hover); }
+/* "Suggest new groups for the leftovers": a full-width secondary action under
+   the summary, using the shared surface/border tokens so it stays readable in
+   both the light and dark themes. */
+.leftoversSuggest {
+  display: block;
+  width: 100%;
+  margin: 2px 0 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.leftoversSuggest:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border-strong); }
+.leftoversSuggest:disabled { color: var(--text-muted); cursor: default; }
 
 /* ---------- Board actions + More tools ---------- */
 .boardActions { display: flex; gap: 6px; margin: 8px 0 12px; }

@@ -10,6 +10,7 @@ import { isSelectedMode } from './main-panel.js';
 import { hideResults } from './main-panel.js';
 import { fileIntoParkedChecked } from './main-panel.js';
 import { onScopeChange } from './main-panel.js';
+import { onSuggestLeftovers } from './main-panel.js';
 import { ignoreKey } from '../lib/orchestrator.js';
 import { TAB_GROUP_COLORS as GROUP_COLORS } from '../lib/colors.js';
 import { STATUS_LABELS } from '../lib/labels.js';
@@ -471,6 +472,22 @@ async function sortSelectedTabs() {
   setStatus(plan.length ? '' : 'Nothing to sort.');
 }
 
+// "Suggest new groups for the leftovers": the result card's button hands us the
+// tab ids the last sort filed into "Someday". The background re-sorts just those
+// in 'suggest' mode and splices the new groups into the stored plan (replacing
+// the Someday items), then returns the updated plan, which we show as usual. A
+// failure leaves the plan as it was and says so.
+async function suggestLeftovers(tabIds) {
+  setStatus('Suggesting new groups for the leftovers… (running your local AI CLI)');
+  const res = await send({ cmd: 'suggestLeftovers', tabIds });
+  if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
+  plan = res.items || [];
+  planOrigin = res.origin || null;
+  selection = new Set();
+  renderPlan(true);
+  setStatus('');
+}
+
 // Confirms a large destructive batch via a modal before applying. Resolves true
 // to proceed, false to cancel (Cancel button or Esc).
 function confirmBulk(items) {
@@ -632,6 +649,8 @@ export async function initPlanView() {
   // The live counts line: refresh it on a scope change, debounced on any tab
   // create/remove/move/regroup, and once now so it's filled when the panel opens.
   onScopeChange(() => { refreshCounts(); });
+  // The result card's "Suggest new groups for the leftovers" button runs here.
+  onSuggestLeftovers((tabIds) => suggestLeftovers(tabIds));
   if (chrome.tabs) {
     const refresh = () => refreshCountsDebounced();
     chrome.tabs.onCreated?.addListener(refresh);

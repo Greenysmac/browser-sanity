@@ -53,6 +53,12 @@ let selectedMode = false;
 // the scope changes (it reads the scope the same way currentScopeWindowId does).
 let scopeChangeHandler = null;
 export function onScopeChange(fn) { scopeChangeHandler = fn; }
+
+// plan-view registers a callback here so the result card's "Suggest new groups
+// for the leftovers" button can run the suggest-mode re-sort (it owns the plan
+// state and the status line). Called with the Someday tab ids and the button.
+let suggestLeftoversHandler = null;
+export function onSuggestLeftovers(fn) { suggestLeftoversHandler = fn; }
 function setScope(scope) {
   const seg = $('scopeSegment');
   if (seg) {
@@ -130,6 +136,53 @@ function paintParkedToggle(card, items) {
   else card.appendChild(row);
 }
 
+// The groupTabs items the model dropped into the catch-all "Someday" group,
+// matched by name (trimmed, case-insensitive) — the leftovers a "Put into my
+// groups" sort found no better home for.
+function somedayItems(items) {
+  return items.filter((it) => it.action === 'groupTabs' && it.data
+    && String(it.data.groupName || '').trim().toLowerCase() === 'someday');
+}
+
+// Add or remove the "Suggest new groups for the N leftovers" button under the
+// summary, shown only when the plan has Someday groupTabs items (N = their tab
+// count). Rebuilt each paint. Clicking hands the Someday tab ids to the
+// registered handler (plan-view), which re-sorts just them in 'suggest' mode;
+// while it runs the button reads "AI is suggesting groups…".
+let leftoversBtn = null;
+function paintLeftoversButton(card, items) {
+  if (leftoversBtn && leftoversBtn.parentNode) leftoversBtn.parentNode.removeChild(leftoversBtn);
+  leftoversBtn = null;
+  const someday = somedayItems(items);
+  if (!someday.length) return;
+  const tabCount = someday.reduce((n, it) => n + tabsIn(it), 0);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'leftoversSuggest';
+  const label = `Suggest new groups for the ${tabCount} leftover${tabCount === 1 ? '' : 's'}`;
+  btn.textContent = label;
+  btn.addEventListener('click', async () => {
+    if (!suggestLeftoversHandler) return;
+    const tabIds = someday.reduce((ids, it) => ids.concat((it.data && it.data.tabIds) || []), []);
+    btn.disabled = true;
+    btn.textContent = 'AI is suggesting groups…';
+    try {
+      await suggestLeftoversHandler(tabIds);
+    } finally {
+      // The handler re-renders the card from the updated plan, which rebuilds
+      // this button; restore its label in case the plan is unchanged.
+      if (btn.parentNode) { btn.disabled = false; btn.textContent = label; }
+    }
+  });
+  leftoversBtn = btn;
+  // Below the summary, its From line, and the parked toggle if present.
+  const after = (parkedCheckbox && parkedCheckbox._row && parkedCheckbox._row.parentNode === card)
+    ? parkedCheckbox._row
+    : (originEl && originEl.parentNode === card) ? originEl : $('resultSummary');
+  if (after && after.parentNode === card) after.insertAdjacentElement('afterend', btn);
+  else card.appendChild(btn);
+}
+
 // The muted "From <label>, <time>" line under the summary — what made the plan
 // and when. Built with createElement/textContent so a label can't inject markup.
 // Rebuilt each paint and inserted after the summary; removed when there's no
@@ -167,6 +220,7 @@ export function updateResultCard(plan, origin = null) {
   if (count) count.textContent = hasResult ? `${items.length} suggestion${items.length === 1 ? '' : 's'}.` : '';
   if (!hasResult) { parkedPref = true; if (parkedCheckbox) parkedCheckbox.checked = true; } // a fresh plan starts at the default
   paintParkedToggle(card, items);
+  paintLeftoversButton(card, items);
 }
 
 // Review toggles the detailed suggestion list (and its toolbar/actions), which
