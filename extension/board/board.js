@@ -27,6 +27,55 @@ function lastSeenText(lastSeen) {
   return day ? `last seen ${day}` : 'last seen unknown';
 }
 
+// The muted "Parked Oct 11" line shown in a parked card's expanded area: a
+// local, date-only 'Mon D' from the group's parkedAt or, failing that, its
+// lastSeen. A missing/unparseable value reads just "Parked" rather than an
+// invalid date.
+function parkedDateText(group) {
+  const iso = (group && (group.parkedAt || group.lastSeen)) || '';
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return 'Parked';
+  const when = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `Parked ${when}`;
+}
+
+// The small "parked" mark shown before a parked group's name: an inline SVG
+// pause icon (two short bars) labelled "Parked". Built with createElementNS so
+// the SVG renders in a real browser; the unit tests' bare fake document has no
+// createElementNS, so it falls back to createElement there. Attributes are set
+// with setAttribute when available (a real SVG element's class is read-only via
+// the .className property), guarded for the bare fake element.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function makeSvg(tag) {
+  if (typeof document.createElementNS === 'function') return document.createElementNS(SVG_NS, tag);
+  return document.createElement(tag);
+}
+function setAttr(el, name, value) {
+  if (el && typeof el.setAttribute === 'function') el.setAttribute(name, value);
+  // Mirror the class onto .className too, so the unit tests' fake element (which
+  // has no setAttribute and inspects .className) can find the mark.
+  if (name === 'class') el.className = value;
+}
+function parkedMark() {
+  const svg = makeSvg('svg');
+  setAttr(svg, 'class', 'boardParkedMark');
+  setAttr(svg, 'viewBox', '0 0 24 24');
+  setAttr(svg, 'width', '12');
+  setAttr(svg, 'height', '12');
+  setAttr(svg, 'aria-label', 'Parked');
+  setAttr(svg, 'role', 'img');
+  for (const x of ['8', '14']) {
+    const rect = makeSvg('rect');
+    setAttr(rect, 'x', x);
+    setAttr(rect, 'y', '6');
+    setAttr(rect, 'width', '2');
+    setAttr(rect, 'height', '12');
+    setAttr(rect, 'rx', '1');
+    svg.appendChild(rect);
+  }
+  return svg;
+}
+
 // The site name shown in bold at the head of each tab line: the URL's hostname
 // without a leading "www.". A tab without a parseable URL reads ''.
 function siteName(url) {
@@ -160,7 +209,7 @@ function fillTabList(list, tabs, onOpenTab) {
   }
 }
 
-function expandedArea({ name, description, suggested, tabs, send, setStatus, onOpenTab }) {
+function expandedArea({ name, description, suggested, tabs, parkedDate, send, setStatus, onOpenTab }) {
   const wrap = document.createElement('div');
   wrap.className = 'boardExpanded';
 
@@ -191,6 +240,14 @@ function expandedArea({ name, description, suggested, tabs, send, setStatus, onO
   });
   descRow.append(descText, edit);
   wrap.appendChild(descRow);
+
+  // For a parked group, a muted "Parked Oct 11" line under the description.
+  if (parkedDate) {
+    const parked = document.createElement('div');
+    parked.className = 'boardExpandedParked';
+    parked.textContent = parkedDate;
+    wrap.appendChild(parked);
+  }
 
   const list = document.createElement('ul');
   list.className = 'boardTabList';
@@ -446,17 +503,24 @@ function openCard({ group, descriptions, suggestions, parked, send, setStatus, r
   return row;
 }
 
-// A single parked-group row: color dot, name, "<n> tabs · last seen <date>" in
-// muted text, and a '⋯' button whose menu offers "Open" and "Description…".
-// After Open the board re-renders. When `newCount` > 0 the row shows a small
-// "+<n> new" badge (tabs filed into this group by the last apply); expanding the
-// row clears that count via `storage` so the badge doesn't linger.
+// A single parked-group row: a parked mark (pause icon), color dot, name,
+// "<n> tabs" in muted text (the date on hover), and a '⋯' button whose menu
+// offers "Open" and "Description…". The row carries a 'boardRow--parked' class
+// for its own look (dashed border, dimmer background, muted name) so it reads
+// as parked, not open. After Open the board re-renders. When `newCount` > 0 the
+// row shows a small "+<n> new" badge (tabs filed into this group by the last
+// apply); expanding the row clears that count via `storage` so the badge
+// doesn't linger. Expanding also shows a muted "Parked <Mon D>" line.
 function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatus, rerender, expander, onSplitProposal }) {
   const row = document.createElement('div');
-  row.className = 'boardRow';
+  // A parked row gets its own look (dashed border, dimmer background, muted
+  // name) via the extra class, so the user can tell it apart from an open one.
+  row.className = 'boardRow boardRow--parked';
   const dot = document.createElement('span');
   dot.className = 'boardDot';
   dot.style.backgroundColor = DOT_COLORS[group.color] || DOT_COLORS.grey;
+  // A small parked mark (a pause icon) sits before the name.
+  const mark = parkedMark();
   const name = document.createElement('span');
   name.className = 'boardName';
   name.textContent = group.name || '(unnamed)';
@@ -480,7 +544,7 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
   }
   const badge = splitHintBadge(group.tabCount);
   if (badge) countWrap.appendChild(badge);
-  row.append(dot, name, countWrap);
+  row.append(dot, mark, name, countWrap);
 
   const description = descriptionFor(descriptions, group.name);
   const openEditor = () => {
@@ -515,7 +579,7 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
         const b = Array.from(countWrap.children || []).find((c) => c && c.className === 'boardNewBadge');
         detach(b);
       }
-      return expandedArea({ name: group.name, description, suggested: '', tabs, send, setStatus });
+      return expandedArea({ name: group.name, description, suggested: '', tabs, parkedDate: parkedDateText(group), send, setStatus });
     };
     expander.wire(row, build);
   }

@@ -174,6 +174,20 @@ textarea, input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A parked row reads as parked, not open: a dashed border, a dimmer background,
+   and the name in the muted text color. */
+.boardRow--parked {
+  border-style: dashed;
+  background: var(--surface-2);
+}
+.boardRow--parked .boardName { color: var(--text-muted); }
+/* The small pause-icon mark before a parked group's name. */
+.boardParkedMark {
+  flex: none;
+  color: var(--text-muted);
+  fill: currentColor;
+}
+.boardParkedMark rect { fill: currentColor; }
 .boardCountWrap {
   margin-left: auto;
   display: inline-flex;
@@ -254,6 +268,8 @@ textarea, input {
 }
 .boardExpandedDesc { display: flex; align-items: baseline; gap: 8px; }
 .boardExpandedDescText { color: var(--text-muted); font-size: 12px; }
+/* The muted "Parked Oct 11" line in a parked card's expanded area. */
+.boardExpandedParked { color: var(--text-faint); font-size: 11px; margin-top: 2px; }
 .boardExpandedEdit { margin-left: auto; }
 .boardTabList {
   list-style: none;

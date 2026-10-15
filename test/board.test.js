@@ -542,8 +542,10 @@ test('each group renders as a single compact row with dot, name, count and a ⋯
   const container = makeEl('div');
   const { send } = makeSend(FIXTURE);
   await renderBoard(container, { send });
-  // One row per group: one open ('Work'), one parked ('Travel').
-  const rows = walk(container).filter((n) => n.className === 'boardRow');
+  // One row per group: one open ('Work'), one parked ('Travel'). The parked
+  // row carries an extra 'boardRow--parked' class, so match the base token
+  // rather than the whole className string.
+  const rows = walk(container).filter((n) => /(^|\s)boardRow(\s|$)/.test(n.className || ''));
   assert.equal(rows.length, 2, 'exactly one row per group');
   const openRow = rows.find((r) => (r.children || []).some((c) => c.className === 'boardName' && c.textContent === 'Work'));
   assert.ok(openRow, 'the open group has a row');
@@ -978,4 +980,60 @@ test('expanding a parked card clears its "+n new" badge and the stored count', a
   // Expanding removes the badge element and clears the stored count for this group.
   assert.ok(!walk(row).some((n) => n.className === 'boardNewBadge'), 'badge gone after expand');
   assert.deepEqual(storage.peek().boardParkedNewCounts, {}, 'stored count cleared');
+});
+
+// --- TASK 3: parked rows look parked -----------------------------------------
+
+test('a parked row carries the boardRow--parked class and a parked mark; an open row does not', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  // The parked 'Travel' row has the parked class and a parked mark before the name.
+  const parkedRow = rowFor(container, 'Travel');
+  assert.ok(/\bboardRow--parked\b/.test(parkedRow.className), 'the parked row carries the parked class');
+  assert.ok((parkedRow.children || []).some((c) => c.className === 'boardParkedMark'), 'the parked row has a parked mark');
+  // The mark comes before the name.
+  const classes = (parkedRow.children || []).map((c) => c.className);
+  assert.ok(classes.indexOf('boardParkedMark') < classes.indexOf('boardName'), 'the mark sits before the name');
+  // The open 'Work' row has neither the class nor the mark.
+  const openRow = rowFor(container, 'Work');
+  assert.ok(!/\bboardRow--parked\b/.test(openRow.className), 'the open row is not marked parked');
+  assert.ok(!(openRow.children || []).some((c) => c.className === 'boardParkedMark'), 'the open row has no parked mark');
+});
+
+test('an expanded parked card shows the muted "Parked <Mon D>" line from lastSeen', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const row = rowFor(container, 'Travel');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  assert.ok(area, 'the parked row expanded');
+  const parkedLine = walk(area).find((n) => n.className === 'boardExpandedParked');
+  assert.ok(parkedLine, 'the expanded card has the parked date line');
+  // The date is the local 'Mon D' from lastSeen (FIXTURE's Travel), computed the
+  // same way the view does so the assertion isn't timezone-brittle.
+  const when = new Date('2026-01-02T10:00:00.000Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  assert.equal(parkedLine.textContent, `Parked ${when}`, 'the line reads "Parked <Mon D>"');
+});
+
+test('an expanded parked card prefers parkedAt over lastSeen for the parked date', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend({
+    open: [],
+    parked: [{ name: 'Travel', color: 'green', tabCount: 2, parkedAt: '2026-03-20T08:00:00.000Z', lastSeen: '2026-01-02T10:00:00.000Z', tabs: [] }],
+    descriptions: [],
+  });
+  await renderBoard(container, { send });
+  const row = rowFor(container, 'Travel');
+  clickRow(row);
+  await flush();
+  const area = expandedOf(row);
+  const parkedLine = walk(area).find((n) => n.className === 'boardExpandedParked');
+  const when = new Date('2026-03-20T08:00:00.000Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  assert.equal(parkedLine.textContent, `Parked ${when}`, 'parkedAt wins over lastSeen');
 });
