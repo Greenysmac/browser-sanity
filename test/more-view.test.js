@@ -150,6 +150,8 @@ function healthHarness() {
     health: el(),
     hostUpdate: el(),
     run: { disabled: false },
+    putMine: { disabled: false },
+    suggestGroups: { disabled: false },
     runOne: { querySelectorAll: () => [] },
     commandInput: { disabled: false },
     commandForm: { querySelector: () => ({ disabled: false }) },

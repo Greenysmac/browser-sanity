@@ -6,7 +6,7 @@
 // (run / scope / sortSelected / approveAll) so current behavior is unchanged.
 import { $ } from './dom.js';
 import { getSettings } from '../lib/storage.js';
-import { planSummaryLine, modelsInUseLine, originLine } from './viewmodel.js';
+import { planSummaryLine, modelsInUseLine, originLine, modelDisplayName } from './viewmodel.js';
 
 // Reflect the extension version in the header: version_name preferred (it reads
 // "0.2.2 Browser Sanity"), falling back to the bare version. Guarded so unit
@@ -23,19 +23,36 @@ function paintVersion() {
 // Fill the muted "models in use" line from the two model slots.
 async function paintModelsInUse() {
   const el = $('modelsInUse');
-  if (!el) return;
+  const aiLine = $('sortAiLine');
+  let big = '';
   try {
     const s = await getSettings();
-    el.textContent = modelsInUseLine(s.bigModel, s.quickModel);
+    big = s.bigModel;
+    if (el) el.textContent = modelsInUseLine(s.bigModel, s.quickModel);
   } catch {
-    el.textContent = modelsInUseLine('', '');
+    if (el) el.textContent = modelsInUseLine('', '');
   }
+  paintAiLine(aiLine, big);
+}
+
+// The muted line under the two grouping choices: both run the AI (named by the
+// big-sorts model, using the same display names as the models-in-use line), and
+// nothing changes until the user clicks Apply. An empty slot falls back to the
+// endpoint's default, like modelsInUseLine does.
+function paintAiLine(el, bigModel) {
+  if (!el) return;
+  const name = (bigModel && String(bigModel).trim()) ? modelDisplayName(bigModel) : 'endpoint default';
+  el.textContent = `Both use AI (${name}). Nothing changes until you Apply.`;
 }
 
 // Point the three-way segmented control at the existing machinery: "This window"
 // and "All windows" set the hidden scope <select>; "Selected tabs" is a mode
 // that routes the Sort button to sortSelected instead of the full Analyze run.
 let selectedMode = false;
+// plan-view registers a callback here so the live counts line can refresh when
+// the scope changes (it reads the scope the same way currentScopeWindowId does).
+let scopeChangeHandler = null;
+export function onScopeChange(fn) { scopeChangeHandler = fn; }
 function setScope(scope) {
   const seg = $('scopeSegment');
   if (seg) {
@@ -46,6 +63,7 @@ function setScope(scope) {
   selectedMode = scope === 'selected';
   const sel = $('scope');
   if (sel && scope !== 'selected') sel.value = scope === 'all' ? 'all' : 'window';
+  if (scopeChangeHandler) scopeChangeHandler();
 }
 
 export function isSelectedMode() {

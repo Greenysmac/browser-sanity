@@ -320,6 +320,18 @@ async function handleAnalyze(m) {
   return { ok: true, loose, duplicates };
 }
 
+// "Count tabs": like Analyze, count the loose (ungrouped) web tabs and the
+// duplicate tabs in the chosen scope without calling the model — but, unlike
+// Analyze, WITHOUT clearing the stored plan. The panel's live counts line reads
+// this on open, on a scope change, and (debounced) when tabs change, so it can
+// refresh the numbers without discarding an unapplied result.
+async function handleCountTabs(m) {
+  const tabs = await scopeTabs(m);
+  const loose = tabs.filter((t) => (t.groupId ?? -1) === -1).length;
+  const duplicates = findDuplicateTabs(tabs).length;
+  return { ok: true, loose, duplicates };
+}
+
 // "Close duplicates": run only the duplicate-tab finder (no model) over the
 // chosen scope and store the result as the current plan, so review/apply/undo
 // work unchanged.
@@ -994,6 +1006,7 @@ async function handleGroupsSplit(m) {
 const HANDLERS = {
   run: handleRun,
   analyze: handleAnalyze,
+  countTabs: handleCountTabs,
   closeDuplicates: handleCloseDuplicates,
   cancel: handleCancel,
   setSettings: handleSetSettings,

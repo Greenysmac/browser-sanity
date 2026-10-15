@@ -17,6 +17,11 @@ export async function checkHealth() {
   // backend needs no banner, so hide it when connected.
   el.hidden = ok;
   $('run').disabled = !ok;
+  // The two always-visible grouping choices replace the old Analyze click, so
+  // gate them on health the same way #run is (a down CLI shows the onboarding
+  // guidance instead of a raw error).
+  $('putMine').disabled = !ok;
+  $('suggestGroups').disabled = !ok;
   // Gate every backend-dependent control on health, not just Analyze, so the CLI
   // being down surfaces the onboarding guidance instead of a raw error.
   for (const btn of $('runOne').querySelectorAll('button[data-feature]')) btn.disabled = !ok;

@@ -9,6 +9,7 @@ import { updateResultCard } from './main-panel.js';
 import { isSelectedMode } from './main-panel.js';
 import { hideResults } from './main-panel.js';
 import { fileIntoParkedChecked } from './main-panel.js';
+import { onScopeChange } from './main-panel.js';
 import { ignoreKey } from '../lib/orchestrator.js';
 import { TAB_GROUP_COLORS as GROUP_COLORS } from '../lib/colors.js';
 import { STATUS_LABELS } from '../lib/labels.js';
@@ -310,18 +311,76 @@ async function startScan(features, { groupMode, regroupAll } = {}) {
   setStatus(plan.length ? '' : 'Nothing to do — your browser looks tidy.');
 }
 
-// Toggles the two grouping-choice buttons under the Analyze button.
-function showSortChoices(shown) {
-  const el = $('sortChoices');
-  if (el) el.hidden = !shown;
+// The live counts line (#analyzeCounts): the loose-tab and duplicate counts for
+// the current scope, shown without touching the stored plan. Refreshed when the
+// panel opens, when the scope changes, and (debounced) when tabs change. Uses
+// the 'countTabs' command, not 'analyze' (which clears the plan).
+async function refreshCounts() {
+  const counts = $('analyzeCounts');
+  if (!counts) return;
+  const selected = isSelectedMode();
+  const windowId = selected ? null : await currentScopeWindowId();
+  const res = await send({ cmd: 'countTabs', windowId, selected });
+  if (!res || !res.ok) return; // leave the last numbers rather than blank them
+  const loose = res.loose || 0;
+  const dupes = res.duplicates || 0;
+  counts.textContent = `${loose} loose tab${loose === 1 ? '' : 's'}, ${dupes} duplicate${dupes === 1 ? '' : 's'}`;
+  counts.hidden = false;
 }
 
-// "Analyze": count the loose and duplicate tabs in the chosen scope WITHOUT
-// calling the model, show the counts, and reveal the two grouping choices.
+// Debounced wrapper so a burst of tab create/remove/move/regroup events (e.g. a
+// window closing) refreshes the counts once, about a second later.
+let countsTimer = null;
+function refreshCountsDebounced() {
+  clearTimeout(countsTimer);
+  countsTimer = setTimeout(() => { refreshCounts(); }, 1000);
+}
+
+// The elapsed-seconds clock shown on the clicked grouping button while the AI
+// runs — "AI is sorting 40 tabs… 12s" — ticking once a second like the scan
+// clock's status heartbeat. start() stashes the button's label and both choices'
+// disabled state; stop() restores them.
+let aiClockTimer = null;
+let aiClockBtn = null;
+let aiClockLabel = '';
+let aiClockStart = 0;
+let aiClockTabs = 0;
+function tickAiClock() {
+  if (!aiClockBtn) return;
+  const secs = Math.max(0, Math.floor((Date.now() - aiClockStart) / 1000));
+  aiClockBtn.textContent = `AI is sorting ${aiClockTabs} tab${aiClockTabs === 1 ? '' : 's'}… ${secs}s`;
+}
+function startAiClock(btn, tabCount) {
+  const putMine = $('putMine');
+  const suggest = $('suggestGroups');
+  aiClockBtn = btn;
+  aiClockLabel = btn.textContent;
+  aiClockTabs = tabCount;
+  aiClockStart = Date.now();
+  if (putMine) putMine.disabled = true;
+  if (suggest) suggest.disabled = true;
+  $('cancelRun').hidden = false;
+  tickAiClock();
+  clearInterval(aiClockTimer);
+  aiClockTimer = setInterval(tickAiClock, 1000);
+}
+function stopAiClock() {
+  clearInterval(aiClockTimer);
+  aiClockTimer = null;
+  if (aiClockBtn) aiClockBtn.textContent = aiClockLabel;
+  aiClockBtn = null;
+  const putMine = $('putMine');
+  const suggest = $('suggestGroups');
+  if (putMine) putMine.disabled = false;
+  if (suggest) suggest.disabled = false;
+  $('cancelRun').hidden = true;
+}
+
+// "Analyze" (the hidden #run button, kept for its existing wiring): count the
+// loose and duplicate tabs in the chosen scope WITHOUT calling the model, show
+// the counts, and clear any earlier result. The two grouping choices are always
+// visible now, so this no longer reveals them.
 async function analyze() {
-  showSortChoices(false);
-  const counts = $('analyzeCounts');
-  if (counts) counts.hidden = true;
   // A fresh Analyze clears any earlier result so the old card and detailed list
   // can't linger while the new counts are gathered.
   plan = [];
@@ -330,27 +389,36 @@ async function analyze() {
   hideResults();
   const toast = $('undoToast');
   if (toast) toast.hidden = true; // the last Apply's Undo belongs to the old result
-  setStatus('Analyzing…');
-  const selected = isSelectedMode();
-  const windowId = selected ? null : await currentScopeWindowId();
-  const res = await send({ cmd: 'analyze', windowId, selected });
-  if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
-  setStatus('');
-  if (counts) {
-    const loose = res.loose || 0;
-    const dupes = res.duplicates || 0;
-    counts.textContent = `${loose} loose tab${loose === 1 ? '' : 's'}, ${dupes} duplicate${dupes === 1 ? '' : 's'}`;
-    counts.hidden = false;
-  }
-  showSortChoices(true);
+  await refreshCounts();
 }
 
-// A grouping choice ("Put into my groups" / "Suggest new groups"): run the
-// grouping over the scope's loose tabs with the given mode. In "Selected tabs"
-// scope the existing sortSelected path handles the highlighted tabs instead.
-async function groupLoose(groupMode) {
+// A grouping choice ("Put into my groups" / "Suggest new groups"): clear the old
+// result card and Undo (as Analyze did), then run the grouping over the scope's
+// loose tabs with the given mode, showing the AI-working clock on the clicked
+// button. In "Selected tabs" scope the existing sortSelected path handles the
+// highlighted tabs instead.
+async function groupLoose(groupMode, btn) {
+  // Clear any earlier result and the last Apply's Undo so neither lingers while
+  // the AI runs — the same reset the old Analyze click did.
+  plan = [];
+  planOrigin = null;
+  selection = new Set();
+  hideResults();
+  const toast = $('undoToast');
+  if (toast) toast.hidden = true;
   if (isSelectedMode()) { await sortSelectedTabs(); return; }
-  await startScan({ groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false }, { groupMode });
+  // The number on the "AI is sorting N tabs…" text is the loose-tab count the
+  // live counts line already carries for this scope.
+  const windowId = await currentScopeWindowId();
+  const res = await send({ cmd: 'countTabs', windowId, selected: false });
+  const looseCount = (res && res.ok) ? (res.loose || 0) : 0;
+  if (btn) startAiClock(btn, looseCount);
+  try {
+    await startScan({ groupTabs: true, staleTabs: false, importantBookmarks: false, cleanBookmarks: false, organizeBookmarks: false, dupeTabs: false }, { groupMode });
+  } finally {
+    if (btn) stopAiClock();
+    refreshCounts();
+  }
 }
 
 // "Re-sort all groups": regroup every web tab in scope (grouped or not) in mode
@@ -464,8 +532,8 @@ const ALL_FEATURES = ['groupTabs', 'staleTabs', 'importantBookmarks', 'cleanBook
 // group-by-status pref, then paint the stored plan. Called once from the bootstrap.
 export async function initPlanView() {
   $('run').addEventListener('click', () => analyze());
-  $('putMine').addEventListener('click', () => groupLoose('mine'));
-  $('suggestGroups').addEventListener('click', () => groupLoose('suggest'));
+  $('putMine').addEventListener('click', () => groupLoose('mine', $('putMine')));
+  $('suggestGroups').addEventListener('click', () => groupLoose('suggest', $('suggestGroups')));
   $('resortAll').addEventListener('click', () => resortAll());
   $('closeDuplicates').addEventListener('click', () => closeDuplicates());
   $('cancelRun').addEventListener('click', () => send({ cmd: 'cancel' }));
@@ -560,4 +628,17 @@ export async function initPlanView() {
   $('groupByStatus').checked = groupBookmarksByStatus;
   ({ items: plan, origin: planOrigin } = await fetchPlan());
   renderPlan(true);
+
+  // The live counts line: refresh it on a scope change, debounced on any tab
+  // create/remove/move/regroup, and once now so it's filled when the panel opens.
+  onScopeChange(() => { refreshCounts(); });
+  if (chrome.tabs) {
+    const refresh = () => refreshCountsDebounced();
+    chrome.tabs.onCreated?.addListener(refresh);
+    chrome.tabs.onRemoved?.addListener(refresh);
+    chrome.tabs.onMoved?.addListener(refresh);
+    chrome.tabs.onAttached?.addListener(refresh);
+    chrome.tabs.onUpdated?.addListener(refresh); // a regroup lands as a groupId update
+  }
+  await refreshCounts();
 }
