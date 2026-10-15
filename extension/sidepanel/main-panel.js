@@ -51,9 +51,14 @@ export function isSelectedMode() {
 }
 
 // The parked-match checkbox the result card shows when the plan has groupTabs
-// items flagged data.parkedMatch. Unchecked by default: the tabs form live
-// groups unless the user opts to file them into the matching parked groups.
+// items flagged data.parkedMatch. CHECKED by default: tabs that belong to a
+// parked group are put away into it (saved and closed), so a parked group stays
+// out of sight; tabs for open groups join them and stay open. Unchecking keeps
+// this plan's parked-group tabs open in live groups instead. (Jeff, 2026-10-15:
+// "if things are live, I want them grouped but live. If I've parked something
+// like self-hosting, I want it visually gone.")
 let parkedCheckbox = null;
+let parkedPref = true; // the user's choice for the current plan; back to true for the next
 
 // Whether the user has opted to file parked-name matches into the parked record.
 // The apply path (plan-view) reads this to set the message's fileIntoParked.
@@ -79,7 +84,7 @@ const tabsIn = (it) => ((it.data && it.data.tabIds && it.data.tabIds.length) || 
 
 function paintParkedToggle(card, items) {
   // A repaint of the same plan (an edit in Review) keeps the user's choice.
-  const wasChecked = !!(parkedCheckbox && parkedCheckbox.checked);
+  if (parkedCheckbox) parkedPref = parkedCheckbox.checked;
   if (parkedCheckbox && parkedCheckbox._row && parkedCheckbox._row.parentNode) {
     parkedCheckbox._row.parentNode.removeChild(parkedCheckbox._row);
   }
@@ -92,9 +97,9 @@ function paintParkedToggle(card, items) {
   const box = document.createElement('input');
   box.type = 'checkbox';
   box.id = 'fileIntoParked';
-  box.checked = wasChecked;
+  box.checked = parkedPref;
   const text = document.createElement('span');
-  text.textContent = `File the ${tabCount} tab${tabCount === 1 ? '' : 's'} that match parked groups into those groups instead (${parkedBreakdown(parked)}). This saves and closes them.`;
+  text.textContent = `Put the ${tabCount} tab${tabCount === 1 ? '' : 's'} for parked groups away in them (${parkedBreakdown(parked)}). They're saved and closed. Uncheck to keep them open.`;
   row.appendChild(box);
   row.appendChild(text);
   box._row = row;
@@ -140,7 +145,7 @@ export function updateResultCard(plan, origin = null) {
   paintResultOrigin(card, hasResult ? origin : null);
   const count = $('resultCount');
   if (count) count.textContent = hasResult ? `${items.length} suggestion${items.length === 1 ? '' : 's'}.` : '';
-  if (!hasResult && parkedCheckbox) parkedCheckbox.checked = false;
+  if (!hasResult) { parkedPref = true; if (parkedCheckbox) parkedCheckbox.checked = true; } // a fresh plan starts at the default
   paintParkedToggle(card, items);
 }
 

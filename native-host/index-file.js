@@ -66,29 +66,58 @@ function readPrevious(file, readFile) {
   }
 }
 
+// Tabs as { title, url }, first of each url only, skipping urls in `skip`.
+function uniqueTabs(tabs, skip = new Set()) {
+  const out = [];
+  const seen = new Set(skip);
+  for (const t of (Array.isArray(tabs) ? tabs : [])) {
+    if (!t || seen.has(t.url)) continue;
+    seen.add(t.url);
+    out.push({ title: t.title, url: t.url });
+  }
+  return out;
+}
+
+// The tabs saved under a group that aren't open right now: a parked record's
+// tabs, plus any parkedTabs an open record already carries.
+function savedTabsOf(p) {
+  const base = p && p.status !== 'open' && Array.isArray(p.tabs) ? p.tabs : [];
+  const extra = p && Array.isArray(p.parkedTabs) ? p.parkedTabs : [];
+  return [...base, ...extra];
+}
+
 // Merge the incoming payload groups with the previous index. Every group in the
 // payload is 'open' with lastSeen set to now; a previously-seen group missing
 // from the payload stays as 'parked' with its old tabs and lastSeen (the memory
-// of groups the user closed). A parked group reappearing becomes open again. A
-// previously-known group whose name is in `dissolved` is dropped entirely
-// instead of becoming parked.
+// of groups the user closed). A previously-known group whose name is in
+// `dissolved` is dropped entirely instead of becoming parked.
+//
+// An open group with the same name as a parked record is ONE group, part live
+// and part saved: the live tabs are its `tabs`, and the parked tabs that aren't
+// open stay in `parkedTabs`. (It used to replace the parked record, so a new
+// live group named like a parked one silently dropped the parked tabs: 24 of
+// them on 2026-10-14.) When the group closes or is parked again, both halves
+// come back together as one parked record.
 function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
   const incoming = Array.isArray(payloadGroups) ? payloadGroups : [];
   const previous = Array.isArray(previousGroups) ? previousGroups : [];
   const dissolved = new Set((Array.isArray(dissolvedNames) ? dissolvedNames : []).map(groupKey));
+  const prevByKey = new Map();
+  for (const p of previous) if (!prevByKey.has(groupKey(p.name))) prevByKey.set(groupKey(p.name), p);
   const merged = [];
   const seen = new Set();
   for (const g of incoming) {
     const key = groupKey(g.name);
+    const first = !seen.has(key); // two open groups with one name: the first carries the saved tabs
     seen.add(key);
-    merged.push({
-      name: String(g.name || ''),
-      color: g.color,
-      windowId: g.windowId,
-      tabs: Array.isArray(g.tabs) ? g.tabs.map((t) => ({ title: t.title, url: t.url })) : [],
-      status: 'open',
-      lastSeen: now,
-    });
+    const tabs = uniqueTabs(g.tabs);
+    const entry = { name: String(g.name || ''), color: g.color, windowId: g.windowId, tabs, status: 'open', lastSeen: now };
+    const p = prevByKey.get(key);
+    if (first && p) {
+      const saved = uniqueTabs(savedTabsOf(p), new Set(tabs.map((t) => t.url)));
+      if (saved.length) entry.parkedTabs = saved;
+    }
+    merged.push(entry);
   }
   for (const p of previous) {
     const key = groupKey(p.name);
@@ -98,7 +127,7 @@ function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
       name: String(p.name || ''),
       color: p.color,
       windowId: p.windowId,
-      tabs: Array.isArray(p.tabs) ? p.tabs.map((t) => ({ title: t.title, url: t.url })) : [],
+      tabs: uniqueTabs([...(Array.isArray(p.tabs) ? p.tabs : []), ...(Array.isArray(p.parkedTabs) ? p.parkedTabs : [])]),
       status: 'parked',
       lastSeen: p.lastSeen,
     });
@@ -117,8 +146,13 @@ function renderMarkdown(groups, ungrouped, now) {
   const parked = groups.filter((g) => g.status !== 'open');
   for (const g of open) {
     lines.push('');
-    lines.push(`## ${g.name} (open, ${g.tabs.length} tabs)`);
+    const saved = Array.isArray(g.parkedTabs) ? g.parkedTabs : [];
+    lines.push(`## ${g.name} (open, ${g.tabs.length} tabs${saved.length ? `, plus ${saved.length} parked` : ''})`);
     for (const t of g.tabs) lines.push(`- [${t.title}](${t.url})`);
+    if (saved.length) {
+      lines.push('', 'Parked, not open:');
+      for (const t of saved) lines.push(`- [${t.title}](${t.url})`);
+    }
   }
   for (const g of parked) {
     lines.push('');
@@ -197,8 +231,10 @@ export function parkGroup(group = {}, {
   const key = groupKey(group.name);
   const existing = prev.groups.find((g) => groupKey(g.name) === key);
   const incoming = Array.isArray(group.tabs) ? group.tabs.map((t) => ({ title: t.title, url: t.url })) : [];
-  const tabs = existing && Array.isArray(existing.tabs)
-    ? existing.tabs.map((t) => ({ title: t.title, url: t.url }))
+  // Keep everything the record already had, including the parked half of an
+  // open group (parkedTabs), then add the incoming tabs.
+  const tabs = existing
+    ? uniqueTabs([...(Array.isArray(existing.tabs) ? existing.tabs : []), ...(Array.isArray(existing.parkedTabs) ? existing.parkedTabs : [])])
     : [];
   const haveUrls = new Set(tabs.map((t) => t.url));
   for (const t of incoming) {

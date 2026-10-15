@@ -13,13 +13,22 @@ export function actionLabel(action) { return ACTION_LABELS[action] || action; }
 // whose count is zero; returns '' for an empty plan.
 export function planSummaryLine(plan) {
   const items = plan || [];
-  const groups = items.filter((it) => it.action === 'groupTabs');
-  const groupTabCount = groups.reduce((n, it) => n + ((it.data && it.data.tabIds && it.data.tabIds.length) || 0), 0);
+  const tabsOf = (it) => ((it.data && it.data.tabIds && it.data.tabIds.length) || 0);
+  // Groups named like a parked group are counted on their own: by default their
+  // tabs are put away in the parked group (see main-panel's checkbox).
+  const groups = items.filter((it) => it.action === 'groupTabs' && !(it.data && it.data.parkedMatch));
+  const toParked = items.filter((it) => it.action === 'groupTabs' && it.data && it.data.parkedMatch);
+  const groupTabCount = groups.reduce((n, it) => n + tabsOf(it), 0);
+  const parkedTabCount = toParked.reduce((n, it) => n + tabsOf(it), 0);
   const parks = items.filter((it) => it.action === 'parkTab');
   const closeCount = items.filter((it) => it.action === 'closeTab').length;
   const parts = [];
   if (groupTabCount) {
     parts.push(`Move ${groupTabCount} tab${groupTabCount === 1 ? '' : 's'} into ${groups.length} group${groups.length === 1 ? '' : 's'}`);
+  }
+  if (parkedTabCount) {
+    const n = new Set(toParked.map((it) => (it.data && it.data.groupName) || '')).size;
+    parts.push(`${parkedTabCount} tab${parkedTabCount === 1 ? '' : 's'} for ${n} parked group${n === 1 ? '' : 's'}`);
   }
   if (parks.length) {
     // Count filed tabs per parked group, in first-seen order, for the breakdown.

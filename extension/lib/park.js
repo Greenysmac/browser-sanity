@@ -60,7 +60,11 @@ export async function openParked({ chromeApi = chrome, nativeClient, name, windo
   const wanted = String(name || '').trim().toLowerCase();
   const group = groups.find((g) => String(g.name || '').trim().toLowerCase() === wanted);
   if (!group) return { ok: false, error: `No parked group named ${name}` };
-  const tabs = Array.isArray(group.tabs) ? group.tabs : [];
+  // An open group's record holds its live tabs in `tabs` and its saved half in
+  // `parkedTabs`; "Add back" opens the saved half. A parked record opens whole.
+  const tabs = group.status === 'open'
+    ? (Array.isArray(group.parkedTabs) ? group.parkedTabs : [])
+    : (Array.isArray(group.tabs) ? group.tabs : []);
   const tabIds = [];
   for (const t of tabs) {
     const created = await chromeApi.tabs.create({ windowId, url: t.url, active: false });

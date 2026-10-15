@@ -24,7 +24,7 @@ function at(needle, where = html) {
 
 test('"Open tabs" heading and its muted line sit over the sort card, result card below', () => {
   const heading = at('>Open tabs</h2>');
-  const line = at("Sorts the tabs open right now. Parked groups aren't changed.");
+  const line = at("Sorts the tabs open right now. Tabs for parked groups are put away in them.");
   const sortCard = at('id="sortCard"');
   const resultCard = at('id="resultCard"');
   assert.ok(heading < line, 'the heading precedes its muted line');

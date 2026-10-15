@@ -290,7 +290,7 @@ test('hideResults clears the result card and collapses the detailed list', () =>
 // parked-name match with no open group).
 const parkedMatch = (name) => ({ action: 'groupTabs', data: { groupName: name, parkedMatch: true, tabIds: [1], members: [{ tabId: 1 }] } });
 
-test('the result card shows the parked-match checkbox only when parkedMatch items exist, unchecked by default', () => {
+test('the result card shows the parked-match checkbox only when parkedMatch items exist, checked by default', () => {
   const { els } = makeHarness();
   initMainPanel();
 
@@ -299,24 +299,24 @@ test('the result card shows the parked-match checkbox only when parkedMatch item
   assert.equal(fileIntoParkedChecked(), false, 'no checkbox → reads as unchecked');
   assert.ok(!els.resultCard.children.some((c) => c.children.some((cc) => cc.attrs.type === 'checkbox' || cc.type === 'checkbox')), 'no checkbox element');
 
-  // A plan with two parkedMatch groups shows one checkbox, unchecked, labelled
+  // A plan with two parkedMatch groups shows one checkbox, checked, labelled
   // with the per-group breakdown.
   updateResultCard([parkedMatch('Hearing research'), parkedMatch('Someday')]);
   const row = els.resultCard.children.find((c) => c.classes.has('parkedToggle'));
   assert.ok(row, 'the toggle row is inserted into the card');
   const box = row.children.find((c) => c.type === 'checkbox');
   assert.ok(box, 'a checkbox is built');
-  assert.equal(box.checked, false, 'unchecked by default');
-  assert.equal(fileIntoParkedChecked(), false);
+  assert.equal(box.checked, true, 'checked by default: parked-group tabs are put away');
+  assert.equal(fileIntoParkedChecked(), true);
   const label = row.children.find((c) => c !== box);
   assert.equal(
     label.textContent,
-    'File the 2 tabs that match parked groups into those groups instead (Hearing research 1, Someday 1). This saves and closes them.',
+    "Put the 2 tabs for parked groups away in them (Hearing research 1, Someday 1). They're saved and closed. Uncheck to keep them open.",
   );
 
-  // Ticking it is reflected by fileIntoParkedChecked().
-  box.checked = true;
-  assert.equal(fileIntoParkedChecked(), true);
+  // Unticking it is reflected by fileIntoParkedChecked().
+  box.checked = false;
+  assert.equal(fileIntoParkedChecked(), false);
 
   // A later plan with no parked matches removes the checkbox again.
   updateResultCard([{ action: 'closeTab', data: { tabId: 9 } }]);

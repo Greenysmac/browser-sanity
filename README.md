@@ -11,7 +11,7 @@ Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/brow
 ## What it does
 
 - **Analyze your open tabs.** It counts loose tabs and duplicates first, then you choose **Put into my groups** or **Suggest new groups**. Review the result, apply it, and undo it if you change your mind. **Re-sort all groups** and **Close duplicates** are there for the occasional big cleanup.
-- **Park groups.** A parked group is saved and closed. It stays on the board, and **Open** brings its tabs back. Tabs that match a parked group go into a live group by default; you can choose to file them into the parked group instead.
+- **Park groups.** A parked group is saved and closed. It stays on the board, and **Open** brings its tabs back. When you sort, tabs for an open group join it and stay open; tabs for a parked group are put away in it, so a parked group stays out of sight (uncheck one box to keep them open instead). A live group and a parked group with the same name are one group: its parked tabs stay saved until you add them back or park it.
 - **Keep groups useful.** Each group can carry a one-line description. Groups past 30 tabs are flagged, **Split** breaks one into need-based sub-groups, and **Re-analyze parked groups** suggests merges and splits for you to check off.
 - **See everything on one board,** on the new-tab page and in the side panel. Click a card for its description and its top five sites.
 - **Know what did what.** Every suggestion says what made it and when.
