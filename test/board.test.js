@@ -1085,7 +1085,7 @@ async function chooseOrder(container, label) {
   const btn = walk(container).find((n) => n.className === 'boardOrderBtn');
   assert.ok(btn, 'the Order button is present');
   btn.click();
-  const menu = (btn.children || []).find((c) => c.className === 'boardMenu');
+  const menu = (btn.parent.children || []).find((c) => c.className === 'boardMenu'); // the menu opens beside the button, in its wrapper
   assert.ok(menu, 'the Order menu opened under the button');
   const item = walk(menu).find((n) => n.tagName === 'BUTTON' && n.textContent === label);
   assert.ok(item, `the "${label}" menu item is present`);
@@ -1156,4 +1156,30 @@ test('dropping a parked row on itself leaves the order unchanged', async () => {
   await flush();
   // No reorder was saved (a drop on self is a no-op).
   assert.equal(storage.peek().boardParkedOrder, undefined, 'nothing saved for a self-drop');
+});
+
+// A real SVG element's className is a read-only SVGAnimatedString: assigning it
+// throws. Run 15's parked mark did that and emptied the whole board in Chrome.
+// Mimic it: createElementNS returns elements whose className has only a getter.
+test('the parked mark renders with real-SVG className (getter only)', async () => {
+  installFakeDocument();
+  document.createElementNS = (ns, tag) => {
+    const el = makeEl(tag);
+    delete el.className;
+    const attrs = {};
+    Object.defineProperty(el, 'className', { get() { return { baseVal: attrs.class || '' }; }, configurable: true });
+    el.setAttribute = (k, v) => { attrs[k] = String(v); };
+    el.getAttribute = (k) => attrs[k];
+    return el;
+  };
+  const container = makeEl('div');
+  const send = async (m) => (m.cmd === 'boardData'
+    ? { ok: true, open: [], parked: [{ name: 'Home lab', color: 'cyan', tabCount: 3, lastSeen: '2026-10-07T00:00:00Z', tabs: [] }], descriptions: [] }
+    : { ok: true });
+  await renderBoard(container, { send });
+  const all = [];
+  (function walk(n) { all.push(n); for (const k of n.children || []) walk(k); })(container);
+  const row = all.find((n) => typeof n.className === 'string' && n.className.includes('boardRow--parked'));
+  assert.ok(row, 'the parked row rendered');
+  assert.ok(all.some((n) => n.getAttribute && n.getAttribute('class') === 'boardParkedMark'), 'the mark carries its class attribute');
 });

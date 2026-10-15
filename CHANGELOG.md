@@ -2,6 +2,13 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## 0.9.0 — 2026-10-15
+- One step to sort: no Analyze click. The tab counts update on their own, both choices are always there, and a line says they use AI and nothing changes until you Apply. The button you click shows "AI is sorting 40 tabs… 12s".
+- Leftovers: when tabs land in Someday, the result card offers "Suggest new groups for the N leftovers", which gives them new group names (single-tab groups allowed) before you Apply.
+- Parked groups look parked: dashed and dimmed, a small pause mark, and "Parked Oct 11" when opened.
+- Order parked groups: drag them, or reorder once by Last used, Time parked or A to Z from the Order menu. Groups parked before this keep their real dates.
+- Real-browser fixes in review: the parked mark emptied the board (a read-only SVG property), dragging would have crashed on the first drag, the drop marker shifted the new-tab grid, the Order menu reopened on every choice, and the counts refreshed on every page load.
+
 ## 0.8.1 — 2026-10-15
 - The version shows as "Version 0.8.1" at the right of the side panel's Open tabs heading, and under the board on the new-tab page.
 

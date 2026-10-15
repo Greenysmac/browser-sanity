@@ -20,7 +20,7 @@ export function indexById(snapshots) {
 // `data.parkedMatch = true` so the panel can offer to file those tabs into the
 // parked record instead; its members carry each tab's windowId and index so the
 // service worker can expand them into parkTab items when the user opts in.
-export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map(), parkedNames = [] } = {}) {
+export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map(), parkedNames = [], allowSingles = false } = {}) {
   const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
   const parkedSet = new Set(parkedNames.map(norm));
   const openSets = new Map();
@@ -45,7 +45,7 @@ export function mapGroupResult(groups, tabsById, { openNamesByWindow = new Map()
       // A parked name with no open group in this window → a live group of its
       // own, flagged parkedMatch so the panel can offer to file them instead.
       const parkedMatch = matchesParked && !matchesOpen;
-      if (members.length < 2 && !matchesOpen && !parkedMatch) continue; // single tab, no existing/parked group to join
+      if (members.length < 2 && !matchesOpen && !parkedMatch && !allowSingles) continue; // single tab, no existing/parked group to join (leftovers may stand alone)
       items.push({
         itemId: `group-${gi}-${wi++}`,
         action: 'groupTabs',

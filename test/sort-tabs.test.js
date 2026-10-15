@@ -304,10 +304,13 @@ test('suggestLeftovers replaces only the Someday items with the newly suggested 
   });
   const res = await dispatch({ cmd: 'suggestLeftovers', tabIds: [1, 2] });
   assert.equal(res.ok, true);
-  // The grouping ran in 'suggest' mode over exactly the two leftover tabs.
+  // The grouping ran in 'leftovers' mode (new names only, never Someday) over
+  // exactly the two leftover tabs. Plain 'suggest' still sees the groups file's
+  // "fits none goes in Someday" rule and sent them straight back (found on
+  // Jeff's tabs, 2026-10-15).
   const groupReq = requests.find((r) => r.task === 'group');
   assert.ok(groupReq, 'a grouping request was made');
-  assert.equal(groupReq.payload.mode, 'suggest');
+  assert.equal(groupReq.payload.mode, 'leftovers');
   assert.deepEqual(groupReq.payload.tabs.map((t) => t.tabId).sort(), [1, 2]);
   // The Someday item is gone; Work and the close item are untouched; the new
   // "News" group is in the plan.
@@ -335,4 +338,20 @@ test('suggestLeftovers leaves the plan as it was when the grouping fails', async
   // The stored plan is unchanged — the Someday item is still there.
   const { currentPlan } = await chrome.storage.local.get({ currentPlan: [] });
   assert.deepEqual(currentPlan, initialPlan, 'the plan is left exactly as it was on failure');
+});
+
+test("the leftovers prompt asks for new names and rules out Someday", async () => {
+  const { buildGroupPrompt } = await import('../native-host/prompts.js');
+  const p = buildGroupPrompt([{ tabId: 1, title: 'a', url: 'https://a', groupName: '' }], 'MY GROUPS: - Someday: later', { mode: 'leftovers' });
+  assert.match(p, /NEW, specific group names/);
+  assert.match(p, /Never use Someday/);
+  assert.doesNotMatch(buildGroupPrompt([], '', { mode: 'mine' }), /NEW, specific group names/);
+});
+
+test('leftovers keep single-tab groups; other modes still drop a lone new group', async () => {
+  const { mapGroupResult } = await import('../extension/lib/plan.js');
+  const byId = new Map([[1, { tabId: 1, windowId: 9, index: 0, title: 'a', url: 'https://a' }]]);
+  const groups = [{ name: 'Blender pipelines', color: 'blue', tabIds: [1] }];
+  assert.equal(mapGroupResult(groups, byId, { allowSingles: true }).length, 1);
+  assert.equal(mapGroupResult(groups, byId).length, 0);
 });

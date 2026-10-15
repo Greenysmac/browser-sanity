@@ -127,7 +127,7 @@ function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
     // now, so stamp parkedAt=now and carry its old lastSeen as lastUsed. A
     // group that was already parked keeps its original parkedAt and lastUsed
     // (falling back to lastSeen for records written before these fields).
-    const parkedAt = p.status === 'open' ? now : (p.parkedAt || now);
+    const parkedAt = p.status === 'open' ? now : (p.parkedAt || p.lastSeen || now);
     const lastUsed = p.status === 'open' ? p.lastSeen : (p.lastUsed || p.lastSeen);
     merged.push({
       name: String(p.name || ''),
@@ -259,8 +259,8 @@ export function parkGroup(group = {}, {
     tabs,
     status: 'parked',
     lastSeen: now,
-    // parkedAt stamps when this group became parked: now for a fresh park, but
-    // an existing parked record keeps its original parkedAt. lastUsed is the
+    // parkedAt stamps when this group was parked: now (parking again moves it
+    // to the front of "Time parked"). lastUsed is the
     // most recent time a tab in the group was active, sent by the extension;
     // it falls back to now (or an existing lastUsed when the caller omits it).
     parkedAt: now,

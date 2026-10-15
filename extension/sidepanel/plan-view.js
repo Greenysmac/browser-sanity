@@ -295,7 +295,7 @@ async function ignoreItem(item) {
 async function startScan(features, { groupMode, regroupAll } = {}) {
   ensureScanPort();
   $('cancelRun').hidden = false;
-  startScanClock('Analyzing… (running your local AI CLI)');
+  startScanClock('AI is sorting your tabs…');
   const windowId = await currentScopeWindowId();
   const res = await send({ cmd: 'run', features, windowId, groupMode, regroupAll });
   stopScanClock();
@@ -478,7 +478,7 @@ async function sortSelectedTabs() {
 // the Someday items), then returns the updated plan, which we show as usual. A
 // failure leaves the plan as it was and says so.
 async function suggestLeftovers(tabIds) {
-  setStatus('Suggesting new groups for the leftovers… (running your local AI CLI)');
+  setStatus('AI is suggesting groups for the leftovers…');
   const res = await send({ cmd: 'suggestLeftovers', tabIds });
   if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
   plan = res.items || [];
@@ -657,7 +657,9 @@ export async function initPlanView() {
     chrome.tabs.onRemoved?.addListener(refresh);
     chrome.tabs.onMoved?.addListener(refresh);
     chrome.tabs.onAttached?.addListener(refresh);
-    chrome.tabs.onUpdated?.addListener(refresh); // a regroup lands as a groupId update
+    // A regroup lands as a groupId update; ignore the stream of title/favicon/
+    // loading updates every page sends.
+    chrome.tabs.onUpdated?.addListener((tabId, info) => { if (info && (info.groupId !== undefined || info.url !== undefined)) refresh(); });
   }
   await refreshCounts();
 }

@@ -122,7 +122,7 @@ export async function buildPlan(deps) {
     // leftovers" can invent groups for just those tabs.
     try {
       const regroupAll = onlyTabIds || deps.regroupAll;
-      const mode = deps.groupMode === 'mine' || deps.groupMode === 'suggest'
+      const mode = deps.groupMode === 'mine' || deps.groupMode === 'suggest' || deps.groupMode === 'leftovers'
         ? deps.groupMode
         : (onlyTabIds || deps.regroupAll ? 'mine' : 'suggest');
       const candidates = regroupAll ? tabs : tabs.filter((t) => (t.groupId ?? -1) === -1);
@@ -143,7 +143,7 @@ export async function buildPlan(deps) {
           parkedNames = idxGroups.filter((g) => g.status !== 'open').map((g) => g.name || '');
         } catch { parkedNames = []; } // the index is best-effort; grouping still works without it
         const r = await nativeClient.request({ type: 'organize', task: 'group', adapter, payload: { tabs: projectTabsForHost(candidates), rules, mode } });
-        items.push(...mapGroupResult(r.groups, byId, { openNamesByWindow, parkedNames }));
+        items.push(...mapGroupResult(r.groups, byId, { openNamesByWindow, parkedNames, allowSingles: mode === 'leftovers' }));
       }
     } catch (e) {
       // Keep other results, but say so: a swallowed failure used to show up as

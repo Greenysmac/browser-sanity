@@ -674,7 +674,7 @@ async function handleSuggestLeftovers(m) {
   let suggested;
   const warnings = [];
   try {
-    suggested = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds, groupMode: 'suggest', onWarning: (w) => warnings.push(w) });
+    suggested = await buildPlan({ settings, nativeClient, onlyTabIds: tabIds, groupMode: 'leftovers', onWarning: (w) => warnings.push(w) });
   } finally {
     nativeClient.disconnect();
   }

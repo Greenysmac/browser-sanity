@@ -59,3 +59,21 @@ test('the hidden Run one row really hides', () => {
   const css = fs.readFileSync(new URL('../extension/sidepanel/sidepanel.css', import.meta.url), 'utf8');
   assert.match(css, /\.quickActions\[hidden\]\s*\{\s*display:\s*none/);
 });
+
+// element.dataset has only a getter too; run 15's drag code assigned it, which
+// throws in a real browser on the first drag. Only a guarded fallback for the
+// tests' fake rows is allowed.
+test('no extension page assigns to element.dataset unguarded', () => {
+  for (const f of ['board/board.js', 'sidepanel/main-panel.js', 'sidepanel/plan-view.js', 'newtab/newtab.js']) {
+    const bad = read(f).split('\n').filter((l) => /\.dataset\s*=(?!=)/.test(l) && !/if \(!\w+\.dataset\) \w+\.dataset = \{\};/.test(l));
+    assert.deepEqual(bad, [], f);
+  }
+});
+
+// A menu built inside a <button> reopens on every choice; menus open in a
+// wrapper beside their button.
+test('the Order menu opens beside its button, not inside it', () => {
+  const src = read('board/board.js');
+  assert.match(src, /openMenu\(orderWrap,/);
+  assert.doesNotMatch(src, /openMenu\(orderBtn,/);
+});

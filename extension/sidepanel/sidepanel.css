@@ -598,13 +598,6 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   cursor: pointer;
 }
 .boardOrderBtn:hover { text-decoration: underline; }
-/* The drop indicator line shown between parked rows while dragging. */
-.boardDropLine {
-  height: 2px;
-  background: var(--accent, #1a73e8);
-  border-radius: 1px;
-  margin: 1px 0;
-}
 .boardRow--parked { cursor: grab; }
 .boardRow--parked:active { cursor: grabbing; }
 /* The compact ⋯ button that opens a row's action menu. */
@@ -1165,3 +1158,8 @@ li.nonHttp span:not(.tabTag) { color: var(--text-muted); }
    the count and the ⋯ button stay on the first line; only an opened card's
    description area wraps to its own line. */
 .boardRow > .boardName { flex: 1 1 0; min-width: 0; }
+
+/* Drag to reorder parked groups: the target row shows where the group lands. */
+.boardOrderWrap { position: relative; display: inline-block; }
+.boardRow--dropBefore { box-shadow: inset 0 3px 0 var(--accent, var(--text)); }
+.boardRow--dropAfter { box-shadow: inset 0 -3px 0 var(--accent, var(--text)); }

@@ -51,10 +51,12 @@ function makeSvg(tag) {
   return document.createElement(tag);
 }
 function setAttr(el, name, value) {
-  if (el && typeof el.setAttribute === 'function') el.setAttribute(name, value);
-  // Mirror the class onto .className too, so the unit tests' fake element (which
-  // has no setAttribute and inspects .className) can find the mark.
-  if (name === 'class') el.className = value;
+  if (!el) return;
+  if (typeof el.setAttribute === 'function') el.setAttribute(name, value);
+  // Mirror the class onto .className for the unit tests' fake element, but only
+  // where className is a plain string: on a real SVG element it's a read-only
+  // SVGAnimatedString, and assigning it threw and emptied the whole board.
+  if (name === 'class' && typeof el.className === 'string') el.className = value;
 }
 function parkedMark() {
   const svg = makeSvg('svg');
@@ -597,8 +599,7 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
 // element moved around with insertBefore and removed when the drag ends.
 function makeParkedDnd({ onReorder }) {
   let dragging = null; // the name of the row being dragged
-  const indicator = document.createElement('div');
-  indicator.className = 'boardDropLine';
+  let marked = null; // the row showing the drop marker
 
   // The parked rows in a section, in current DOM order.
   const rowsOf = (section) => Array.from(section.children || [])
@@ -606,7 +607,17 @@ function makeParkedDnd({ onReorder }) {
       && c.className.indexOf('boardRow--parked') !== -1);
   const namesOf = (section) => rowsOf(section).map((r) => (r.dataset && r.dataset.parkedName) || '');
 
-  const clearIndicator = () => { detach(indicator); };
+  const setClass = (el, cls, on) => {
+    if (!el) return;
+    if (el.classList && typeof el.classList.toggle === 'function') { el.classList.toggle(cls, on); return; }
+    const parts = String(el.className || '').split(/\s+/).filter((c) => c && c !== cls);
+    if (on) parts.push(cls);
+    el.className = parts.join(' ');
+  };
+  const clearIndicator = () => {
+    if (marked) { setClass(marked, 'boardRow--dropBefore', false); setClass(marked, 'boardRow--dropAfter', false); }
+    marked = null;
+  };
 
   // Move the dragged name to just before (after=false) or after (after=true)
   // the target name, keeping every other name in place. Returns the new order.
@@ -618,22 +629,19 @@ function makeParkedDnd({ onReorder }) {
     return rest;
   };
 
-  // Insert the indicator before or after the target row (real DOM only; the
-  // fake DOM has no insertBefore, so the line simply doesn't show in tests).
+  // Mark the target row's edge where the dragged group will land: a line on its
+  // top (before) or bottom (after), drawn by CSS on the row itself.
   const showIndicator = (section, row, after) => {
-    const parent = section;
-    if (!parent || typeof parent.insertBefore !== 'function') return;
-    detach(indicator);
-    const kids = Array.from(parent.children || []);
-    const idx = kids.indexOf(row);
-    const refIdx = after ? idx + 1 : idx;
-    const ref = kids[refIdx] || null;
-    parent.insertBefore(indicator, ref);
+    if (marked && marked !== row) clearIndicator();
+    marked = row;
+    setClass(row, 'boardRow--dropBefore', !after);
+    setClass(row, 'boardRow--dropAfter', !!after);
   };
 
   const wire = (row, section, name) => {
     row.draggable = true;
-    row.dataset = row.dataset || {};
+    // dataset has only a getter in a real browser; the tests' fake rows have none.
+    if (!row.dataset) row.dataset = {};
     row.dataset.parkedName = name;
     row.addEventListener('dragstart', (e) => {
       dragging = name;
@@ -945,16 +953,26 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     orderBtn.className = 'boardOrderBtn';
     orderBtn.textContent = 'Order ▾';
     const chooseOrder = async (mode) => { await writeParkedOrder(storage, sortedParkedNames(parked, mode)); await rerender(); };
+    // The menu opens in a wrapper beside the button (a list of buttons inside a
+    // button reopened the menu on every choice), and the wrapper swallows clicks
+    // so choosing doesn't also fold the Parked section it sits in.
+    const orderWrap = document.createElement('span');
+    orderWrap.className = 'boardOrderWrap';
+    orderWrap.addEventListener('click', (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+    });
     orderBtn.addEventListener('click', (e) => {
       if (e && e.preventDefault) e.preventDefault();
       if (e && e.stopPropagation) e.stopPropagation();
-      openMenu(orderBtn, [
+      openMenu(orderWrap, [
         { label: 'Last used', onChoose: () => chooseOrder('lastUsed') },
         { label: 'Time parked', onChoose: () => chooseOrder('parkedAt') },
         { label: 'A to Z', onChoose: () => chooseOrder('alpha') },
       ]);
     });
-    parkedSummary.appendChild(orderBtn);
+    orderWrap.appendChild(orderBtn);
+    parkedSummary.appendChild(orderWrap);
   }
   if (!parked.length) {
     const empty = document.createElement('p');

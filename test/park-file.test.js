@@ -183,3 +183,16 @@ test('health advertises the park and index-read message types', async () => {
   assert.ok(r.capabilities.types.includes('park'));
   assert.ok(r.capabilities.types.includes('index-read'));
 });
+
+test('an old parked record without parkedAt keeps its own date, not the sync time', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { writeIndex, readIndex } = await import('../native-host/index-file.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-pat-'));
+  const env = { BROWSER_SANITY_INDEX_DIR: dir };
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ groups: [{ name: 'Old', status: 'parked', lastSeen: '2026-10-07T15:00:00Z', tabs: [{ title: 'a', url: 'https://a' }] }], ungrouped: [] }));
+  writeIndex({ groups: [] }, { env, now: '2026-10-15T12:00:00Z' });
+  const g = readIndex({ env }).groups.find((x) => x.name === 'Old');
+  assert.equal(g.parkedAt, '2026-10-07T15:00:00Z');
+});

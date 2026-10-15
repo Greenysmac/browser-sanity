@@ -63,6 +63,12 @@ export function buildGroupPrompt(tabs, rules = '', { maxGroups = 8, mode = 'sugg
     ...(mode === 'mine'
       ? ['Use only the group names listed in MY GROUPS or already shown in the group column; never invent a new name. A tab that fits none goes in Someday.']
       : []),
+    // "Suggest new groups for the leftovers": these tabs already fit none of the
+    // user's groups, so answering Someday (the groups file's catch-all) or an
+    // existing name would send them straight back where they were.
+    ...(mode === 'leftovers'
+      ? ['These tabs fit none of the user\'s groups. Give them NEW, specific group names (2 to 5 plain words). Never use Someday, and never use a name from MY GROUPS or the group column; ignore any rule that says leftovers go in Someday. A group may hold a single tab.']
+      : []),
     `Cluster them into 2 to ${maxGroups} meaningful groups by topic; every tabId in exactly one group; prefer fewer broader groups.`,
     `"color" must be one of: ${TAB_GROUP_COLORS.join(', ')}.`,
     'Respond with ONLY this JSON, no prose:',
