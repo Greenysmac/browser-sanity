@@ -2,6 +2,9 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## 0.8.1 — 2026-10-15
+- The version shows as "Version 0.8.1" at the right of the side panel's Open tabs heading, and under the board on the new-tab page.
+
 ## 0.8.0 — 2026-10-15
 - Sorting puts tabs where your groups are: tabs for an open group join it and stay open; tabs for a parked group are put away in it (saved and closed), so parked groups stay out of sight. One box on the result card keeps them open instead, for that sort.
 - A live group and a parked group with the same name are one group. The index keeps the parked tabs alongside the live ones, "Add back N parked tabs" brings them in, and parking or closing the group puts them all back together. Before this, a new live group replaced the parked record of the same name and its saved tabs were dropped.

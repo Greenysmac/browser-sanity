@@ -12,10 +12,12 @@ import { planSummaryLine, modelsInUseLine, originLine } from './viewmodel.js';
 // "0.2.2 Browser Sanity"), falling back to the bare version. Guarded so unit
 // tests without chrome.runtime.getManifest don't throw.
 function paintVersion() {
-  const el = $('appVersion');
-  if (!el) return;
   const m = (chrome.runtime && chrome.runtime.getManifest && chrome.runtime.getManifest()) || {};
-  el.textContent = m.version_name || m.version || '';
+  const el = $('appVersion');
+  if (el) el.textContent = m.version_name || m.version || '';
+  // "Version 0.8.0" at the right of the Open tabs heading, where Jeff looks for it.
+  const side = $('panelVersion');
+  if (side) side.textContent = m.version ? `Version ${m.version}` : '';
 }
 
 // Fill the muted "models in use" line from the two model slots.

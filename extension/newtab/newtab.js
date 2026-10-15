@@ -119,7 +119,15 @@ export async function initNewtab({ container, note, search, panelBtn, panelNote,
   }
 }
 
+// "Version 0.8.0" in the footer under the board.
+export function paintNewtabVersion(doc = (typeof document !== 'undefined' ? document : undefined), api = (typeof chrome !== 'undefined' ? chrome : undefined)) {
+  const el = doc && typeof doc.getElementById === 'function' ? doc.getElementById('ntVersion') : null;
+  const m = (api && api.runtime && api.runtime.getManifest && api.runtime.getManifest()) || {};
+  if (el) el.textContent = m.version ? `Version ${m.version}` : '';
+}
+
 // Only auto-run inside the browser; importing in a test harness won't paint.
 if (typeof document !== 'undefined' && typeof chrome !== 'undefined' && chrome.runtime) {
+  paintNewtabVersion();
   initNewtab();
 }

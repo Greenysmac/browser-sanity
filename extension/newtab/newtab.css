@@ -298,3 +298,6 @@ textarea, input {
   padding: 0;
 }
 .boardTidyBtn:hover, .boardTidyBtn:focus-visible { text-decoration: underline; }
+
+/* The version, at the bottom of the board. */
+.pageFooter { margin: 28px 0 8px; text-align: center; font-size: 12px; color: var(--text-faint); }

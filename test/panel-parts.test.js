@@ -23,7 +23,7 @@ function at(needle, where = html) {
 // ---- The two headings, their muted lines, and the cards, in order -----------
 
 test('"Open tabs" heading and its muted line sit over the sort card, result card below', () => {
-  const heading = at('>Open tabs</h2>');
+  const heading = at('id="openTabsHeading">Open tabs');
   const line = at("Sorts the tabs open right now. Tabs for parked groups are put away in them.");
   const sortCard = at('id="sortCard"');
   const resultCard = at('id="resultCard"');
@@ -47,7 +47,7 @@ test('"Parked groups" heading, its line, a Re-analyze button, then the re-analyz
 });
 
 test('the Open tabs part comes before the Parked groups part', () => {
-  assert.ok(at('>Open tabs</h2>') < at('>Parked groups</h2>'), 'Open tabs is listed first');
+  assert.ok(at('id="openTabsHeading">Open tabs') < at('>Parked groups</h2>'), 'Open tabs is listed first');
 });
 
 // ---- The duplicate More-view button is gone; the board link still drives it --
