@@ -314,6 +314,32 @@ textarea, input {
   padding: 0;
 }
 .boardTidyBtn:hover, .boardTidyBtn:focus-visible { text-decoration: underline; }
+/* The "Order ▾" text button in the Parked header; opens the reorder menu,
+   positioned relative to this button. */
+.boardOrderBtn {
+  position: relative;
+  margin-left: 10px;
+  background: transparent;
+  border: none;
+  color: var(--accent, var(--text));
+  font: inherit;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  padding: 0;
+}
+.boardOrderBtn:hover, .boardOrderBtn:focus-visible { text-decoration: underline; }
+/* The drop indicator line shown between parked rows while dragging. */
+.boardDropLine {
+  grid-column: 1 / -1;
+  height: 2px;
+  background: var(--accent, var(--text));
+  border-radius: 1px;
+  margin: 1px 0;
+}
+.boardRow--parked { cursor: grab; }
+.boardRow--parked:active { cursor: grabbing; }
 
 /* The version, at the bottom of the board. */
 .pageFooter { margin: 28px 0 8px; text-align: center; font-size: 12px; color: var(--text-faint); }

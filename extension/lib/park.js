@@ -18,6 +18,10 @@ const COLORS = new Set(TAB_GROUP_COLORS);
 // closed, so the group really goes away. If the host fails nothing is closed,
 // so the group is never lost. Returns the host reply, or throws if the host
 // rejects.
+//
+// lastUsed is the most recent lastActive (from chrome.storage.local tabActivity)
+// among the group's tabs, so a parked group can be ordered by when it was last
+// touched; it falls back to now when nothing is recorded.
 export async function parkGroup({ chromeApi = chrome, nativeClient, groupId } = {}) {
   let name = '';
   let color;
@@ -34,10 +38,29 @@ export async function parkGroup({ chromeApi = chrome, nativeClient, groupId } = 
     if (!isHttpUrl(t.url)) continue;
     tabs.push({ title: t.title || '', url: t.url });
   }
-  const res = await nativeClient.request({ type: 'park', payload: { group: { name, color, tabs } } });
+  const lastUsed = await mostRecentActive(chromeApi, groupTabs);
+  const res = await nativeClient.request({ type: 'park', payload: { group: { name, color, tabs, lastUsed } } });
   if (!res || !res.ok) throw new Error((res && res.error) || 'Park failed');
   if (closeIds.length) await chromeApi.tabs.remove(closeIds);
   return res;
+}
+
+// The most recent lastActive (as an ISO string) among the group's tabs, read
+// from chrome.storage.local 'tabActivity' ({ [tabId]: { lastActive } }, ms).
+// Falls back to now when the store is empty or none of the tabs are tracked.
+async function mostRecentActive(chromeApi, groupTabs) {
+  let activity = {};
+  try {
+    const got = await chromeApi.storage.local.get('tabActivity');
+    activity = (got && got.tabActivity) || {};
+  } catch { /* no store — fall back to now */ }
+  let latest = 0;
+  for (const t of groupTabs) {
+    const entry = t && t.id != null ? activity[t.id] : undefined;
+    const when = entry && typeof entry.lastActive === 'number' ? entry.lastActive : 0;
+    if (when > latest) latest = when;
+  }
+  return new Date(latest || Date.now()).toISOString();
 }
 
 // Read the index, find the parked group by name (trimmed, case-insensitive),

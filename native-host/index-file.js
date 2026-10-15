@@ -123,6 +123,12 @@ function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
     const key = groupKey(p.name);
     if (seen.has(key)) continue; // already carried forward as 'open'
     if (dissolved.has(key)) continue; // explicitly dissolved — drop from the index
+    // A previously-open group now missing from the payload is parking right
+    // now, so stamp parkedAt=now and carry its old lastSeen as lastUsed. A
+    // group that was already parked keeps its original parkedAt and lastUsed
+    // (falling back to lastSeen for records written before these fields).
+    const parkedAt = p.status === 'open' ? now : (p.parkedAt || now);
+    const lastUsed = p.status === 'open' ? p.lastSeen : (p.lastUsed || p.lastSeen);
     merged.push({
       name: String(p.name || ''),
       color: p.color,
@@ -130,6 +136,8 @@ function mergeGroups(payloadGroups, previousGroups, now, dissolvedNames = []) {
       tabs: uniqueTabs([...(Array.isArray(p.tabs) ? p.tabs : []), ...(Array.isArray(p.parkedTabs) ? p.parkedTabs : [])]),
       status: 'parked',
       lastSeen: p.lastSeen,
+      parkedAt,
+      lastUsed,
     });
   }
   return merged;
@@ -210,7 +218,9 @@ export function readIndex({
   }
 }
 
-// Park a single group into the index with status 'parked' and lastSeen now,
+// Park a single group into the index with status 'parked', lastSeen and
+// parkedAt now, and lastUsed from the group (the extension's park sends the
+// most recent lastActive among the group's tabs; it falls back to now),
 // merging into any existing entry with the same name (matched trimmed and
 // case-insensitively): the existing tabs are kept and incoming tabs whose url
 // isn't already present are appended. A park with zero tabs therefore never
@@ -249,6 +259,12 @@ export function parkGroup(group = {}, {
     tabs,
     status: 'parked',
     lastSeen: now,
+    // parkedAt stamps when this group became parked: now for a fresh park, but
+    // an existing parked record keeps its original parkedAt. lastUsed is the
+    // most recent time a tab in the group was active, sent by the extension;
+    // it falls back to now (or an existing lastUsed when the caller omits it).
+    parkedAt: now,
+    lastUsed: group.lastUsed !== undefined ? group.lastUsed : ((existing && existing.lastUsed) || now),
   };
   const groups = prev.groups.filter((g) => groupKey(g.name) !== key);
   groups.push(parked);

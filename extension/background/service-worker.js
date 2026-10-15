@@ -784,13 +784,13 @@ async function handleBoardData() {
     const indexGroups = (index && Array.isArray(index.groups)) ? index.groups : [];
     parked = indexGroups
       .filter((g) => g.status !== 'open')
-      .map((g) => ({ name: g.name || '', color: g.color, tabCount: Array.isArray(g.tabs) ? g.tabs.length : 0, lastSeen: g.lastSeen, tabs: Array.isArray(g.tabs) ? g.tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) : [] }));
+      .map((g) => ({ name: g.name || '', color: g.color, tabCount: Array.isArray(g.tabs) ? g.tabs.length : 0, lastSeen: g.lastSeen, parkedAt: g.parkedAt, lastUsed: g.lastUsed, tabs: Array.isArray(g.tabs) ? g.tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) : [] }));
     // An open group's saved half (parkedTabs) rides along as its parked twin:
     // the board hides it from the Parked section and offers "Add back N parked
     // tabs" on the open card.
     for (const g of indexGroups) {
       const saved = g.status === 'open' && Array.isArray(g.parkedTabs) ? g.parkedTabs : [];
-      if (saved.length) parked.push({ name: g.name || '', color: g.color, tabCount: saved.length, lastSeen: g.lastSeen, tabs: saved.map((t) => ({ title: t.title || '', url: t.url || '' })) });
+      if (saved.length) parked.push({ name: g.name || '', color: g.color, tabCount: saved.length, lastSeen: g.lastSeen, parkedAt: g.parkedAt, lastUsed: g.lastUsed, tabs: saved.map((t) => ({ title: t.title || '', url: t.url || '' })) });
     }
     const read = await client.request({ type: 'groups-read', adapter: settings.adapter });
     descriptions = (read && Array.isArray(read.groups)) ? read.groups : [];

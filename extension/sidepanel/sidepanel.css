@@ -585,6 +585,28 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   cursor: pointer;
 }
 .boardTidyBtn:hover { text-decoration: underline; }
+/* The "Order ▾" text button in the Parked header; opens the reorder menu. The
+   menu is positioned relative to this button. */
+.boardOrderBtn {
+  position: relative;
+  margin-left: 8px;
+  padding: 0;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  color: var(--accent, #1a73e8);
+  cursor: pointer;
+}
+.boardOrderBtn:hover { text-decoration: underline; }
+/* The drop indicator line shown between parked rows while dragging. */
+.boardDropLine {
+  height: 2px;
+  background: var(--accent, #1a73e8);
+  border-radius: 1px;
+  margin: 1px 0;
+}
+.boardRow--parked { cursor: grab; }
+.boardRow--parked:active { cursor: grabbing; }
 /* The compact ⋯ button that opens a row's action menu. */
 .boardMenuBtn {
   flex: none;

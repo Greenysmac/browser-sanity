@@ -1037,3 +1037,123 @@ test('an expanded parked card prefers parkedAt over lastSeen for the parked date
   const when = new Date('2026-03-20T08:00:00.000Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   assert.equal(parkedLine.textContent, `Parked ${when}`, 'parkedAt wins over lastSeen');
 });
+
+// --- TASK 4: order parked groups (drag + the Order menu) ---------------------
+
+// The parked-group names in the order they render, read from the parked section.
+function parkedNames(container) {
+  const section = walk(container).find((n) => n.tagName === 'DETAILS' && n.className === 'boardSection'
+    && (n.children || []).some((c) => c.tagName === 'SUMMARY' && String(c.textContent || '').indexOf('Parked') === 0));
+  if (!section) return [];
+  return (section.children || [])
+    .filter((c) => c && typeof c.className === 'string' && c.className.indexOf('boardRow--parked') !== -1)
+    .map((r) => (r.dataset && r.dataset.parkedName) || '');
+}
+
+const ORDER_FIXTURE = {
+  open: [],
+  parked: [
+    { name: 'Alpha', color: 'blue', tabCount: 1, lastSeen: '2026-01-01T00:00:00.000Z', parkedAt: '2026-03-01T00:00:00.000Z', lastUsed: '2026-02-10T00:00:00.000Z', tabs: [] },
+    { name: 'Bravo', color: 'green', tabCount: 1, lastSeen: '2026-01-02T00:00:00.000Z', parkedAt: '2026-03-05T00:00:00.000Z', lastUsed: '2026-02-20T00:00:00.000Z', tabs: [] },
+    { name: 'charlie', color: 'red', tabCount: 1, lastSeen: '2026-01-03T00:00:00.000Z', parkedAt: '2026-03-03T00:00:00.000Z', lastUsed: '2026-02-01T00:00:00.000Z', tabs: [] },
+  ],
+};
+
+test('the board renders parked groups in the saved parkedOrder, with unknown names after', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  // Only two of the three names are listed; the unlisted 'Bravo' follows after,
+  // in its current order. A stale name ('Gone') with no group is skipped.
+  const storage = makeStorage({ boardParkedOrder: ['charlie', 'Gone', 'Alpha'] });
+  await renderBoard(container, { send, storage });
+  assert.deepEqual(parkedNames(container), ['charlie', 'Alpha', 'Bravo']);
+});
+
+test('with no saved order, the board keeps the incoming parked order', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  const storage = makeStorage();
+  await renderBoard(container, { send, storage });
+  assert.deepEqual(parkedNames(container), ['Alpha', 'Bravo', 'charlie']);
+});
+
+// Open the Order ▾ menu in the Parked header and click the item with the given
+// label, returning after the choice (and its re-render) has run.
+async function chooseOrder(container, label) {
+  const btn = walk(container).find((n) => n.className === 'boardOrderBtn');
+  assert.ok(btn, 'the Order button is present');
+  btn.click();
+  const menu = (btn.children || []).find((c) => c.className === 'boardMenu');
+  assert.ok(menu, 'the Order menu opened under the button');
+  const item = walk(menu).find((n) => n.tagName === 'BUTTON' && n.textContent === label);
+  assert.ok(item, `the "${label}" menu item is present`);
+  await item.click();
+  await flush();
+}
+
+test('Order ▸ Last used writes the names newest-first by lastUsed', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  const storage = makeStorage();
+  await renderBoard(container, { send, storage });
+  await chooseOrder(container, 'Last used');
+  // Bravo 02-20, Alpha 02-10, charlie 02-01 → newest first.
+  assert.deepEqual(storage.peek().boardParkedOrder, ['Bravo', 'Alpha', 'charlie']);
+  assert.deepEqual(parkedNames(container), ['Bravo', 'Alpha', 'charlie'], 're-rendered in the chosen order');
+});
+
+test('Order ▸ Time parked writes the names newest-first by parkedAt', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  const storage = makeStorage();
+  await renderBoard(container, { send, storage });
+  await chooseOrder(container, 'Time parked');
+  // Bravo 03-05, charlie 03-03, Alpha 03-01 → newest first.
+  assert.deepEqual(storage.peek().boardParkedOrder, ['Bravo', 'charlie', 'Alpha']);
+});
+
+test('Order ▸ A to Z writes the names case-insensitively alphabetical', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  const storage = makeStorage();
+  await renderBoard(container, { send, storage });
+  await chooseOrder(container, 'A to Z');
+  // Alpha, Bravo, charlie (case-insensitive).
+  assert.deepEqual(storage.peek().boardParkedOrder, ['Alpha', 'Bravo', 'charlie']);
+});
+
+test('dragging a parked row and dropping it saves the moved order', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  const storage = makeStorage();
+  await renderBoard(container, { send, storage });
+  // Drag 'charlie' and drop it on 'Alpha' (the fake rows have no geometry, so
+  // the drop lands before the target): charlie moves to the front.
+  const charlie = rowFor(container, 'charlie');
+  const alpha = rowFor(container, 'Alpha');
+  charlie.listeners.dragstart({ dataTransfer: { setData() {} } });
+  alpha.listeners.drop({ preventDefault() {}, dataTransfer: {} });
+  await flush();
+  assert.deepEqual(storage.peek().boardParkedOrder, ['charlie', 'Alpha', 'Bravo'], 'the dropped order is saved');
+  assert.deepEqual(parkedNames(container), ['charlie', 'Alpha', 'Bravo'], 're-rendered in the new order');
+});
+
+test('dropping a parked row on itself leaves the order unchanged', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(ORDER_FIXTURE);
+  const storage = makeStorage();
+  await renderBoard(container, { send, storage });
+  const alpha = rowFor(container, 'Alpha');
+  alpha.listeners.dragstart({ dataTransfer: { setData() {} } });
+  alpha.listeners.drop({ preventDefault() {}, dataTransfer: {} });
+  await flush();
+  // No reorder was saved (a drop on self is a no-op).
+  assert.equal(storage.peek().boardParkedOrder, undefined, 'nothing saved for a self-drop');
+});

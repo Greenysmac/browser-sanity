@@ -586,6 +586,85 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
   return row;
 }
 
+// Drag-and-drop reordering for the parked rows (HTML5 draggable). Each parked
+// row calls `wire(row, section, name)` to become draggable within the Parked
+// section; dragging shows a drop indicator line and, on drop, computes the new
+// order (the dragged name moved before/after the drop target) and hands it to
+// `onReorder(names)`, which saves it and re-renders. The order is computed from
+// the names rather than by mutating the DOM, so it works the same in a real
+// browser and in the tests' fake DOM; a re-render repaints in the saved order.
+// Built per render so the dragged row is local state; the indicator is a single
+// element moved around with insertBefore and removed when the drag ends.
+function makeParkedDnd({ onReorder }) {
+  let dragging = null; // the name of the row being dragged
+  const indicator = document.createElement('div');
+  indicator.className = 'boardDropLine';
+
+  // The parked rows in a section, in current DOM order.
+  const rowsOf = (section) => Array.from(section.children || [])
+    .filter((c) => c && typeof c.className === 'string'
+      && c.className.indexOf('boardRow--parked') !== -1);
+  const namesOf = (section) => rowsOf(section).map((r) => (r.dataset && r.dataset.parkedName) || '');
+
+  const clearIndicator = () => { detach(indicator); };
+
+  // Move the dragged name to just before (after=false) or after (after=true)
+  // the target name, keeping every other name in place. Returns the new order.
+  const reorderNames = (names, dragName, targetName, after) => {
+    const rest = names.filter((n) => n !== dragName);
+    const at = rest.indexOf(targetName);
+    const pos = at === -1 ? rest.length : (after ? at + 1 : at);
+    rest.splice(pos, 0, dragName);
+    return rest;
+  };
+
+  // Insert the indicator before or after the target row (real DOM only; the
+  // fake DOM has no insertBefore, so the line simply doesn't show in tests).
+  const showIndicator = (section, row, after) => {
+    const parent = section;
+    if (!parent || typeof parent.insertBefore !== 'function') return;
+    detach(indicator);
+    const kids = Array.from(parent.children || []);
+    const idx = kids.indexOf(row);
+    const refIdx = after ? idx + 1 : idx;
+    const ref = kids[refIdx] || null;
+    parent.insertBefore(indicator, ref);
+  };
+
+  const wire = (row, section, name) => {
+    row.draggable = true;
+    row.dataset = row.dataset || {};
+    row.dataset.parkedName = name;
+    row.addEventListener('dragstart', (e) => {
+      dragging = name;
+      if (e && e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', name); } catch { /* ignore */ }
+      }
+    });
+    row.addEventListener('dragend', () => { dragging = null; clearIndicator(); });
+    const pointerAfter = (e) => {
+      const rect = (typeof row.getBoundingClientRect === 'function') ? row.getBoundingClientRect() : null;
+      return rect ? (e && e.clientY > rect.top + rect.height / 2) : false;
+    };
+    row.addEventListener('dragover', (e) => {
+      if (dragging == null || dragging === name) return;
+      if (e && e.preventDefault) e.preventDefault(); // allow a drop
+      if (e && e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      showIndicator(section, row, pointerAfter(e));
+    });
+    row.addEventListener('drop', (e) => {
+      if (dragging == null || dragging === name) { clearIndicator(); return; }
+      if (e && e.preventDefault) e.preventDefault();
+      const next = reorderNames(namesOf(section), dragging, name, pointerAfter(e));
+      dragging = null;
+      clearIndicator();
+      onReorder(next);
+    });
+  };
+  return { wire };
+}
+
 // The chrome.storage.local key holding the "last asked" dates, so we describe a
 // given group at most once a day and opening new tabs doesn't call the model
 // again and again.
@@ -601,6 +680,13 @@ const SUGGESTIONS_KEY = 'boardDescribeSuggestions';
 // with a count > 0 shows a "+<n> new" badge until the user opens/expands it,
 // which clears that group's entry.
 const NEW_COUNTS_KEY = 'boardParkedNewCounts';
+
+// The chrome.storage.local key holding the parked groups' order as a plain
+// array of group names (in the user's chosen order). The board renders parked
+// groups in this order; any parked group whose name isn't in the list follows
+// after, in its current order. Drag-and-drop and the "Order ▾" menu both
+// rewrite it.
+const PARKED_ORDER_KEY = 'boardParkedOrder';
 
 // Today's date as YYYY-MM-DD (local), the granularity of the once-a-day memory.
 function todayStr(now = new Date()) {
@@ -657,6 +743,80 @@ async function clearNewCount(storage, name) {
   if (!(key in counts)) return;
   delete counts[key];
   await storage.set({ [NEW_COUNTS_KEY]: counts });
+}
+
+// Read the saved parked order: a plain array of group names. A missing store
+// (tests) or a non-array value reads [].
+async function readParkedOrder(storage) {
+  if (!storage) return [];
+  const got = await storage.get(PARKED_ORDER_KEY);
+  const order = got && got[PARKED_ORDER_KEY];
+  return Array.isArray(order) ? order : [];
+}
+
+// Save the parked order (an array of group names). A missing store (tests)
+// writes nothing.
+async function writeParkedOrder(storage, order) {
+  if (!storage) return;
+  await storage.set({ [PARKED_ORDER_KEY]: Array.isArray(order) ? order : [] });
+}
+
+// Order the parked groups by a saved list of names (trimmed, case-insensitive):
+// groups named in `order` come first in that order, then any parked group whose
+// name isn't listed, in its current order. A name in `order` with no matching
+// group is skipped. Never drops or duplicates a group.
+function orderParked(parked, order) {
+  const list = Array.isArray(parked) ? parked : [];
+  const wanted = (Array.isArray(order) ? order : []).map((n) => String(n || '').trim().toLowerCase());
+  const byKey = new Map();
+  for (const g of list) {
+    const key = String(g.name || '').trim().toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, g);
+  }
+  const out = [];
+  const placed = new Set();
+  for (const key of wanted) {
+    if (placed.has(key)) continue;
+    const g = byKey.get(key);
+    if (g) { out.push(g); placed.add(key); }
+  }
+  for (const g of list) {
+    const key = String(g.name || '').trim().toLowerCase();
+    if (placed.has(key)) continue;
+    placed.add(key);
+    out.push(g);
+  }
+  return out;
+}
+
+// A comparable number for a parked group's "last used" or "time parked" times:
+// the ISO string parsed to ms, or 0 when missing/unparseable. lastUsed falls
+// back to parkedAt then lastSeen; parkedAt falls back to lastSeen, so older
+// records written before these fields still order sensibly.
+function timeMs(iso) {
+  const t = Date.parse(String(iso || ''));
+  return Number.isNaN(t) ? 0 : t;
+}
+
+// Compute a fresh parked order (an array of names) for one of the Order menu's
+// choices: 'lastUsed' and 'parkedAt' sort newest first; 'alpha' sorts A→Z,
+// case-insensitively. A stable sort keeps equal entries in their current order.
+function sortedParkedNames(parked, mode) {
+  const list = (Array.isArray(parked) ? parked : []).map((g, i) => ({ g, i }));
+  const keyOf = (g) => {
+    if (mode === 'lastUsed') return timeMs(g.lastUsed || g.parkedAt || g.lastSeen);
+    if (mode === 'parkedAt') return timeMs(g.parkedAt || g.lastSeen);
+    return 0;
+  };
+  list.sort((a, b) => {
+    if (mode === 'alpha') {
+      const cmp = String(a.g.name || '').toLowerCase().localeCompare(String(b.g.name || '').toLowerCase());
+      return cmp || (a.i - b.i);
+    }
+    const diff = keyOf(b.g) - keyOf(a.g); // newest first
+    return diff || (a.i - b.i);
+  });
+  return list.map((e) => e.g.name);
 }
 
 // Pick the open groups that have a name, lack a saved description, lack a stored
@@ -730,12 +890,15 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   // Per-parked-group "new tabs" counts from the last apply; a parked card with a
   // count > 0 shows a "+n new" badge until the user opens/expands it.
   const newCounts = await readNewCounts(storage);
+  // The user's saved parked order (a list of names); parked groups render in
+  // this order, with any not listed after them in their current order.
+  const parkedOrder = await readParkedOrder(storage);
   // Drop any parked card whose name matches an open group (trimmed, case-
   // insensitive): a reopened group is "open now", so it shouldn't also appear
   // under "Parked, from the index". The full parkedRaw is still passed to open
   // cards so one can offer to add a same-named parked record's tabs back.
   const openNames = new Set(open.map((g) => String(g.name || '').trim().toLowerCase()).filter(Boolean));
-  const parked = parkedRaw.filter((g) => !openNames.has(String(g.name || '').trim().toLowerCase()));
+  const parked = orderParked(parkedRaw.filter((g) => !openNames.has(String(g.name || '').trim().toLowerCase())), parkedOrder);
   container.textContent = '';
 
   // One expander shared by every row so only a single row stays expanded at a
@@ -772,13 +935,41 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   tidyBtn.textContent = 'Re-analyze parked groups…';
   tidyBtn.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); if (e && e.stopPropagation) e.stopPropagation(); onTidyParked(); });
   parkedSummary.appendChild(tidyBtn);
+  // A small "Order ▾" text button opens a menu to reorder the parked groups in
+  // one click: by last used, by time parked (both newest first), or A→Z. Each
+  // choice rewrites parkedOrder once and re-renders; dragging still works after.
+  // The button sits in the summary, so a click mustn't also toggle the fold.
+  if (parked.length) {
+    const orderBtn = document.createElement('button');
+    orderBtn.type = 'button';
+    orderBtn.className = 'boardOrderBtn';
+    orderBtn.textContent = 'Order ▾';
+    const chooseOrder = async (mode) => { await writeParkedOrder(storage, sortedParkedNames(parked, mode)); await rerender(); };
+    orderBtn.addEventListener('click', (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      openMenu(orderBtn, [
+        { label: 'Last used', onChoose: () => chooseOrder('lastUsed') },
+        { label: 'Time parked', onChoose: () => chooseOrder('parkedAt') },
+        { label: 'A to Z', onChoose: () => chooseOrder('alpha') },
+      ]);
+    });
+    parkedSummary.appendChild(orderBtn);
+  }
   if (!parked.length) {
     const empty = document.createElement('p');
     empty.className = 'boardEmpty';
     empty.textContent = 'Nothing parked yet';
     parkedSection.appendChild(empty);
   } else {
-    for (const group of parked) parkedSection.appendChild(parkedCard({ group, descriptions, newCount: newCounts[String(group.name || '').trim().toLowerCase()] || 0, storage, send, setStatus, rerender, expander, onSplitProposal }));
+    // Reordering a parked row saves the new name order and re-renders, so the
+    // board repaints in the saved order; dragging still works afterwards.
+    const dnd = makeParkedDnd({ onReorder: async (names) => { await writeParkedOrder(storage, names); await rerender(); } });
+    for (const group of parked) {
+      const card = parkedCard({ group, descriptions, newCount: newCounts[String(group.name || '').trim().toLowerCase()] || 0, storage, send, setStatus, rerender, expander, onSplitProposal });
+      parkedSection.appendChild(card);
+      dnd.wire(card, parkedSection, group.name || '');
+    }
   }
 
   container.append(openSection, parkedSection);

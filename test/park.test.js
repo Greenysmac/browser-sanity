@@ -53,11 +53,41 @@ test('parkGroup sends park then closes every tab in the group, web or not', asyn
   assert.equal(client._sent.length, 1);
   assert.equal(client._sent[0].type, 'park');
   // Only the http(s) tabs are saved.
-  assert.deepEqual(client._sent[0].payload.group, {
-    name: 'Work', color: 'blue', tabs: [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }],
-  });
+  assert.equal(client._sent[0].payload.group.name, 'Work');
+  assert.equal(client._sent[0].payload.group.color, 'blue');
+  assert.deepEqual(client._sent[0].payload.group.tabs, [{ title: 'A', url: 'https://a' }, { title: 'B', url: 'https://b' }]);
   // Every tab in the group is closed, including the non-web new-tab page.
   assert.deepEqual(chromeApi._removed, [1, 2, 3]);
+});
+
+test('parkGroup sends lastUsed as the most recent lastActive among the group tabs', async () => {
+  const chromeApi = fakeChrome({
+    group: { title: 'Work', color: 'blue' },
+    groupTabs: [
+      { id: 1, url: 'https://a', title: 'A' },
+      { id: 2, url: 'https://b', title: 'B' },
+    ],
+  });
+  // tab 2 was touched more recently than tab 1.
+  const t1 = Date.parse('2026-10-05T08:00:00.000Z');
+  const t2 = Date.parse('2026-10-06T09:30:00.000Z');
+  chromeApi.storage = { local: { get: async () => ({ tabActivity: { 1: { lastActive: t1 }, 2: { lastActive: t2 } } }) } };
+  const client = fakeClient(() => ({ ok: true }));
+  await parkGroup({ chromeApi, nativeClient: client, groupId: 42 });
+  assert.equal(client._sent[0].payload.group.lastUsed, new Date(t2).toISOString());
+});
+
+test('parkGroup falls back lastUsed to now when no tab activity is recorded', async () => {
+  const chromeApi = fakeChrome({
+    group: { title: 'Work', color: 'blue' },
+    groupTabs: [{ id: 1, url: 'https://a', title: 'A' }],
+  });
+  chromeApi.storage = { local: { get: async () => ({}) } };
+  const before = Date.now();
+  const client = fakeClient(() => ({ ok: true }));
+  await parkGroup({ chromeApi, nativeClient: client, groupId: 42 });
+  const sent = Date.parse(client._sent[0].payload.group.lastUsed);
+  assert.ok(sent >= before && sent <= Date.now() + 1000, 'lastUsed falls back to about now');
 });
 
 test('parkGroup closes nothing when the helper fails', async () => {
