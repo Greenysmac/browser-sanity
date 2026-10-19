@@ -20,21 +20,36 @@ export const claudeAdapter = {
   // file access, or changes permissions/sandbox.
   allowedExtraFlags: { '--model': 'value', '--fallback-model': 'value', '--verbose': 'bool' },
   async run(prompt, opts = {}) {
-    const out = await runCli({
-      command: resolveCommand(),
-      args: [...resolveArgs(opts.cli), ...extraArgs(opts)],
-      prompt,
-      usesStdin: true,
-      env: hostEnv(AUTH_ENV),
-      timeoutMs: opts.timeoutMs,
-      spawnFn: opts.spawnFn,
-    });
+    let out;
+    try {
+      out = await runCli({
+        command: resolveCommand(),
+        args: [...resolveArgs(opts.cli), ...extraArgs(opts)],
+        prompt,
+        usesStdin: true,
+        env: hostEnv(AUTH_ENV),
+        timeoutMs: opts.timeoutMs,
+        spawnFn: opts.spawnFn,
+      });
+    } catch (err) {
+      throw signInHint(err);
+    }
     return extractResultText(out);
   },
   async health(opts = {}) {
     return cliVersion({ command: resolveCommand(), env: hostEnv(AUTH_ENV), spawnFn: opts.spawnFn });
   },
 };
+
+// The Claude CLI's saved login can expire ("OAuth session expired and could not
+// be refreshed", 2026-10-19) or be missing ("Not logged in"). The fix is the
+// user's: sign in again in a terminal. Say so, and keep the CLI's own words.
+const SIGNED_OUT = /failed to authenticate|not logged in|oauth session expired|please run \/login|invalid api key/i;
+function signInHint(err) {
+  const msg = (err && err.message) || String(err);
+  if (!SIGNED_OUT.test(msg)) return err;
+  return new Error(`Claude isn't signed in on this computer. Open Terminal, run claude, and sign in, then try again. (${msg})`);
+}
 
 export function extractResultText(stdout) {
   const trimmed = String(stdout).trim();

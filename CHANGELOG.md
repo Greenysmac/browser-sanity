@@ -2,6 +2,9 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## 0.9.1 — 2026-10-19
+- When the AI command fails, the panel says why. A Claude login that had expired showed only "Couldn't sort your tabs: CLI exited 1:"; it now reads "Claude isn't signed in on this computer. Open Terminal, run claude, and sign in, then try again", followed by Claude's own message. Other command-line failures that report their reason in normal output, not the error stream, now show that reason too.
+
 ## 0.9.0 — 2026-10-15
 - One step to sort: no Analyze click. The tab counts update on their own, both choices are always there, and a line says they use AI and nothing changes until you Apply. The button you click shows "AI is sorting 40 tabs… 12s".
 - Leftovers: when tabs land in Someday, the result card offers "Suggest new groups for the N leftovers", which gives them new group names (single-tab groups allowed) before you Apply.

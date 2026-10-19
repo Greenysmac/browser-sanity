@@ -23,6 +23,23 @@ function killTree(child) {
   } catch { try { child.kill('SIGKILL'); } catch {} }
 }
 
+// Some CLIs (Claude with --output-format json) report a failure in their normal
+// output, not on stderr. Without this the user saw "CLI exited 1:" and nothing
+// else when the Claude login expired (found 2026-10-19). Takes the JSON
+// envelope's `result` when there is one, else the raw text, capped.
+const MAX_REASON = 400;
+function failureFromStdout(stdout) {
+  const text = String(stdout || '').trim();
+  if (!text) return '';
+  try {
+    const env = JSON.parse(text);
+    if (env && typeof env.result === 'string' && env.result.trim()) return env.result.trim().slice(0, MAX_REASON);
+  } catch {
+    // not JSON; use the text
+  }
+  return text.slice(0, MAX_REASON);
+}
+
 // Runs a CLI once and resolves with its raw stdout (string). If `usesStdin` is
 // true the prompt is piped to stdin; otherwise stdin is closed empty (the prompt
 // is expected to already be in `args`).
@@ -68,8 +85,9 @@ export async function runCli({ command, args, prompt = '', usesStdin = false, en
       // whole native host process crashes, killing every in-flight request.
       if (child.stdin && typeof child.stdin.on === 'function') child.stdin.on('error', (err) => finish(reject, err));
       child.on('close', (code) => {
-        if (code === 0) finish(resolve, Buffer.concat(outChunks).toString('utf8'));
-        else finish(reject, new Error(`CLI exited ${code}: ${stderr.trim()}`));
+        const stdout = Buffer.concat(outChunks).toString('utf8');
+        if (code === 0) finish(resolve, stdout);
+        else finish(reject, new Error(`CLI exited ${code}: ${stderr.trim() || failureFromStdout(stdout)}`));
       });
 
       if (usesStdin) { child.stdin.write(prompt); child.stdin.end(); }
