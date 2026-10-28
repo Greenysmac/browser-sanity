@@ -1,12 +1,13 @@
-// 0.10.0 — the side panel reads top to bottom as Open tabs (sort card, result,
-// and the open-tabs list with Close duplicates), then "Tell me what you want to
-// do" with More tools folded under it, then Parked groups. The ⋯ More view is
-// gone. A typed request comes back as a card: what you asked, the AI's one-line
-// reading of it, the steps, and Go / Review / Cancel.
+// The side panel reads top to bottom as Open tabs (sort card and result), then
+// More tools, then a heavy divider and All groups. More tools opens to a pair,
+// the open-tabs list (with Close duplicates) and "Tell me what you want to do",
+// with the other tools under them. The ⋯ More view is gone (0.10.0). A typed
+// request comes back as a card: what you asked, the AI's one-line reading of
+// it, the steps, and Go / Review / Cancel; the card opens More tools.
 // Covers:
 //   1. the order of the parts in the static HTML, and that the ⋯ view is gone;
 //   2. the open-tabs list is closed by default and carries Close duplicates;
-//   3. More tools is closed and holds the leftover tools, not the ask box;
+//   3. More tools is closed, holds the pair first, then the other tools;
 //   4. commandStepLines turns a plan into short step lines;
 //   5. a plan from a typed request shows the command card instead of the
 //      Open tabs result card, and the other way round.
@@ -45,10 +46,11 @@ function detailsSlice(id) {
 
 // ---- 1. Order of the parts ---------------------------------------------------
 
-test('the panel reads Open tabs, then the ask box and More tools, then Parked groups', () => {
+test('the panel reads Open tabs, More tools (the pair, then the rest), a divider, then All groups', () => {
   const order = [
-    'id="sortCard"', 'id="resultCard"', 'id="undoToast"', 'id="tabsPanel"',
-    'id="commandForm"', 'id="commandCard"', 'id="moreTools"', 'id="parkedGroupsHeading"', 'id="board"',
+    'id="sortCard"', 'id="resultCard"', 'id="undoToast"', 'id="moreTools"', 'id="tabsPanel"',
+    'id="commandForm"', 'id="commandCard"', 'id="updateIndex"', 'id="showUndo"',
+    'class="partDivider"', 'id="parkedGroupsHeading"', 'id="board"',
   ];
   for (let i = 1; i < order.length; i++) {
     assert.ok(at(order[i - 1]) < at(order[i]), `${order[i - 1]} comes before ${order[i]}`);
@@ -85,9 +87,10 @@ test('the open-tabs list is closed by default and has Close duplicates on its ti
 
 // ---- 3. The ask box and More tools ------------------------------------------
 
-test('the ask box is always visible and reads "Tell me what you want to do"', () => {
-  const more = detailsSlice('moreTools');
-  assert.ok(!more.includes('id="commandForm"'), 'not folded inside More tools');
+test('the ask box sits in More tools, paired with the open-tabs list, and reads "Tell me what you want to do"', () => {
+  const pair = html.slice(at('class="toolPair"'), at('class="toolRest"'));
+  assert.ok(pair.includes('id="tabsPanel"') && pair.includes('id="commandForm"'), 'the open-tabs list and the ask box are a pair');
+  assert.ok(detailsSlice('moreTools').includes('class="toolPair"'), 'and the pair is inside More tools');
   assert.equal(messages.commandLabel.message, 'Tell me what you want to do');
   const card = html.slice(at('id="commandCard"'), html.indexOf('</section>', at('id="commandCard"')));
   assert.ok(/<section[^>]*id="commandCard"[^>]*hidden/.test(html), 'the card waits hidden until there is a plan');
@@ -97,10 +100,21 @@ test('the ask box is always visible and reads "Tell me what you want to do"', ()
   assert.match(card, /id="commandGo"[^>]*>Go</, 'the button says Go');
 });
 
-test('More tools is closed and holds the leftover tools and the version', () => {
+test('the heading over the board reads All groups, under a heavy divider', () => {
+  assert.match(html, /<hr class="partDivider"[^>]*>\s*<h2 class="partHeading" id="parkedGroupsHeading">All groups<\/h2>/);
+});
+
+test('"Muted & learned" is now the Never-suggest list and says what it does', () => {
+  assert.equal(messages.mutedTitle.message, 'Never-suggest list');
+  const inside = detailsSlice('mutedPanel');
+  assert.match(inside, /Never suggest this/, 'it explains where the list comes from');
+  assert.match(inside, /Reset learning/, 'and what Reset learning clears');
+});
+
+test('More tools is closed and holds the other tools and the version under the pair', () => {
   const tag = html.match(/<details[^>]*id="moreTools"[^>]*>/);
   assert.ok(tag && !/\bopen\b/.test(tag[0]), 'closed by default');
-  const inside = detailsSlice('moreTools');
+  const inside = html.slice(at('class="toolRest"'), at('class="partDivider"'));
   for (const id of ['updateIndex', 'loadProposals', 'mutedPanel', 'showUndo', 'appVersion', 'runOne', 'sessions']) {
     assert.ok(inside.includes(`id="${id}"`), `${id} lives in More tools`);
   }
@@ -168,6 +182,7 @@ function el(extra = {}) {
 
 function harness() {
   const els = {
+    moreTools: el({ open: false }),
     resultCard: el({ hidden: true }),
     resultSummary: el(),
     resultCount: el(),
@@ -192,6 +207,7 @@ test('a plan from a typed request shows the command card, not the Open tabs resu
   });
   assert.equal(els.resultCard.hidden, true, 'the sort result card stays hidden');
   assert.equal(els.commandCard.hidden, false, 'the command card shows');
+  assert.equal(els.moreTools.open, true, 'More tools opens so the card is in view');
   assert.equal(els.commandAsked.textContent, 'You asked: find every page where I am logged in');
   assert.equal(els.commandUnderstood.textContent, 'I will group the sites you sign in to.');
   assert.deepEqual(els.commandSteps.children.map((li) => li.textContent), ['Group 2 tabs into “Logged in”']);

@@ -183,6 +183,26 @@ export function buildTidyParkedPrompt(groups) {
   ].join('\n');
 }
 
+// Sort the parked groups into a few named collections (Kanban-style columns on
+// the board). `current` is the user's existing collection names, offered so the
+// model keeps a name that still fits; they sit outside the data fence because
+// the user typed or approved them.
+export function buildCollectionsPrompt(groups, current = []) {
+  const names = (Array.isArray(current) ? current : []).map((n) => clip(n, 40)).filter(Boolean);
+  return [
+    'You sort a user\'s parked browser tab groups into a few collections, like columns on a Kanban board.',
+    'Each GROUP line names a parked group and its tab count; the indented lines under it are sample tab titles.',
+    'Make 3 to 8 collections, each with a short name of 1 to 3 words that says what the groups in it are for.',
+    'Put each group in at most one collection. Leave a group out when it fits none; it stays on its own.',
+    'A collection needs at least 2 groups. Only reference group names present in the data below.',
+    ...(names.length ? [`Current collections (keep a name when it still fits): ${names.join('; ')}`] : []),
+    'Respond with ONLY this JSON, no prose:',
+    '{"collections":[{"name":"Short name","groups":["group name","group name"]}]}',
+    '',
+    wrapWithFence(parkedTable(groups), 'DATA'),
+  ].join('\n');
+}
+
 export function buildImportantPrompt(tabs, rules = '') {
   return [
     'You identify high-value browser tabs worth bookmarking and file them into a tidy shallow folder structure.',

@@ -2,6 +2,13 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## 0.11.0 — 2026-10-28
+- Collections: parked groups can sit in named boxes, like columns on a Kanban board. **Suggest collections…** asks the AI to sort them (Claude, Video editing, Health…); you see the result and click Go. Then drag groups between boxes, rename or remove a box from its ⋯ menu, or add a **New collection**. Each box has its own title and a heavy line at the bottom, folds on its own, and **Fold all** folds every one. On the new-tab page the boxes sit in rows and a narrower window moves a whole box to the next row, so groups never slide from one collection into another. Groups that aren't in a collection sit in a **Not in a collection** box.
+- Dragging in one window shows in the other: reordering, moving between collections or folding in the side panel repaints the new-tab page right away, and the other way round. Before, the other window caught up only on reload.
+- The new-tab page's button reads **Close side panel** while the panel is open, and closes it.
+- Side panel: More tools now opens to a pair, the open-tabs list and **Tell me what you want to do**, with the other tools under them. A heavy line separates it from **All groups** (renamed from Parked groups, since the board shows open groups too). A typed request opens More tools so its card is in view.
+- "Muted & learned" is now the **Never-suggest list**, with a line saying what it holds and what Reset learning clears.
+
 ## 0.10.0 — 2026-10-28
 First public release, at https://github.com/Greenysmac/browser-sanity.
 - The side panel reads top to bottom: Open tabs, then "Tell me what you want to do", then Parked groups. The ⋯ button and its separate view are gone.

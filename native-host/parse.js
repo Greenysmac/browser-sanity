@@ -226,6 +226,39 @@ export function parseTidyResult(text, existingNames) {
   return { merge, split };
 }
 
+// Parse the suggested collections of parked groups. Like parseTidyResult, a
+// group name is kept only when it is in `existingNames` (trimmed, case-
+// insensitive), rewritten to that spelling, and placed in the first collection
+// that names it. A collection name is cleaned to one line of at most 40
+// characters; two collections with the same name are joined, and one left with
+// no groups (or no name) is dropped.
+export function parseCollectionsResult(text, existingNames) {
+  const obj = parseJsonBlock(text) || {};
+  const byKey = new Map();
+  for (const n of (Array.isArray(existingNames) ? existingNames : [])) {
+    byKey.set(String(n ?? '').trim().toLowerCase(), String(n ?? ''));
+  }
+  const placed = new Set();
+  const out = [];
+  for (const c of (Array.isArray(obj.collections) ? obj.collections : [])) {
+    if (!c || typeof c !== 'object' || !Array.isArray(c.groups)) continue;
+    const name = String(c.name ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!name) continue;
+    const groups = [];
+    for (const g of c.groups) {
+      const key = String(g ?? '').trim().toLowerCase();
+      if (!byKey.has(key) || placed.has(key)) continue;
+      placed.add(key);
+      groups.push(byKey.get(key));
+    }
+    if (!groups.length) continue;
+    const same = out.find((o) => o.name.toLowerCase() === name.toLowerCase());
+    if (same) same.groups.push(...groups);
+    else out.push({ name, groups });
+  }
+  return out;
+}
+
 export function parseCommandResult(text) {
   const obj = parseJsonBlock(text) || {}; // model may emit literal null
   return {

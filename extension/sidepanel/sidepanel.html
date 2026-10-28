@@ -116,88 +116,96 @@
     <!-- Undo for the last Apply, right under the Open tabs result. -->
     <div id="undoToast" role="status" hidden></div>
 
-    <!-- The open tabs themselves, at the bottom of the Open tabs part: filter,
-         select, and close them by hand (no AI). Closed until clicked; Close
-         duplicates sits on its title line so it's there either way. -->
-    <details id="tabsPanel">
-      <summary><span data-i18n="openTabs">Open tabs list</span><button type="button" id="closeDuplicates" class="linkBtn summaryLinkBtn">Close duplicates</button></summary>
-      <div class="tabsToolbar">
-        <input type="text" id="tabFilter" aria-label="Filter open tabs by title, URL, or domain" placeholder="Filter by title, URL, or domain" />
-        <div class="tabsActions">
-          <button type="button" id="selectAllTabs">Select all</button>
-          <button type="button" id="selectNoneTabs">None</button>
-          <button type="button" id="closeTabsBtn" class="danger-btn" data-i18n="closeSelected">Close selected</button>
-        </div>
-        <span id="tabCount" class="hint" aria-live="polite"></span>
-      </div>
-      <ul id="tabList"></ul>
-    </details>
-
-    <!-- Ask: say what you want in your own words. The AI answers with what it
-         understood and the steps it will take; nothing changes until Go, and
-         Restore before sort puts it back. -->
-    <section id="askPart" class="askPart" aria-labelledby="askHeading">
-      <h2 class="partHeading" id="askHeading" data-i18n="commandLabel">Tell me what you want to do</h2>
-      <form id="commandForm" class="commandForm">
-        <input type="text" id="commandInput" aria-labelledby="askHeading" placeholder="e.g. find every page where I'm logged in and group them" />
-        <button type="submit" data-i18n="runCommand">Ask</button>
-      </form>
-      <p class="partLine askLine">The AI sees your tabs' titles and web addresses, not the pages. Nothing changes until you click Go.</p>
-      <section id="commandCard" class="resultCard commandCard" aria-label="What the AI will do" hidden>
-        <p id="commandAsked" class="commandAsked"></p>
-        <p id="commandUnderstood" class="resultSummary"></p>
-        <ul id="commandSteps" class="commandSteps"></ul>
-        <div class="resultActions">
-          <button type="button" id="commandGo" class="apply-primary">Go</button>
-          <button type="button" id="commandReview" aria-controls="plan">Review</button>
-          <button type="button" id="commandCancel" class="dismiss">Cancel</button>
-        </div>
-      </section>
-    </section>
-
-    <!-- Everything else, folded away. -->
+    <!-- More tools, folded away: first a pair, the open-tabs list and "Tell me
+         what you want to do", then everything else. -->
     <details id="moreTools" class="moreTools">
       <summary>More tools</summary>
       <div class="moreToolsBody">
-        <div class="boardActions">
-          <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
-          <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
+        <div class="toolPair">
+          <!-- The open tabs themselves: filter, select, and close them by hand (no
+               AI). Closed until clicked; Close duplicates sits on its title line so
+               it's there either way. -->
+          <details id="tabsPanel">
+            <summary><span data-i18n="openTabs">Open tabs list</span><button type="button" id="closeDuplicates" class="linkBtn summaryLinkBtn">Close duplicates</button></summary>
+            <div class="tabsToolbar">
+              <input type="text" id="tabFilter" aria-label="Filter open tabs by title, URL, or domain" placeholder="Filter by title, URL, or domain" />
+              <div class="tabsActions">
+                <button type="button" id="selectAllTabs">Select all</button>
+                <button type="button" id="selectNoneTabs">None</button>
+                <button type="button" id="closeTabsBtn" class="danger-btn" data-i18n="closeSelected">Close selected</button>
+              </div>
+              <span id="tabCount" class="hint" aria-live="polite"></span>
+            </div>
+            <ul id="tabList"></ul>
+          </details>
+
+          <!-- Ask: say what you want in your own words. The AI answers with what it
+               understood and the steps it will take; nothing changes until Go, and
+               Restore before sort puts it back. -->
+          <section id="askPart" class="askPart" aria-labelledby="askHeading">
+            <h2 class="partHeading" id="askHeading" data-i18n="commandLabel">Tell me what you want to do</h2>
+            <form id="commandForm" class="commandForm">
+              <input type="text" id="commandInput" aria-labelledby="askHeading" placeholder="e.g. find every page where I'm logged in and group them" />
+              <button type="submit" data-i18n="runCommand">Ask</button>
+            </form>
+            <p class="partLine askLine">The AI sees your tabs' titles and web addresses, not the pages. Nothing changes until you click Go.</p>
+            <section id="commandCard" class="resultCard commandCard" aria-label="What the AI will do" hidden>
+              <p id="commandAsked" class="commandAsked"></p>
+              <p id="commandUnderstood" class="resultSummary"></p>
+              <ul id="commandSteps" class="commandSteps"></ul>
+              <div class="resultActions">
+                <button type="button" id="commandGo" class="apply-primary">Go</button>
+                <button type="button" id="commandReview" aria-controls="plan">Review</button>
+                <button type="button" id="commandCancel" class="dismiss">Cancel</button>
+              </div>
+            </section>
+          </section>
         </div>
-        <p class="hint"><kbd>Ctrl+Shift+O</kbd> to analyze · type <kbd>org &lt;what you want&gt;</kbd> in the address bar.</p>
-        <div class="quickActions" hidden>
-          <span class="quickLabel">Run one</span>
-          <div id="runOne" class="runOne">
-            <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
-            <button type="button" data-feature="staleTabs" data-i18n="featStaleTabs">Find stale tabs</button>
-            <button type="button" data-feature="importantBookmarks" data-i18n="featBookmarkImportant">Bookmark important</button>
-            <button type="button" data-feature="cleanBookmarks" data-i18n="featCleanBookmarks">Clean bookmarks</button>
-            <button type="button" data-feature="organizeBookmarks" data-i18n="featOrganizeBookmarks">Sort bookmarks</button>
+        <div class="toolRest">
+          <div class="boardActions">
+            <button type="button" id="updateIndex" class="secondaryBtn" aria-label="Update the saved index of tab groups">Update index</button>
+            <button type="button" id="loadProposals" class="secondaryBtn" aria-label="Load suggestions written by an agent">Agent suggestions</button>
           </div>
+          <p class="hint"><kbd>Ctrl+Shift+O</kbd> to analyze · type <kbd>org &lt;what you want&gt;</kbd> in the address bar.</p>
+          <div class="quickActions" hidden>
+            <span class="quickLabel">Run one</span>
+            <div id="runOne" class="runOne">
+              <button type="button" data-feature="groupTabs" data-i18n="featGroupTabs">Group tabs</button>
+              <button type="button" data-feature="staleTabs" data-i18n="featStaleTabs">Find stale tabs</button>
+              <button type="button" data-feature="importantBookmarks" data-i18n="featBookmarkImportant">Bookmark important</button>
+              <button type="button" data-feature="cleanBookmarks" data-i18n="featCleanBookmarks">Clean bookmarks</button>
+              <button type="button" data-feature="organizeBookmarks" data-i18n="featOrganizeBookmarks">Sort bookmarks</button>
+            </div>
+          </div>
+          <details id="sessions" hidden>
+            <summary data-i18n="sessionsTitle">Sessions</summary>
+            <form id="saveSessionForm">
+              <input type="text" id="sessionName" placeholder="Session name (optional)" />
+              <label class="inlineCheck"><input type="checkbox" id="keepTabsOpen" /> Keep tabs open</label>
+              <button type="submit">Save window as session</button>
+            </form>
+            <ul id="sessionList"></ul>
+            <button id="exportSessions">Export sessions (JSON)</button>
+          </details>
+          <details id="mutedPanel">
+            <summary data-i18n="mutedTitle">Never-suggest list</summary>
+            <p class="hint mutedLine">Suggestions you clicked <strong>Never suggest this</strong> on. They're left out of every sort until you unmute them.</p>
+            <ul id="mutedList"></ul>
+            <p class="hint mutedLine">If you mark the same thing twice, the AI is also told not to suggest it. <strong>Reset learning</strong> clears those notes; the list above stays.</p>
+            <button id="resetLearning">Reset learning</button>
+          </details>
+          <div class="toolRow">
+            <button id="showUndo" data-i18n="undoHistory">Undo history…</button>
+          </div>
+          <p class="appVersion">Browser Sanity <span id="appVersion" aria-label="Version"></span></p>
         </div>
-        <details id="sessions" hidden>
-          <summary data-i18n="sessionsTitle">Sessions</summary>
-          <form id="saveSessionForm">
-            <input type="text" id="sessionName" placeholder="Session name (optional)" />
-            <label class="inlineCheck"><input type="checkbox" id="keepTabsOpen" /> Keep tabs open</label>
-            <button type="submit">Save window as session</button>
-          </form>
-          <ul id="sessionList"></ul>
-          <button id="exportSessions">Export sessions (JSON)</button>
-        </details>
-        <details id="mutedPanel">
-          <summary data-i18n="mutedTitle">Muted &amp; learned</summary>
-          <ul id="mutedList"></ul>
-          <button id="resetLearning">Reset learning</button>
-        </details>
-        <div class="toolRow">
-          <button id="showUndo" data-i18n="undoHistory">Undo history…</button>
-        </div>
-        <p class="appVersion">Browser Sanity <span id="appVersion" aria-label="Version"></span></p>
       </div>
     </details>
 
-    <h2 class="partHeading" id="parkedGroupsHeading">Parked groups</h2>
-    <p class="partLine">Suggests merges and splits for saved groups. Open tabs aren't touched.</p>
+    <!-- A heavy line between the tools above and your groups below. -->
+    <hr class="partDivider" />
+    <h2 class="partHeading" id="parkedGroupsHeading">All groups</h2>
+    <p class="partLine">Your open and parked groups. Drag a parked group to move it, or into another collection.</p>
     <div class="parkedActions">
       <button type="button" id="reanalyzeParked" class="secondaryBtn" aria-label="Suggest merges and splits for parked groups">Re-analyze parked groups…</button>
     </div>

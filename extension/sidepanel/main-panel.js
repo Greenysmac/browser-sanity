@@ -217,6 +217,10 @@ function paintCommandCard(items, origin) {
   if (!card) return;
   const show = items.length > 0 && isCommandPlan(origin);
   card.hidden = !show;
+  // The card lives in More tools; open it so a request typed as "org …" in the
+  // address bar lands in view.
+  const more = $('moreTools');
+  if (show && more) more.open = true;
   const asked = $('commandAsked');
   if (asked) asked.textContent = show && origin.instruction ? `You asked: ${origin.instruction}` : '';
   const understood = $('commandUnderstood');

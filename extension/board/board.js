@@ -588,24 +588,20 @@ function parkedCard({ group, descriptions, newCount = 0, storage, send, setStatu
   return row;
 }
 
-// Drag-and-drop reordering for the parked rows (HTML5 draggable). Each parked
-// row calls `wire(row, section, name)` to become draggable within the Parked
-// section; dragging shows a drop indicator line and, on drop, computes the new
-// order (the dragged name moved before/after the drop target) and hands it to
-// `onReorder(names)`, which saves it and re-renders. The order is computed from
-// the names rather than by mutating the DOM, so it works the same in a real
-// browser and in the tests' fake DOM; a re-render repaints in the saved order.
-// Built per render so the dragged row is local state; the indicator is a single
-// element moved around with insertBefore and removed when the drag ends.
-function makeParkedDnd({ onReorder }) {
+// Drag-and-drop for the parked rows (HTML5 draggable). Each parked row calls
+// `wire(row, name, box)` to become draggable, where `box` is the collection id
+// it sits in (LOOSE_ID outside any collection). Dropping on another row hands
+// `onMove({ name, to, target, after })` the dragged name, the target's box, the
+// target name and which side of it; dropping on a box's title or its "Drag
+// groups here" line (`wireBox`) lands the group at the end of that box, with no
+// target. The move is computed from names rather than by moving DOM nodes, so
+// it works the same in a real browser and in the tests' fake DOM; the handler
+// saves it and re-renders. The drop marker is a class on the target row (a
+// line above or below it) or on the box title.
+function makeParkedDnd({ onMove }) {
   let dragging = null; // the name of the row being dragged
-  let marked = null; // the row showing the drop marker
-
-  // The parked rows in a section, in current DOM order.
-  const rowsOf = (section) => Array.from(section.children || [])
-    .filter((c) => c && typeof c.className === 'string'
-      && c.className.indexOf('boardRow--parked') !== -1);
-  const namesOf = (section) => rowsOf(section).map((r) => (r.dataset && r.dataset.parkedName) || '');
+  let marked = null; // the row or box title showing the drop marker
+  const MARKS = ['boardRow--dropBefore', 'boardRow--dropAfter', 'boardCollection--dropInto'];
 
   const setClass = (el, cls, on) => {
     if (!el) return;
@@ -615,30 +611,20 @@ function makeParkedDnd({ onReorder }) {
     el.className = parts.join(' ');
   };
   const clearIndicator = () => {
-    if (marked) { setClass(marked, 'boardRow--dropBefore', false); setClass(marked, 'boardRow--dropAfter', false); }
+    if (marked) for (const cls of MARKS) setClass(marked, cls, false);
     marked = null;
   };
-
-  // Move the dragged name to just before (after=false) or after (after=true)
-  // the target name, keeping every other name in place. Returns the new order.
-  const reorderNames = (names, dragName, targetName, after) => {
-    const rest = names.filter((n) => n !== dragName);
-    const at = rest.indexOf(targetName);
-    const pos = at === -1 ? rest.length : (after ? at + 1 : at);
-    rest.splice(pos, 0, dragName);
-    return rest;
+  const showIndicator = (el, cls) => {
+    if (marked && marked !== el) clearIndicator();
+    marked = el;
+    for (const c of MARKS) setClass(el, c, c === cls);
+  };
+  const allow = (e) => {
+    if (e && e.preventDefault) e.preventDefault(); // allow a drop
+    if (e && e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   };
 
-  // Mark the target row's edge where the dragged group will land: a line on its
-  // top (before) or bottom (after), drawn by CSS on the row itself.
-  const showIndicator = (section, row, after) => {
-    if (marked && marked !== row) clearIndicator();
-    marked = row;
-    setClass(row, 'boardRow--dropBefore', !after);
-    setClass(row, 'boardRow--dropAfter', !!after);
-  };
-
-  const wire = (row, section, name) => {
+  const wire = (row, name, box) => {
     row.draggable = true;
     // dataset has only a getter in a real browser; the tests' fake rows have none.
     if (!row.dataset) row.dataset = {};
@@ -657,20 +643,92 @@ function makeParkedDnd({ onReorder }) {
     };
     row.addEventListener('dragover', (e) => {
       if (dragging == null || dragging === name) return;
-      if (e && e.preventDefault) e.preventDefault(); // allow a drop
-      if (e && e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-      showIndicator(section, row, pointerAfter(e));
+      allow(e);
+      showIndicator(row, pointerAfter(e) ? 'boardRow--dropAfter' : 'boardRow--dropBefore');
     });
     row.addEventListener('drop', (e) => {
       if (dragging == null || dragging === name) { clearIndicator(); return; }
       if (e && e.preventDefault) e.preventDefault();
-      const next = reorderNames(namesOf(section), dragging, name, pointerAfter(e));
+      const move = { name: dragging, to: box, target: name, after: pointerAfter(e) };
       dragging = null;
       clearIndicator();
-      onReorder(next);
+      onMove(move);
     });
   };
-  return { wire };
+
+  const wireBox = (el, box) => {
+    el.addEventListener('dragover', (e) => {
+      if (dragging == null) return;
+      allow(e);
+      showIndicator(el, 'boardCollection--dropInto');
+    });
+    el.addEventListener('dragleave', () => { if (marked === el) clearIndicator(); });
+    el.addEventListener('drop', (e) => {
+      if (dragging == null) { clearIndicator(); return; }
+      if (e && e.preventDefault) e.preventDefault();
+      const move = { name: dragging, to: box, target: null, after: false };
+      dragging = null;
+      clearIndicator();
+      onMove(move);
+    });
+  };
+  return { wire, wireBox };
+}
+
+// The box id for parked groups that aren't in any collection.
+const LOOSE_ID = 'loose';
+
+// A group name as a lookup key: trimmed and lower-cased, the way every other
+// name match on the board works.
+function nameKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+// Move one group (by name) into box `to` (a collection id or LOOSE_ID): before
+// or after `target`, a name in that box, or at its end when there's no target.
+// The group leaves every other box. Returns the new { collections, looseOrder }
+// and leaves the inputs unchanged.
+function moveGroup({ collections, looseOrder }, { name, to, target, after }) {
+  const k = nameKey(name);
+  const without = (list) => list.filter((n) => nameKey(n) !== k);
+  const insert = (list) => {
+    const rest = without(list);
+    const at = target == null ? -1 : rest.findIndex((n) => nameKey(n) === nameKey(target));
+    const pos = at === -1 ? rest.length : (after ? at + 1 : at);
+    rest.splice(pos, 0, name);
+    return rest;
+  };
+  return {
+    collections: collections.map((c) => ({ ...c, groups: c.id === to ? insert(c.groups) : without(c.groups) })),
+    looseOrder: to === LOOSE_ID ? insert(looseOrder) : without(looseOrder),
+  };
+}
+
+// Lay the parked groups (already in parkedOrder) out in collection boxes: each
+// collection gets the parked groups it names, in its own order, and a group
+// named by two collections sits in the first. Names with no parked group (a
+// group open right now, say) are skipped but kept in the collection, so the
+// group comes back to its box when it's parked again. The rest stay loose, in
+// parked order. A collection keeps its box even when it's empty.
+function layoutCollections(parked, collections) {
+  const byKey = new Map(parked.map((g) => [nameKey(g.name), g]));
+  const placed = new Set();
+  const boxes = collections.map((c) => {
+    const groups = [];
+    for (const n of c.groups) {
+      const k = nameKey(n);
+      if (placed.has(k) || !byKey.has(k)) continue;
+      placed.add(k);
+      groups.push(byKey.get(k));
+    }
+    return { id: c.id, name: c.name, groups };
+  });
+  return { boxes, loose: parked.filter((g) => !placed.has(nameKey(g.name))) };
+}
+
+// A fresh collection id: unique enough for one person's handful of collections.
+function newCollectionId(i = 0) {
+  return `c${Date.now().toString(36)}${i}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 // The chrome.storage.local key holding the "last asked" dates, so we describe a
@@ -695,6 +753,59 @@ const NEW_COUNTS_KEY = 'boardParkedNewCounts';
 // after, in its current order. Drag-and-drop and the "Order ▾" menu both
 // rewrite it.
 const PARKED_ORDER_KEY = 'boardParkedOrder';
+
+// The chrome.storage.local key holding the parked groups' collections: an array
+// of { id, name, groups: [group names] } in the user's order. The AI suggests
+// them ("Suggest collections…"); drag, rename and remove adjust them. Parked
+// groups in none sit in a "Not in a collection" box after them.
+const COLLECTIONS_KEY = 'boardCollections';
+
+// The chrome.storage.local key holding the ids of the folded collection boxes
+// (LOOSE_ID for the "Not in a collection" box).
+const FOLDED_KEY = 'boardCollectionsFolded';
+
+// The keys whose change in another window (the side panel or the new-tab page)
+// repaints this board, so a drag in one shows in the other.
+const SHARED_KEYS = [PARKED_ORDER_KEY, COLLECTIONS_KEY, FOLDED_KEY];
+
+// The value of each shared key this page last wrote or repainted for (as JSON),
+// so the storage listener repaints only for a change it hasn't seen.
+const knownShared = new Map();
+
+// Save a shared key, remembering the value so this page's own write doesn't
+// repaint it a second time. A missing store (tests) writes nothing.
+async function writeShared(storage, key, value) {
+  if (!storage) return;
+  knownShared.set(key, JSON.stringify(value));
+  await storage.set({ [key]: value });
+}
+
+// Read the saved collections, dropping anything that isn't { id, name, groups }.
+async function readCollections(storage) {
+  if (!storage) return [];
+  const got = await storage.get(COLLECTIONS_KEY);
+  const list = got && got[COLLECTIONS_KEY];
+  return (Array.isArray(list) ? list : [])
+    .filter((c) => c && typeof c.id === 'string' && typeof c.name === 'string')
+    .map((c) => ({ id: c.id, name: c.name, groups: Array.isArray(c.groups) ? c.groups.map((g) => String(g || '')) : [] }));
+}
+
+// Read the folded box ids as a Set.
+async function readFolded(storage) {
+  if (!storage) return new Set();
+  const got = await storage.get(FOLDED_KEY);
+  const list = got && got[FOLDED_KEY];
+  return new Set((Array.isArray(list) ? list : []).map((id) => String(id)));
+}
+
+// Save one box's folded state, skipping the write when nothing changed (Chrome
+// fires a toggle event when a box is first drawn open or closed).
+async function saveFold(storage, id, isFolded) {
+  const folded = await readFolded(storage);
+  if (folded.has(id) === isFolded) return;
+  if (isFolded) folded.add(id); else folded.delete(id);
+  await writeShared(storage, FOLDED_KEY, [...folded]);
+}
 
 // Today's date as YYYY-MM-DD (local), the granularity of the once-a-day memory.
 function todayStr(now = new Date()) {
@@ -765,8 +876,7 @@ async function readParkedOrder(storage) {
 // Save the parked order (an array of group names). A missing store (tests)
 // writes nothing.
 async function writeParkedOrder(storage, order) {
-  if (!storage) return;
-  await storage.set({ [PARKED_ORDER_KEY]: Array.isArray(order) ? order : [] });
+  await writeShared(storage, PARKED_ORDER_KEY, Array.isArray(order) ? order : []);
 }
 
 // Order the parked groups by a saved list of names (trimmed, case-insensitive):
@@ -876,6 +986,354 @@ async function autoDescribe({ open, descriptions, suggestions, send, setStatus, 
   setStatus(`Suggested descriptions for ${added} ${added === 1 ? 'group' : 'groups'}`);
 }
 
+// Per board container: the AI's suggested collections waiting for Go (or an
+// { error }), and the id of the collection whose name is being edited. Kept
+// outside the DOM so a re-render draws them again.
+const proposals = new WeakMap();
+const renaming = new WeakMap();
+
+// The Parked section: its title (count, Re-analyze, Order ▾), a row of
+// collection tools, the AI's suggested collections when one is waiting, then
+// the parked rows. With no collections the rows sit straight in the section,
+// filling columns top to bottom on the new-tab page; with collections each
+// collection is a box of its own (a Kanban column) and the rest sit in a "Not
+// in a collection" box after them.
+function parkedPart({ container, parked, collections, folded, descriptions, newCounts, storage, send, setStatus, rerender, expander, onSplitProposal, onTidyParked }) {
+  const { boxes, loose } = layoutCollections(parked, collections);
+  const hasCollections = collections.length > 0;
+  const parkedSection = document.createElement('details');
+  parkedSection.open = true;
+  // The modifiers let the new-tab page stack parked groups top to bottom, or lay
+  // the collection boxes out in rows.
+  parkedSection.className = hasCollections ? 'boardSection boardSection--parked boardSection--collections' : 'boardSection boardSection--parked';
+  const parkedSummary = document.createElement('summary');
+  parkedSummary.textContent = `Parked · ${parked.length}`;
+  parkedSection.appendChild(parkedSummary);
+  // A small text button in the Parked header starts a "Re-analyze parked groups…"
+  // proposal (merges + splits). It hands the proposal off via onTidyParked;
+  // clicking it never toggles the fold (summary clicks default to that).
+  const tidyBtn = document.createElement('button');
+  tidyBtn.type = 'button';
+  tidyBtn.className = 'boardTidyBtn';
+  tidyBtn.textContent = 'Re-analyze parked groups…';
+  tidyBtn.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); if (e && e.stopPropagation) e.stopPropagation(); onTidyParked(); });
+  parkedSummary.appendChild(tidyBtn);
+  // A small "Order ▾" text button opens a menu to reorder the parked groups in
+  // one click: by last used, by time parked (both newest first), or A→Z. Each
+  // choice rewrites parkedOrder once (and, with collections, the order inside
+  // each one) and re-renders; dragging still works after. The button sits in
+  // the summary, so a click mustn't also toggle the fold.
+  if (parked.length) {
+    const orderBtn = document.createElement('button');
+    orderBtn.type = 'button';
+    orderBtn.className = 'boardOrderBtn';
+    orderBtn.textContent = 'Order ▾';
+    const chooseOrder = async (mode) => {
+      const names = sortedParkedNames(parked, mode);
+      await writeParkedOrder(storage, names);
+      if (hasCollections) {
+        const rank = new Map(names.map((n, i) => [nameKey(n), i]));
+        const byRank = (list) => [...list.filter((n) => rank.has(nameKey(n))).sort((x, y) => rank.get(nameKey(x)) - rank.get(nameKey(y))),
+          ...list.filter((n) => !rank.has(nameKey(n)))];
+        await writeShared(storage, COLLECTIONS_KEY, collections.map((c) => ({ ...c, groups: byRank(c.groups) })));
+      }
+      await rerender();
+    };
+    // The menu opens in a wrapper beside the button (a list of buttons inside a
+    // button reopened the menu on every choice), and the wrapper swallows clicks
+    // so choosing doesn't also fold the Parked section it sits in.
+    const orderWrap = swallowClicks(document.createElement('span'));
+    orderWrap.className = 'boardOrderWrap';
+    orderBtn.addEventListener('click', (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      openMenu(orderWrap, [
+        { label: 'Last used', onChoose: () => chooseOrder('lastUsed') },
+        { label: 'Time parked', onChoose: () => chooseOrder('parkedAt') },
+        { label: 'A to Z', onChoose: () => chooseOrder('alpha') },
+      ]);
+    });
+    orderWrap.appendChild(orderBtn);
+    parkedSummary.appendChild(orderWrap);
+  }
+
+  // Every box id on screen, for Fold all.
+  const boxIds = [...boxes.map((b) => b.id), ...(loose.length ? [LOOSE_ID] : [])];
+  if (parked.length >= 2 || hasCollections) {
+    parkedSection.appendChild(collectionTools({
+      hasCollections,
+      allFolded: hasCollections && boxIds.length > 0 && boxIds.every((id) => folded.has(id)),
+      onSuggest: async (btn) => {
+        btn.disabled = true;
+        btn.textContent = 'AI is sorting your groups into collections…';
+        const res = await send({ cmd: 'suggestCollections', current: collections.map((c) => c.name) });
+        if (!res || !res.ok) {
+          proposals.set(container, { error: `The AI couldn't suggest collections${res && res.error ? `: ${res.error}` : '. Check that the helper is running, then try again.'}` });
+        } else if (!Array.isArray(res.collections) || !res.collections.length) {
+          proposals.set(container, { error: 'The AI found no collections for these groups.' });
+        } else {
+          proposals.set(container, { collections: res.collections });
+        }
+        await rerender();
+      },
+      onNew: async () => {
+        const id = newCollectionId();
+        await writeShared(storage, COLLECTIONS_KEY, [...collections, { id, name: 'New collection', groups: [] }]);
+        renaming.set(container, id);
+        await rerender();
+      },
+      onFoldAll: async (fold) => {
+        await writeShared(storage, FOLDED_KEY, fold ? boxIds : []);
+        await rerender();
+      },
+    }));
+  }
+
+  const proposal = proposals.get(container);
+  if (proposal) {
+    parkedSection.appendChild(proposalCard({
+      proposal,
+      replacing: hasCollections,
+      onGo: async () => {
+        const fresh = proposal.collections.map((c, i) => ({ id: newCollectionId(i), name: c.name, groups: c.groups.slice() }));
+        await writeShared(storage, COLLECTIONS_KEY, fresh);
+        await writeShared(storage, FOLDED_KEY, []);
+        proposals.delete(container);
+        await rerender();
+      },
+      onCancel: async () => { proposals.delete(container); await rerender(); },
+    }));
+  }
+
+  if (!parked.length) {
+    const empty = document.createElement('p');
+    empty.className = 'boardEmpty';
+    empty.textContent = 'Nothing parked yet';
+    parkedSection.appendChild(empty);
+    return parkedSection;
+  }
+
+  // A drop saves the move (the collections, and the loose order when it lands
+  // there) and re-renders, so the board repaints in the saved order here and,
+  // through the storage listener, in the other window too.
+  const dnd = makeParkedDnd({
+    onMove: async (move) => {
+      const next = moveGroup({ collections, looseOrder: loose.map((g) => g.name) }, move);
+      if (hasCollections) await writeShared(storage, COLLECTIONS_KEY, next.collections);
+      if (move.to === LOOSE_ID) await writeParkedOrder(storage, next.looseOrder);
+      await rerender();
+    },
+  });
+  const card = (group, box) => {
+    const row = parkedCard({ group, descriptions, newCount: newCounts[nameKey(group.name)] || 0, storage, send, setStatus, rerender, expander, onSplitProposal });
+    dnd.wire(row, group.name || '', box);
+    return row;
+  };
+  if (!hasCollections) {
+    for (const group of parked) parkedSection.appendChild(card(group, LOOSE_ID));
+    return parkedSection;
+  }
+  for (const box of boxes) {
+    parkedSection.appendChild(collectionBox({
+      box,
+      folded: folded.has(box.id),
+      editing: renaming.get(container) === box.id,
+      cards: box.groups.map((g) => card(g, box.id)),
+      storage,
+      dnd,
+      onRename: async () => { renaming.set(container, box.id); await rerender(); },
+      onSaveName: async (name) => {
+        renaming.delete(container);
+        await writeShared(storage, COLLECTIONS_KEY, collections.map((c) => (c.id === box.id ? { ...c, name } : c)));
+        await rerender();
+      },
+      onCancelName: async () => { renaming.delete(container); await rerender(); },
+      onRemove: async () => {
+        await writeShared(storage, COLLECTIONS_KEY, collections.filter((c) => c.id !== box.id));
+        await rerender();
+      },
+    }));
+  }
+  if (loose.length) {
+    parkedSection.appendChild(collectionBox({
+      box: { id: LOOSE_ID, name: 'Not in a collection', groups: loose },
+      loose: true,
+      folded: folded.has(LOOSE_ID),
+      cards: loose.map((g) => card(g, LOOSE_ID)),
+      storage,
+      dnd,
+    }));
+  }
+  return parkedSection;
+}
+
+// A wrapper that keeps clicks inside it from reaching the <summary> it sits in,
+// which would fold or unfold that section.
+function swallowClicks(el) {
+  el.addEventListener('click', (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+  });
+  return el;
+}
+
+// The row of collection tools under the Parked title: Suggest collections…
+// (…again once there are some), New collection, and Fold all / Unfold all.
+// While the AI works, the Suggest button says so and can't be clicked twice.
+function collectionTools({ hasCollections, allFolded, onSuggest, onNew, onFoldAll }) {
+  const row = document.createElement('div');
+  row.className = 'boardCollectionTools';
+  const suggest = document.createElement('button');
+  suggest.type = 'button';
+  suggest.className = 'boardToolBtn boardSuggestCollections';
+  suggest.textContent = hasCollections ? 'Suggest collections again…' : 'Suggest collections…';
+  suggest.addEventListener('click', () => onSuggest(suggest));
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'boardToolBtn boardNewCollection';
+  add.textContent = 'New collection';
+  add.addEventListener('click', () => onNew());
+  row.append(suggest, add);
+  if (hasCollections) {
+    const fold = document.createElement('button');
+    fold.type = 'button';
+    fold.className = 'boardToolBtn boardFoldAll';
+    fold.textContent = allFolded ? 'Unfold all' : 'Fold all';
+    fold.addEventListener('click', () => onFoldAll(!allFolded));
+    row.appendChild(fold);
+  }
+  return row;
+}
+
+// The AI's suggested collections, waiting for Go: each one's name and groups,
+// how they replace the current collections (when there are some), and Go /
+// Cancel. A failed suggestion shows its reason and a Dismiss button instead.
+function proposalCard({ proposal, replacing, onGo, onCancel }) {
+  const card = document.createElement('div');
+  card.className = 'boardCollectionProposal';
+  const head = document.createElement('p');
+  head.className = 'boardProposalHead';
+  const buttons = document.createElement('div');
+  buttons.className = 'boardProposalActions';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'boardToolBtn';
+  cancel.addEventListener('click', () => onCancel());
+  if (proposal.error) {
+    head.textContent = proposal.error;
+    cancel.textContent = 'Dismiss';
+    buttons.appendChild(cancel);
+    card.append(head, buttons);
+    return card;
+  }
+  const n = proposal.collections.length;
+  head.textContent = `The AI suggests ${n} collection${n === 1 ? '' : 's'}${replacing ? '. Go replaces your current ones.' : '.'}`;
+  const list = document.createElement('ul');
+  list.className = 'boardProposalList';
+  for (const c of proposal.collections) {
+    const li = document.createElement('li');
+    const name = document.createElement('strong');
+    name.textContent = c.name;
+    const groups = document.createElement('span');
+    groups.textContent = ` ${c.groups.join(', ')}`;
+    li.append(name, groups);
+    list.appendChild(li);
+  }
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.className = 'boardGoBtn';
+  go.textContent = 'Go';
+  go.addEventListener('click', () => onGo());
+  cancel.textContent = 'Cancel';
+  buttons.append(go, cancel);
+  card.append(head, list, buttons);
+  return card;
+}
+
+// One collection box: a <details> whose title shows the name, how many groups
+// it holds and (except on the "Not in a collection" box) a ⋯ menu with
+// Rename… and Remove collection. Its title, and its "Drag groups here" line
+// when it's empty, take a drop that lands a group at the end. Folding a box is
+// saved, so it stays folded in every window. While `editing`, a name field sits
+// under the title: Enter or Save keeps it, Escape or Cancel drops it.
+function collectionBox({ box, loose = false, folded, editing = false, cards, storage, dnd, onRename, onSaveName, onCancelName, onRemove }) {
+  const details = document.createElement('details');
+  details.className = loose ? 'boardCollection boardCollection--loose' : 'boardCollection';
+  details.open = editing || !folded;
+  if (!details.dataset) details.dataset = {};
+  details.dataset.collectionId = box.id;
+  const summary = document.createElement('summary');
+  summary.className = 'boardCollectionHead';
+  const name = document.createElement('span');
+  name.className = 'boardCollectionName';
+  name.textContent = box.name;
+  const count = document.createElement('span');
+  count.className = 'boardCollectionCount';
+  count.textContent = String(box.groups.length);
+  summary.append(name, count);
+  if (!loose) {
+    const menuWrap = swallowClicks(document.createElement('span'));
+    menuWrap.className = 'boardCollectionMenuWrap';
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    menuBtn.className = 'boardMenuBtn';
+    menuBtn.textContent = '⋯';
+    menuBtn.setAttribute?.('aria-label', `${box.name} options`);
+    menuBtn.addEventListener('click', (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      openMenu(menuWrap, [
+        { label: 'Rename…', onChoose: onRename },
+        { label: 'Remove collection', onChoose: onRemove },
+      ]);
+    });
+    menuWrap.appendChild(menuBtn);
+    summary.appendChild(menuWrap);
+  }
+  details.appendChild(summary);
+  dnd.wireBox(summary, box.id);
+  if (editing) details.appendChild(nameEditor({ name: box.name, onSave: onSaveName, onCancel: onCancelName }));
+  if (!cards.length) {
+    const hint = document.createElement('p');
+    hint.className = 'boardCollectionEmpty';
+    hint.textContent = 'Drag groups here';
+    dnd.wireBox(hint, box.id);
+    details.appendChild(hint);
+  }
+  for (const c of cards) details.appendChild(c);
+  details.addEventListener('toggle', () => { saveFold(storage, box.id, !details.open); });
+  return details;
+}
+
+// The inline field for a collection's name: one line, at most 40 characters.
+// An empty name cancels.
+function nameEditor({ name, onSave, onCancel }) {
+  const form = document.createElement('form');
+  form.className = 'boardCollectionRename';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = name;
+  input.maxLength = 40;
+  input.setAttribute?.('aria-label', 'Collection name');
+  const save = document.createElement('button');
+  save.type = 'submit';
+  save.textContent = 'Save';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'Cancel';
+  const commit = () => {
+    const next = String(input.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (next) onSave(next); else onCancel();
+  };
+  form.addEventListener('submit', (e) => { if (e && e.preventDefault) e.preventDefault(); commit(); });
+  input.addEventListener('keydown', (e) => { if (e && e.key === 'Escape') onCancel(); });
+  cancel.addEventListener('click', () => onCancel());
+  form.append(input, save, cancel);
+  // Put the cursor in the field once it's on the page.
+  setTimeout(() => { if (typeof input.focus === 'function') input.focus(); if (typeof input.select === 'function') input.select(); }, 0);
+  return form;
+}
+
 // Build (or rebuild) the board inside `container`: an "Open now" section and a
 // "Parked, from the index" section, each a foldable <details open>. Data comes
 // from the service worker's 'boardData' command. setStatus is optional (defaults
@@ -901,6 +1359,9 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   // The user's saved parked order (a list of names); parked groups render in
   // this order, with any not listed after them in their current order.
   const parkedOrder = await readParkedOrder(storage);
+  // The parked groups' collections and which boxes are folded.
+  const collections = await readCollections(storage);
+  const folded = await readFolded(storage);
   // Drop any parked card whose name matches an open group (trimmed, case-
   // insensitive): a reopened group is "open now", so it shouldn't also appear
   // under "Parked, from the index". The full parkedRaw is still passed to open
@@ -928,68 +1389,7 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
     for (const group of open) openSection.appendChild(openCard({ group, descriptions, suggestions, parked: parkedRaw, send, setStatus, rerender, expander, chromeApi, onSplitProposal }));
   }
 
-  const parkedSection = document.createElement('details');
-  parkedSection.open = true;
-  // The modifier lets the new-tab page stack parked groups top to bottom.
-  parkedSection.className = 'boardSection boardSection--parked';
-  const parkedSummary = document.createElement('summary');
-  parkedSummary.textContent = `Parked · ${parked.length}`;
-  parkedSection.appendChild(parkedSummary);
-  // A small text button in the Parked header starts a "Re-analyze parked groups…"
-  // proposal (merges + splits). It hands the proposal off via onTidyParked;
-  // clicking it never toggles the fold (summary clicks default to that).
-  const tidyBtn = document.createElement('button');
-  tidyBtn.type = 'button';
-  tidyBtn.className = 'boardTidyBtn';
-  tidyBtn.textContent = 'Re-analyze parked groups…';
-  tidyBtn.addEventListener('click', (e) => { if (e && e.preventDefault) e.preventDefault(); if (e && e.stopPropagation) e.stopPropagation(); onTidyParked(); });
-  parkedSummary.appendChild(tidyBtn);
-  // A small "Order ▾" text button opens a menu to reorder the parked groups in
-  // one click: by last used, by time parked (both newest first), or A→Z. Each
-  // choice rewrites parkedOrder once and re-renders; dragging still works after.
-  // The button sits in the summary, so a click mustn't also toggle the fold.
-  if (parked.length) {
-    const orderBtn = document.createElement('button');
-    orderBtn.type = 'button';
-    orderBtn.className = 'boardOrderBtn';
-    orderBtn.textContent = 'Order ▾';
-    const chooseOrder = async (mode) => { await writeParkedOrder(storage, sortedParkedNames(parked, mode)); await rerender(); };
-    // The menu opens in a wrapper beside the button (a list of buttons inside a
-    // button reopened the menu on every choice), and the wrapper swallows clicks
-    // so choosing doesn't also fold the Parked section it sits in.
-    const orderWrap = document.createElement('span');
-    orderWrap.className = 'boardOrderWrap';
-    orderWrap.addEventListener('click', (e) => {
-      if (e && e.preventDefault) e.preventDefault();
-      if (e && e.stopPropagation) e.stopPropagation();
-    });
-    orderBtn.addEventListener('click', (e) => {
-      if (e && e.preventDefault) e.preventDefault();
-      if (e && e.stopPropagation) e.stopPropagation();
-      openMenu(orderWrap, [
-        { label: 'Last used', onChoose: () => chooseOrder('lastUsed') },
-        { label: 'Time parked', onChoose: () => chooseOrder('parkedAt') },
-        { label: 'A to Z', onChoose: () => chooseOrder('alpha') },
-      ]);
-    });
-    orderWrap.appendChild(orderBtn);
-    parkedSummary.appendChild(orderWrap);
-  }
-  if (!parked.length) {
-    const empty = document.createElement('p');
-    empty.className = 'boardEmpty';
-    empty.textContent = 'Nothing parked yet';
-    parkedSection.appendChild(empty);
-  } else {
-    // Reordering a parked row saves the new name order and re-renders, so the
-    // board repaints in the saved order; dragging still works afterwards.
-    const dnd = makeParkedDnd({ onReorder: async (names) => { await writeParkedOrder(storage, names); await rerender(); } });
-    for (const group of parked) {
-      const card = parkedCard({ group, descriptions, newCount: newCounts[String(group.name || '').trim().toLowerCase()] || 0, storage, send, setStatus, rerender, expander, onSplitProposal });
-      parkedSection.appendChild(card);
-      dnd.wire(card, parkedSection, group.name || '');
-    }
-  }
+  const parkedSection = parkedPart({ container, parked, collections, folded, descriptions, newCounts, storage, send, setStatus, rerender, expander, onSplitProposal, onTidyParked });
 
   container.append(openSection, parkedSection);
 
@@ -1005,9 +1405,10 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
   return teardown;
 }
 
-// The tab-group and tab events that change what the board shows. tabs.onUpdated
-// fires on every title/favicon/status change too, so its handler only re-renders
-// when groupId or url changed — the fields a card actually reflects.
+// The tab-group and tab events that change what the board shows, plus a change
+// to the parked order, collections or folds made in the other window. tabs.
+// onUpdated fires on every title/favicon/status change too, so its handler only
+// re-renders when groupId or url changed — the fields a card actually reflects.
 //
 // Listeners are attached once per container (tracked via a WeakMap) with a
 // single debounced re-render shared across every event, so a burst (parking a
@@ -1021,13 +1422,15 @@ function attachLiveUpdates(container, { rerender, chromeApi, debounceMs }) {
   if (existing) return existing.teardown;
   const tabGroups = chromeApi && chromeApi.tabGroups;
   const tabs = chromeApi && chromeApi.tabs;
+  const storageEvents = chromeApi && chromeApi.storage && chromeApi.storage.onChanged;
   // Need the full event surface; a bare { query } stub (some tests) can't carry
   // listeners, so there's nothing live to attach.
   const hasEvents = tabGroups && tabGroups.onCreated && tabGroups.onUpdated
     && tabGroups.onRemoved && tabGroups.onMoved
     && tabs && tabs.onCreated && tabs.onRemoved && tabs.onUpdated
     && tabs.onAttached && tabs.onDetached;
-  if (!hasEvents) {
+  const hasStorage = storageEvents && typeof storageEvents.addListener === 'function';
+  if (!hasEvents && !hasStorage) {
     const noop = () => {};
     return noop;
   }
@@ -1041,29 +1444,50 @@ function attachLiveUpdates(container, { rerender, chromeApi, debounceMs }) {
   const onTabUpdated = (_tabId, changeInfo) => {
     if (changeInfo && ('groupId' in changeInfo || 'url' in changeInfo)) schedule();
   };
+  // The other window (side panel or new-tab page) reordered, re-collected or
+  // folded the parked groups: repaint. A value this page wrote itself, or has
+  // already repainted for, is skipped.
+  const onStorageChanged = (changes, area) => {
+    if (area !== 'local' || !changes) return;
+    let changed = false;
+    for (const key of SHARED_KEYS) {
+      if (!(key in changes)) continue;
+      const json = JSON.stringify(changes[key] && changes[key].newValue);
+      if (json === knownShared.get(key)) continue;
+      knownShared.set(key, json);
+      changed = true;
+    }
+    if (changed) schedule();
+  };
 
-  tabGroups.onCreated.addListener(schedule);
-  tabGroups.onUpdated.addListener(schedule);
-  tabGroups.onRemoved.addListener(schedule);
-  tabGroups.onMoved.addListener(schedule);
-  tabs.onCreated.addListener(schedule);
-  tabs.onRemoved.addListener(schedule);
-  tabs.onUpdated.addListener(onTabUpdated);
-  tabs.onAttached.addListener(schedule);
-  tabs.onDetached.addListener(schedule);
+  if (hasEvents) {
+    tabGroups.onCreated.addListener(schedule);
+    tabGroups.onUpdated.addListener(schedule);
+    tabGroups.onRemoved.addListener(schedule);
+    tabGroups.onMoved.addListener(schedule);
+    tabs.onCreated.addListener(schedule);
+    tabs.onRemoved.addListener(schedule);
+    tabs.onUpdated.addListener(onTabUpdated);
+    tabs.onAttached.addListener(schedule);
+    tabs.onDetached.addListener(schedule);
+  }
+  if (hasStorage) storageEvents.addListener(onStorageChanged);
 
   const teardown = () => {
     if (timer) clearTimeout(timer);
     timer = undefined;
-    tabGroups.onCreated.removeListener(schedule);
-    tabGroups.onUpdated.removeListener(schedule);
-    tabGroups.onRemoved.removeListener(schedule);
-    tabGroups.onMoved.removeListener(schedule);
-    tabs.onCreated.removeListener(schedule);
-    tabs.onRemoved.removeListener(schedule);
-    tabs.onUpdated.removeListener(onTabUpdated);
-    tabs.onAttached.removeListener(schedule);
-    tabs.onDetached.removeListener(schedule);
+    if (hasEvents) {
+      tabGroups.onCreated.removeListener(schedule);
+      tabGroups.onUpdated.removeListener(schedule);
+      tabGroups.onRemoved.removeListener(schedule);
+      tabGroups.onMoved.removeListener(schedule);
+      tabs.onCreated.removeListener(schedule);
+      tabs.onRemoved.removeListener(schedule);
+      tabs.onUpdated.removeListener(onTabUpdated);
+      tabs.onAttached.removeListener(schedule);
+      tabs.onDetached.removeListener(schedule);
+    }
+    if (hasStorage && typeof storageEvents.removeListener === 'function') storageEvents.removeListener(onStorageChanged);
     liveUpdates.delete(container);
   };
   liveUpdates.set(container, { teardown });

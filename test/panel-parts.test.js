@@ -32,9 +32,9 @@ test('"Open tabs" heading and its muted line sit over the sort card, result card
   assert.ok(sortCard < resultCard, 'the sort result card stays right below');
 });
 
-test('"Parked groups" heading, its line, a Re-analyze button, then the re-analyze and split cards, before the board', () => {
-  const heading = at('>Parked groups</h2>');
-  const line = at("Suggests merges and splits for saved groups. Open tabs aren't touched.");
+test('"All groups" heading, its line, a Re-analyze button, then the re-analyze and split cards, before the board', () => {
+  const heading = at('>All groups</h2>');
+  const line = at('Your open and parked groups. Drag a parked group to move it, or into another collection.');
   const reanalyze = at('id="reanalyzeParked"');
   const tidyCard = at('id="tidyCard"');
   const splitCard = at('id="splitCard"');
@@ -46,8 +46,8 @@ test('"Parked groups" heading, its line, a Re-analyze button, then the re-analyz
   assert.ok(splitCard < board, 'both cards sit before the board');
 });
 
-test('the Open tabs part comes before the Parked groups part', () => {
-  assert.ok(at('id="openTabsHeading">Open tabs') < at('>Parked groups</h2>'), 'Open tabs is listed first');
+test('the Open tabs part comes before the All groups part', () => {
+  assert.ok(at('id="openTabsHeading">Open tabs') < at('>All groups</h2>'), 'Open tabs is listed first');
 });
 
 // ---- The duplicate More-view button is gone; the board link still drives it --

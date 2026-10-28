@@ -170,6 +170,9 @@ textarea, input {
 }
 .boardSection--parked .boardRow { break-inside: avoid; margin-bottom: 6px; }
 .boardSection--parked .boardEmpty { column-span: all; }
+.boardSection--parked > .boardCollectionTools,
+.boardSection--parked > .boardCollectionProposal { column-span: all; }
+.boardCollectionProposal { max-width: 720px; }
 .boardRow:hover { border-color: var(--border-strong); }
 .boardDot {
   width: 10px;
@@ -350,3 +353,89 @@ textarea, input {
 .boardOrderWrap { position: relative; display: inline-block; }
 .boardRow--dropBefore { box-shadow: inset 0 3px 0 var(--accent, var(--text)); }
 .boardRow--dropAfter { box-shadow: inset 0 -3px 0 var(--accent, var(--text)); }
+
+/* ---------- Collections: parked groups in named boxes ---------- */
+/* Each collection is a box with its own title and a heavy line at the bottom,
+   like a column on a Kanban board. Its rows stay in it; a whole box moves when
+   the page gets narrower. */
+.boardCollectionTools { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 2px 0 10px; }
+.boardToolBtn {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.boardToolBtn:hover, .boardToolBtn:focus-visible { text-decoration: underline; }
+.boardToolBtn:disabled { color: var(--text-faint); cursor: default; text-decoration: none; }
+.boardCollection {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom: 3px solid var(--border-strong);
+  border-radius: var(--r);
+  padding: 6px 8px 2px;
+  margin-bottom: 12px;
+}
+.boardCollection--loose { background: transparent; border-style: dashed; border-bottom-style: solid; }
+.boardCollectionHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  list-style: none;
+}
+.boardCollectionHead::-webkit-details-marker { display: none; }
+.boardCollectionHead::before {
+  content: "";
+  width: 5px; height: 5px; flex: none;
+  border-right: 2px solid var(--text-faint);
+  border-bottom: 2px solid var(--text-faint);
+  transform: rotate(-45deg);
+}
+.boardCollection[open] > .boardCollectionHead::before { transform: rotate(45deg); }
+.boardCollectionName { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boardCollectionCount { flex: none; font-weight: 400; color: var(--text-faint); }
+.boardCollectionMenuWrap { position: relative; display: inline-block; flex: none; }
+.boardCollection--dropInto { box-shadow: inset 0 -3px 0 var(--accent); }
+.boardCollectionEmpty { margin: 0 0 8px; padding: 10px; font-size: 12px; color: var(--text-faint); text-align: center; border: 1px dashed var(--border-strong); border-radius: var(--r); }
+.boardCollectionEmpty.boardCollection--dropInto { box-shadow: none; border-color: var(--accent); color: var(--text); }
+.boardCollectionRename { display: flex; gap: 6px; margin: 0 0 8px; }
+.boardCollectionRename input { flex: 1 1 auto; min-width: 0; }
+.boardCollectionProposal {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+.boardProposalHead { margin: 0 0 6px; font-weight: 600; }
+.boardProposalList { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 4px; color: var(--text-muted); }
+.boardProposalList strong { color: var(--text); }
+.boardProposalActions { display: flex; gap: 8px; }
+.boardGoBtn { background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-radius: var(--r); padding: 4px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.boardProposalActions .boardToolBtn { padding: 4px 8px; }
+
+/* On the new-tab page the boxes sit in rows of ~300px columns (a grid fills left
+   to right), so a narrower window drops a whole box to the next row. The tools,
+   the AI's suggestion and the title span every column. */
+.boardSection--collections::details-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 0 12px;
+  align-items: start;
+  columns: auto;
+}
+.boardSection--collections > summary,
+.boardSection--collections > .boardCollectionTools,
+.boardSection--collections > .boardCollectionProposal,
+.boardSection--collections > .boardEmpty { grid-column: 1 / -1; }
+.boardCollection .boardRow { margin-bottom: 6px; }

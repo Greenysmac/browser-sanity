@@ -17,13 +17,17 @@ export function send(message) {
 
 // Show the rows whose group name contains `query` (case-insensitive, trimmed),
 // hide the rest. An empty query shows every row. Matching is by the .boardName
-// text inside each .boardRow, so it tracks whatever renderBoard drew.
+// text inside each .boardRow, so it tracks whatever renderBoard drew. A
+// collection box left with no matching row is hidden too.
 export function filterCards(container, query) {
   const wanted = String(query || '').trim().toLowerCase();
   for (const card of container.querySelectorAll('.boardRow')) {
     const nameEl = card.querySelector('.boardName');
     const name = (nameEl && nameEl.textContent) ? nameEl.textContent.toLowerCase() : '';
     card.hidden = wanted !== '' && !name.includes(wanted);
+  }
+  for (const box of container.querySelectorAll('.boardCollection')) {
+    box.hidden = wanted !== '' && !Array.from(box.querySelectorAll('.boardRow')).some((r) => !r.hidden);
   }
 }
 
@@ -45,6 +49,54 @@ export async function openSidePanel(api = (typeof chrome !== 'undefined' ? chrom
   } catch {
     return false;
   }
+}
+
+// Whether this window's side panel is open: the extension's SIDE_PANEL contexts
+// (runtime.getContexts, Chrome 116+) list one per open panel with its window
+// id. Resolves false when the API is missing, so the button says "Open".
+export async function isSidePanelOpen(windowId, api = (typeof chrome !== 'undefined' ? chrome : undefined)) {
+  if (windowId == null || !api || !api.runtime || typeof api.runtime.getContexts !== 'function') return false;
+  try {
+    const contexts = await api.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] });
+    return (contexts || []).some((c) => c && c.windowId === windowId);
+  } catch {
+    return false;
+  }
+}
+
+// Close this window's side panel: sidePanel.close() where Chrome has it (141+),
+// else ask the panel to close itself (sidepanel.js listens for closeSidePanel).
+// Resolves false when neither is possible.
+export async function closeSidePanel(windowId, api = (typeof chrome !== 'undefined' ? chrome : undefined)) {
+  if (!api) return false;
+  try {
+    if (api.sidePanel && typeof api.sidePanel.close === 'function') {
+      await api.sidePanel.close({ windowId });
+      return true;
+    }
+    if (api.runtime && typeof api.runtime.sendMessage === 'function') {
+      // Read lastError so Chrome doesn't log it when no one answers.
+      api.runtime.sendMessage({ cmd: 'closeSidePanel', windowId }, () => void api.runtime.lastError);
+      return true;
+    }
+  } catch { /* fall through */ }
+  return false;
+}
+
+// Keep `refresh` running when the side panel may have opened or closed some
+// other way (the toolbar icon, the panel's own close button): Chrome's
+// sidePanel.onOpened/onClosed where it has them, whenever this page comes back
+// into view, and once a second while it's visible. The timer doesn't hold a
+// test process open.
+function watchSidePanel(refresh, api, doc) {
+  for (const ev of ['onOpened', 'onClosed']) {
+    const e = api && api.sidePanel && api.sidePanel[ev];
+    if (e && typeof e.addListener === 'function') e.addListener(() => { refresh(); });
+  }
+  if (doc && typeof doc.addEventListener === 'function') doc.addEventListener('visibilitychange', () => { if (!doc.hidden) refresh(); });
+  if (typeof globalThis.addEventListener === 'function') globalThis.addEventListener('focus', () => { refresh(); });
+  const timer = setInterval(() => { if (!doc || !doc.hidden) refresh(); }, 1000);
+  if (timer && typeof timer.unref === 'function') timer.unref();
 }
 
 // Query the live open groups straight from the tab strip, shaped like the
@@ -111,11 +163,31 @@ export async function initNewtab({ container, note, search, panelBtn, panelNote,
     search.addEventListener('input', () => filterCards(container, search.value));
   }
 
+  // The side-panel button says "Close side panel" while this window's panel is
+  // open, and closes it.
   if (panelBtn) {
+    const api = (typeof chrome !== 'undefined') ? chrome : undefined;
+    let windowId = null;
+    let panelOpen = false;
+    const paint = () => { panelBtn.textContent = panelOpen ? 'Close side panel' : 'Open side panel'; };
+    const refresh = async () => {
+      if (windowId == null && api && api.windows && typeof api.windows.getCurrent === 'function') {
+        try { windowId = (await api.windows.getCurrent()).id; } catch { /* no window: stay on Open */ }
+      }
+      panelOpen = await isSidePanelOpen(windowId, api);
+      paint();
+    };
     panelBtn.addEventListener('click', async () => {
+      if (panelOpen) {
+        if (await closeSidePanel(windowId, api)) { panelOpen = false; paint(); }
+        return;
+      }
       const opened = await openSidePanel();
       if (!opened && panelNote) panelNote.hidden = false;
+      if (opened) { panelOpen = true; paint(); }
     });
+    await refresh();
+    watchSidePanel(refresh, api, doc);
   }
 }
 

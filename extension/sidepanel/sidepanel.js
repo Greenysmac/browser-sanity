@@ -95,8 +95,22 @@ function initBoardView() {
   return paint();
 }
 
+// The new-tab page's "Close side panel" asks the panel to close itself where
+// Chrome has no sidePanel.close(). Only this window's panel closes.
+function listenForClose() {
+  if (!chrome.runtime || !chrome.runtime.onMessage) return;
+  let myWindowId = null;
+  if (chrome.windows && typeof chrome.windows.getCurrent === 'function') {
+    chrome.windows.getCurrent().then((w) => { myWindowId = w && w.id; }).catch(() => {});
+  }
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.cmd === 'closeSidePanel' && msg.windowId === myWindowId) window.close();
+  });
+}
+
 (async () => {
   applyI18n();
+  listenForClose();
   // Wire every panel's listeners first so the UI is responsive immediately.
   initTabsView();
   initSettingsView();

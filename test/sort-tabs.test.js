@@ -102,7 +102,7 @@ const sw = await import('../extension/background/service-worker.js');
 void sw;
 const swOnMessage = bootOnMessage.fns[0]; // the worker's registered onMessage listener
 
-function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null, groups = null, groupFails = false, initialLocal = null } = {}) {
+function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null, groups = null, groupFails = false, initialLocal = null, indexGroups = null, collections = null } = {}) {
   const stored = { local: {}, sync: {} };
   if (initialLocal) Object.assign(stored.local, initialLocal);
   const requests = [];
@@ -132,6 +132,8 @@ function installSwChrome({ groupTabs = {}, highlighted = [], webTabs = null, gro
           if (msg.task === 'group' && groupFails) { onMsg.fire({ id: msg.id, ok: false, error: 'grouping failed' }); return; }
           const result = { groups: [], stale: [], important: [], moves: [], ready: true };
           if (msg.task === 'group' && groups) result.groups = groups;
+          if (msg.type === 'index-read' && indexGroups) result.groups = indexGroups;
+          if (msg.task === 'collections') result.collections = collections || [];
           onMsg.fire({ id: msg.id, ok: true, result });
         }, 0);
       },
@@ -268,6 +270,26 @@ test('Close duplicates finds duplicate tabs without any helper call', async () =
   assert.equal(res.items[0].action, 'closeTab');
   assert.equal(res.items[0].data.tabId, 2);
   assert.equal(requests.length, 0, 'Close duplicates never opens the native host');
+});
+
+// --- Suggest collections (0.11.0) -----------------------------------------
+
+test('suggestCollections sends the parked groups (not open ones) and the current collection names', async () => {
+  const { dispatch, requests } = installSwChrome({
+    indexGroups: [
+      { name: 'Claude help', status: 'parked', tabs: [{ title: 'Docs', url: 'https://a' }] },
+      { name: 'Work', status: 'open', tabs: [] },
+      { name: 'Premiere help', status: 'parked', tabs: [] },
+    ],
+    collections: [{ name: 'Claude', groups: ['Claude help'] }],
+  });
+  const res = await dispatch({ cmd: 'suggestCollections', current: ['Claude'] });
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.collections, [{ name: 'Claude', groups: ['Claude help'] }]);
+  const req = requests.find((r) => r.task === 'collections');
+  assert.ok(req, 'one collections request');
+  assert.deepEqual(req.payload.groups.map((g) => g.name), ['Claude help', 'Premiere help']);
+  assert.deepEqual(req.payload.current, ['Claude']);
 });
 
 // --- Suggest new groups for the leftovers (TASK 2) -------------------------

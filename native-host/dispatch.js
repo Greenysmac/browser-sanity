@@ -1,7 +1,7 @@
 import { getAdapter as defaultGetAdapter, adapterNames } from './adapters/registry.js';
 import { listModels as openaiListModels } from './adapters/openai.js';
-import { buildGroupPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt, buildSplitPrompt, buildTidyParkedPrompt } from './prompts.js';
-import { parseGroupResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseTidyResult, parseJsonBlock } from './parse.js';
+import { buildGroupPrompt, buildCollectionsPrompt, buildStalePrompt, buildImportantPrompt, buildCommandPrompt, buildOrganizePrompt, buildDescribePrompt, buildSplitPrompt, buildTidyParkedPrompt } from './prompts.js';
+import { parseGroupResult, parseCollectionsResult, parseStaleResult, parseImportantResult, parseCommandResult, parseOrganizeResult, parseDescribeResult, parseSplitResult, parseTidyResult, parseJsonBlock } from './parse.js';
 import { sanitizeOptions, sanitizeConfig, sanitizeCli } from './config.js';
 import { hostVersion } from './version.js';
 import { loadGroupsFile, readGroups, writeGroupDescription, writeGroupSplit, writeGroupMerge } from './groups-file.js';
@@ -29,7 +29,7 @@ function cleanSuggestion(text) {
 function capabilities() {
   return {
     types: ['health', 'models', 'organize', 'command', 'prompt', 'index', 'park', 'split-parked', 'merge-parked', 'index-read', 'index-history', 'index-restore', 'proposals', 'groups-read', 'groups-write', 'groups-split', 'describe'],
-    tasks: ['group', 'stale', 'important', 'organize-bookmarks', 'split', 'tidy-parked'],
+    tasks: ['group', 'stale', 'important', 'organize-bookmarks', 'split', 'tidy-parked', 'collections'],
     passthrough: true,
     adapters: adapterNames(),
   };
@@ -138,6 +138,16 @@ export async function handle(msg, deps = {}) {
         return total <= 30;
       });
       return { task, merge, split: parsed.split };
+    }
+    // Sort the parked groups into named collections for the board. Like
+    // tidy-parked, the groups file isn't fed in; the parser keeps only names
+    // that were sent, each in one collection. `current` is the user's existing
+    // collection names, which the model may keep.
+    if (task === 'collections') {
+      const groups = Array.isArray(payload.groups) ? payload.groups : [];
+      const names = groups.map((g) => String((g && g.name) || ''));
+      const out = await adapter.run(buildCollectionsPrompt(groups, payload.current), opts);
+      return { task, collections: parseCollectionsResult(out, names) };
     }
     // Split one group into sub-groups. The groups file is deliberately NOT fed
     // in here (via rules): the split concerns this single group alone, so the

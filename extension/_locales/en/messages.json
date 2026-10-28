@@ -20,6 +20,6 @@
   "undoHistory": { "message": "Undo history", "description": "Open the undo-history dialog." },
   "exportMarkdown": { "message": "Export as Markdown", "description": "Export the plan as Markdown." },
   "sessionsTitle": { "message": "Sessions", "description": "Sessions section heading." },
-  "mutedTitle": { "message": "Muted & learned", "description": "Muted/learned section heading." },
+  "mutedTitle": { "message": "Never-suggest list", "description": "Heading of the list of suggestions the user told it never to make." },
   "onboardingTitle": { "message": "Connect your AI CLI", "description": "Onboarding card heading." }
 }

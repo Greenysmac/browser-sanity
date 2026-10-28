@@ -1022,6 +1022,34 @@ async function handleTidyParked() {
   }
 }
 
+// "Suggest collections": read the parked groups from the index (with sample tab
+// titles, like tidy) and ask the model to sort them into a few named
+// collections for the board. `current` is the user's existing collection names.
+// Nothing is saved here; the board shows the result and saves it on Go. Quick
+// model slot. Returns { ok, collections: [{ name, groups }] }.
+async function handleSuggestCollections(m) {
+  const settings = await getSettings();
+  const client = await makeClient(settings);
+  let parked = [];
+  try {
+    const index = await client.request({ type: 'index-read' });
+    const indexGroups = (index && Array.isArray(index.groups)) ? index.groups : [];
+    parked = indexGroups
+      .filter((g) => g.status !== 'open')
+      .map((g) => ({ name: g.name || '', tabs: Array.isArray(g.tabs) ? g.tabs.map((t) => ({ title: t.title || '', url: t.url || '' })) : [] }));
+  } finally {
+    client.disconnect();
+  }
+  const current = Array.isArray(m.current) ? m.current.map((n) => String(n || '')).filter(Boolean) : [];
+  const sorter = await makeClient(settings, 'quick');
+  try {
+    const res = await sorter.request({ type: 'organize', task: 'collections', adapter: settings.adapter, payload: { groups: parked, current } });
+    return { ok: true, collections: (res && res.collections) || [] };
+  } finally {
+    sorter.disconnect();
+  }
+}
+
 // Merge several parked groups' tabs into one in the host's index via
 // 'merge-parked'. Returns the host's { ok, tabs } / { ok: false, error }.
 async function handleMergeParked(m) {
@@ -1083,6 +1111,10 @@ const HANDLERS = {
   groupsWrite: handleGroupsWrite,
   splitParked: handleSplitParked,
   tidyParked: handleTidyParked,
+  suggestCollections: handleSuggestCollections,
+  // The side panel itself handles this one (it closes); answer so the new-tab
+  // page's message doesn't come back as an unknown command.
+  closeSidePanel: async () => ({ ok: true }),
   mergeParked: handleMergeParked,
   groupsSplit: handleGroupsSplit,
   splitGroup: handleSplitGroup,

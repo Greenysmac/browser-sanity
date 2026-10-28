@@ -260,3 +260,55 @@ test('the side panel runs a pending re-analysis and drops a stale one', () => {
   assert.match(src, /Date\.now\(\) - pendingReanalyze < 60000/);
   assert.match(src, /changes\.pendingReanalyze/);
 });
+
+// ---- 0.11.0: the button says Close side panel while the panel is open ------
+
+import { isSidePanelOpen, closeSidePanel } from '../extension/newtab/newtab.js';
+
+function panelChrome({ contexts = [], close } = {}) {
+  const sent = [];
+  const api = {
+    runtime: {
+      sendMessage: (msg, cb) => { sent.push(msg); if (cb) cb(msg.cmd === 'boardData' ? FIXTURE : { ok: true }); },
+      getContexts: async (filter) => contexts.filter((c) => filter.contextTypes.includes(c.contextType)),
+    },
+    windows: { getCurrent: async () => ({ id: 42 }) },
+    sidePanel: { open: async () => {}, ...(close ? { close } : {}) },
+  };
+  return { api, sent };
+}
+
+test('isSidePanelOpen finds this window\'s side panel among the extension\'s contexts', async () => {
+  const { api } = panelChrome({ contexts: [{ contextType: 'SIDE_PANEL', windowId: 7 }, { contextType: 'TAB', windowId: 42 }] });
+  assert.equal(await isSidePanelOpen(7, api), true);
+  assert.equal(await isSidePanelOpen(42, api), false, 'another window\'s panel, or a tab, does not count');
+  assert.equal(await isSidePanelOpen(7, { runtime: {} }), false, 'no getContexts: assume closed');
+});
+
+test('the button reads Close side panel while it is open, and closing flips it back', async () => {
+  installFakeDocument();
+  const closed = [];
+  const { api } = panelChrome({ contexts: [{ contextType: 'SIDE_PANEL', windowId: 42 }], close: async (o) => { closed.push(o); } });
+  globalThis.chrome = api;
+  const panelBtn = makeEl('button');
+  await initNewtab({ container: makeEl('div'), note: makeEl('p'), search: makeEl('input'), panelBtn, panelNote: makeEl('p') });
+  assert.equal(panelBtn.textContent, 'Close side panel');
+  await panelBtn.dispatch('click');
+  assert.deepEqual(closed, [{ windowId: 42 }], 'sidePanel.close for this window');
+  assert.equal(panelBtn.textContent, 'Open side panel');
+  await panelBtn.dispatch('click');
+  assert.equal(panelBtn.textContent, 'Close side panel', 'opening flips it again');
+});
+
+test('where Chrome has no sidePanel.close, the panel is asked to close itself', async () => {
+  const { api, sent } = panelChrome();
+  assert.equal(await closeSidePanel(42, api), true);
+  assert.deepEqual(sent.at(-1), { cmd: 'closeSidePanel', windowId: 42 });
+});
+
+test('the side panel closes itself when asked, only for its own window', () => {
+  const src = readFileSync(fileURLToPath(new URL('../extension/sidepanel/sidepanel.js', import.meta.url)), 'utf8');
+  assert.match(src, /msg\.cmd === 'closeSidePanel'/);
+  assert.match(src, /msg\.windowId === myWindowId/);
+  assert.match(src, /window\.close\(\)/);
+});
