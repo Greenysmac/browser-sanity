@@ -39,10 +39,14 @@ async function clearLeftovers() {
 // action made the plan ("Analyze: Put into my groups", "Command", …); it's
 // stamped alongside as currentPlanOrigin so the result card can show a muted
 // "From <label>, <time>" line. An empty label clears the origin.
-function storePlan(items, label = '') {
+// `extra` rides along on the origin; a typed command keeps the instruction and
+// the model's summary there so the panel's command card survives a reload.
+// Resolves to the stored origin.
+async function storePlan(items, label = '', extra = {}) {
   const at = Date.now();
-  const origin = label ? { label, at } : null;
-  return withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items, currentPlanAt: at, currentPlanOrigin: origin }));
+  const origin = label ? { label, at, ...extra } : null;
+  await withLock('currentPlan', () => chrome.storage.local.set({ currentPlan: items, currentPlanAt: at, currentPlanOrigin: origin }));
+  return origin;
 }
 
 // Creates the native client, attaching the openai adapter's UI-entered config
@@ -166,8 +170,8 @@ chrome.omnibox.onInputEntered.addListener(async (text) => {
   const win = await chrome.windows.getLastFocused();
   const client = await makeClient(settings);
   try {
-    const items = await runCommand(instruction, { nativeClient: client, windowId: win.id, settings });
-    await storePlan(items, 'Command');
+    const { items, summary } = await runCommand(instruction, { nativeClient: client, windowId: win.id, settings });
+    await storePlan(items, 'Command', { instruction, summary });
     await chrome.sidePanel.open({ windowId: win.id });
   } finally {
     client.disconnect();
@@ -595,9 +599,9 @@ async function handleCommand(m) {
   const settings = await getSettings();
   const nativeClient = await makeClient(settings);
   try {
-    const items = await runCommand(m.instruction, { nativeClient, windowId: m.windowId ?? null, settings });
-    await storePlan(items, 'Command');
-    return { ok: true, items };
+    const { items, summary } = await runCommand(m.instruction, { nativeClient, windowId: m.windowId ?? null, settings });
+    const origin = await storePlan(items, 'Command', { instruction: m.instruction, summary });
+    return { ok: true, items, origin };
   } finally {
     nativeClient.disconnect();
   }

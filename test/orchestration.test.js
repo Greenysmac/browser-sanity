@@ -105,9 +105,10 @@ test('runCommand applies whitelist + ignore-list via finalizePlan (safety contro
       { id: 2, url: 'https://other.com/y', windowId: 1, index: 1 },
     ]; } },
   };
-  const nativeClient = { request: async () => ({ close: [{ tabId: 1, reason: 'a' }, { tabId: 2, reason: 'b' }], groups: [], important: [] }) };
+  const nativeClient = { request: async () => ({ summary: 'Close the two old tabs.', close: [{ tabId: 1, reason: 'a' }, { tabId: 2, reason: 'b' }], groups: [], important: [] }) };
   const settings = { adapter: 'claude', decisions: {}, whitelist: ['github.com'], ignore: [] };
-  const items = await runCommand('close old tabs', { nativeClient, chromeApi, settings });
+  const { items, summary } = await runCommand('close old tabs', { nativeClient, chromeApi, settings });
+  assert.equal(summary, 'Close the two old tabs.', 'the model\'s summary comes back with the plan');
   const urls = items.filter((i) => i.action === 'closeTab').map((i) => i.data.url);
   assert.ok(!urls.some((u) => new URL(u).hostname === 'github.com'), 'whitelisted host dropped on command path');
   assert.ok(urls.some((u) => new URL(u).hostname === 'other.com'), 'non-whitelisted tab kept');

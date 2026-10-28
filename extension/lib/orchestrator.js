@@ -272,7 +272,9 @@ export function finalizePlan(items, settings, folders = [], rootIds = ROOT_IDS, 
 
 // Runs a free-text natural-language instruction over the current tab set and
 // maps the model's response into the same PlanItem shape as buildPlan, so it
-// goes through the exact same review/apply/undo path.
+// goes through the exact same review/apply/undo path. Returns { items, summary },
+// where summary is the model's one-line reading of the request ('' from an older
+// helper that doesn't send one).
 export async function runCommand(instruction, deps) {
   const { nativeClient, chromeApi = chrome, now = Date.now(), windowId = null, settings = {} } = deps;
   const adapter = settings.adapter || 'claude';
@@ -288,7 +290,7 @@ export async function runCommand(instruction, deps) {
     ...mapImportantResult(r.important, byId),
   ];
   // Same safety tail as buildPlan: dedupe + validate + whitelist + ignore-list.
-  return finalizePlan(items, settings);
+  return { items: finalizePlan(items, settings), summary: typeof r.summary === 'string' ? r.summary : '' };
 }
 
 // Loads agent-written suggestions from the host's proposals.json and maps them

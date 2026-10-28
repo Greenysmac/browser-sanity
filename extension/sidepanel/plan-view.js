@@ -11,6 +11,7 @@ import { hideResults } from './main-panel.js';
 import { fileIntoParkedChecked } from './main-panel.js';
 import { onScopeChange } from './main-panel.js';
 import { onSuggestLeftovers } from './main-panel.js';
+import { showReview } from './main-panel.js';
 import { ignoreKey } from '../lib/orchestrator.js';
 import { TAB_GROUP_COLORS as GROUP_COLORS } from '../lib/colors.js';
 import { STATUS_LABELS } from '../lib/labels.js';
@@ -501,7 +502,7 @@ function confirmBulk(items) {
 // Disabled for the duration of an in-flight apply so a fast double-click can't
 // fire it twice and gives the same busy feedback the scan button already has.
 function setPlanActionsBusy(busy) {
-  for (const id of ['approveSelected', 'approveAll', 'exportMarkdown', 'clearPlan']) {
+  for (const id of ['approveSelected', 'approveAll', 'exportMarkdown', 'clearPlan', 'commandGo', 'commandCancel']) {
     const el = $(id);
     if (el) el.disabled = busy;
   }
@@ -529,6 +530,19 @@ async function applyItems(itemIds) {
   }
 }
 
+// "Clear list" and the command card's Cancel: drop the plan here and in storage
+// so it doesn't reappear on reload.
+async function clearPlan() {
+  plan = [];
+  planOrigin = null;
+  selection = new Set();
+  planFilter = '';
+  $('planFilter').value = '';
+  await send({ cmd: 'updatePlan', items: [] });
+  renderPlan();
+  setStatus('Cleared.');
+}
+
 // " 1 failed: Group "Reading" (3 tabs): No tab with id: 12." for the status
 // line, so a failure says what and why instead of only a count ("Applied 12.
 // 1 failed." said neither). More than one names the first.
@@ -552,7 +566,9 @@ export async function initPlanView() {
   $('putMine').addEventListener('click', () => groupLoose('mine', $('putMine')));
   $('suggestGroups').addEventListener('click', () => groupLoose('suggest', $('suggestGroups')));
   $('resortAll').addEventListener('click', () => resortAll());
-  $('closeDuplicates').addEventListener('click', () => closeDuplicates());
+  // Close duplicates sits on the open-tabs list's title line; a click there
+  // mustn't also open or close the list.
+  $('closeDuplicates').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); closeDuplicates(); });
   $('cancelRun').addEventListener('click', () => send({ cmd: 'cancel' }));
   $('updateIndex').addEventListener('click', async () => {
     setStatus('Updating index…');
@@ -571,15 +587,7 @@ export async function initPlanView() {
     });
   }
 
-  $('clearPlan').addEventListener('click', async () => {
-    plan = [];
-    selection = new Set();
-    planFilter = '';
-    $('planFilter').value = '';
-    await send({ cmd: 'updatePlan', items: [] }); // also clear the stored plan so it doesn't reappear on reload
-    renderPlan();
-    setStatus('Cleared.');
-  });
+  $('clearPlan').addEventListener('click', () => clearPlan());
 
   // Plan toolbar: filter, bulk-select, expand/collapse.
   $('planFilter').addEventListener('input', (e) => { planFilter = e.target.value; renderPlan(); });
@@ -608,16 +616,27 @@ export async function initPlanView() {
     const input = $('commandInput');
     const instruction = input.value.trim();
     if (!instruction) return;
-    setStatus('Running your command… (local Claude CLI)');
+    setStatus('AI is reading your request…');
     const windowId = await currentScopeWindowId();
     const res = await send({ cmd: 'command', instruction, windowId });
     if (!res || !res.ok) { setStatus(`Error: ${(res && res.error) || 'the background worker did not respond — try again'}`); return; }
     plan = res.items || [];
+    planOrigin = res.origin || { label: 'Command', at: Date.now(), instruction };
     selection = new Set();
     renderPlan(true);
-    setStatus(plan.length ? '' : 'No matching tabs found.');
+    setStatus(plan.length ? '' : 'The AI found nothing to do for that. Try saying it another way.');
     input.value = '';
   });
+
+  // The command card: Go applies the whole plan (same path, confirm, and undo
+  // as Apply, so Restore before sort puts it back), Review opens the detailed
+  // list to uncheck steps, and Cancel drops the plan.
+  $('commandGo').addEventListener('click', () => applyItems(plan.map((i) => i.itemId)));
+  $('commandReview').addEventListener('click', () => {
+    showReview();
+    $('plan').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  });
+  $('commandCancel').addEventListener('click', () => clearPlan());
 
   $('approveSelected').addEventListener('click', () => applyItems([...selection]));
   $('approveAll').addEventListener('click', () => applyItems(plan.map((i) => i.itemId)));

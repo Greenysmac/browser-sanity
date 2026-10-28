@@ -35,7 +35,7 @@ test('parseJsonBlock skips prose-with-braces before the JSON answer', () => {
 });
 
 test('parseCommandResult tolerates null/primitive model output', () => {
-  assert.deepEqual(parseCommandResult('null'), { close: [], groups: [], important: [] });
+  assert.deepEqual(parseCommandResult('null'), { summary: '', close: [], groups: [], important: [] });
 });
 
 test('parseJsonBlock strips ANSI color codes and a leading label (kiro-shaped)', () => {
@@ -123,6 +123,12 @@ test('parseCommandResult returns the three optional action arrays', () => {
   assert.equal(r.close.length, 1);
   assert.deepEqual(r.groups, []);
   assert.deepEqual(r.important, []);
+});
+
+test('parseCommandResult passes the model\'s one-line summary through, trimmed and capped', () => {
+  assert.equal(parseCommandResult('{"summary":"  I will group the sites you sign in to. ","groups":[]}').summary, 'I will group the sites you sign in to.');
+  assert.equal(parseCommandResult('{"summary":42}').summary, '', 'a non-string summary is dropped');
+  assert.equal(parseCommandResult(`{"summary":"${'x'.repeat(500)}"}`).summary.length, 300, 'capped at 300 characters');
 });
 
 test('parseJsonBlock stays fast on adversarial unbalanced input (scan budget)', () => {

@@ -46,6 +46,32 @@ export function planSummaryLine(plan) {
   return parts.join(', ');
 }
 
+// The steps on the "Tell me what you want to do" card, one short line each:
+// every group by name (a group named like a parked one says its tabs are put
+// away there), then totals for closes and bookmarks. Past six groups the rest
+// fold into "and N more groups" so the card stays short.
+const MAX_STEP_GROUPS = 6;
+export function commandStepLines(plan) {
+  const items = plan || [];
+  const tabs = (n) => `${n} tab${n === 1 ? '' : 's'}`;
+  const groupLines = items
+    .filter((it) => it.action === 'groupTabs')
+    .map((it) => {
+      const name = (it.data && it.data.groupName) || '';
+      const n = (it.data && it.data.tabIds && it.data.tabIds.length) || 0;
+      return it.data && it.data.parkedMatch
+        ? `Put ${tabs(n)} away in the parked group “${name}”`
+        : `Group ${tabs(n)} into “${name}”`;
+    });
+  const lines = groupLines.slice(0, MAX_STEP_GROUPS);
+  const extra = groupLines.length - lines.length;
+  if (extra > 0) lines.push(`and ${extra} more group${extra === 1 ? '' : 's'}`);
+  const count = (action) => items.filter((it) => it.action === action).length;
+  if (count('closeTab')) lines.push(`Close ${tabs(count('closeTab'))}`);
+  if (count('createBookmark')) lines.push(`Bookmark ${tabs(count('createBookmark'))}`);
+  return lines;
+}
+
 // Friendly display names for the known Claude model ids used by the two slots;
 // any other id (free-text/custom or a backend's own list) passes through as-is.
 const MODEL_DISPLAY_NAMES = {

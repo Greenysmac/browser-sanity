@@ -229,6 +229,8 @@ export function parseTidyResult(text, existingNames) {
 export function parseCommandResult(text) {
   const obj = parseJsonBlock(text) || {}; // model may emit literal null
   return {
+    // The model's one-line reading of the request, shown on the panel's command card.
+    summary: typeof obj.summary === 'string' ? obj.summary.trim().slice(0, 300) : '',
     close: normalizeClose(obj.close),
     groups: Array.isArray(obj.groups) ? normalizeGroups(obj.groups) : [],
     important: Array.isArray(obj.important) ? normalizeImportant(obj.important) : [],

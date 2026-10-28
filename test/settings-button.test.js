@@ -17,7 +17,7 @@ test('the suggestion list (id="plan") sits in the Open tabs part', () => {
   const resultIdx = html.indexOf('id="resultCard"');
   const planIdx = html.indexOf('id="plan"');
   const parkedIdx = html.indexOf('id="parkedGroupsHeading"');
-  assert.ok(html.includes('aria-label="Tools"'), 'Tools section exists');
+  assert.ok(html.includes('id="moreTools"'), 'More tools section exists');
   assert.ok(resultIdx !== -1 && planIdx !== -1 && parkedIdx !== -1);
   assert.ok(resultIdx < planIdx && planIdx < parkedIdx, 'plan list is between the result card and Parked groups');
 });

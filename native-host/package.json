@@ -1,6 +1,6 @@
 {
   "name": "browser-sanity-host",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Native messaging host + installer for the Browser Sanity extension (a fork of Browser Organizer by Lusk Technologies).",
   "type": "module",
   "engines": {

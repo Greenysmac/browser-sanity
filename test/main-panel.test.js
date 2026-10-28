@@ -1,7 +1,7 @@
 // TASK 5 — the redesigned main panel: one Sort card and one result line.
 // Covers:
 //   1. the top-to-bottom order of the parts in the static HTML
-//      (header → sort card → result card → board → board actions → More tools);
+//      (header → sort card → result card → More tools → board);
 //   2. planSummaryLine's text from a sample plan (tabs into groups + duplicates);
 //   3. modelsInUseLine's "endpoint default" fallback for empty slots;
 //   4. Review toggles the detailed suggestion list (reviewHidden class);
@@ -29,14 +29,14 @@ test('the main panel parts appear top-to-bottom in order', () => {
   const header = idx('class="appHeader"');
   const sortCard = idx('id="sortCard"');
   const resultCard = idx('id="resultCard"');
-  const board = idx('id="board"');
-  const boardActions = idx('class="boardActions"');
   const moreTools = idx('id="moreTools"');
+  const boardActions = idx('class="boardActions"');
+  const board = idx('id="board"');
   assert.ok(header < sortCard, 'header before the sort card');
   assert.ok(sortCard < resultCard, 'sort card before the result card');
-  assert.ok(resultCard < board, 'result card before the board');
-  assert.ok(board < boardActions, 'board before the board actions');
-  assert.ok(boardActions < moreTools, 'board actions before More tools');
+  assert.ok(resultCard < moreTools, 'result card before More tools');
+  assert.ok(moreTools < boardActions, 'Update index and Agent suggestions sit in More tools');
+  assert.ok(boardActions < board, 'More tools before the Parked groups board');
 });
 
 test('the segmented control offers the three scopes and the Sort button keeps id="run"', () => {
@@ -46,22 +46,20 @@ test('the segmented control offers the three scopes and the Sort button keeps id
   assert.ok(/<button[^>]*id="run"[^>]*>/.test(html), 'Sort button keeps id="run"');
 });
 
-test('Update index and Agent suggestions are the secondary buttons under the board', () => {
+test('Update index and Agent suggestions are the secondary buttons in More tools', () => {
   const boardActions = html.indexOf('class="boardActions"');
   const after = html.slice(boardActions, boardActions + 400);
-  assert.ok(after.includes('id="updateIndex"'), 'updateIndex under the board');
-  assert.ok(after.includes('id="loadProposals"'), 'loadProposals under the board');
+  assert.ok(after.includes('id="updateIndex"'), 'updateIndex in More tools');
+  assert.ok(after.includes('id="loadProposals"'), 'loadProposals in More tools');
 });
 
-test('the command box and Open tabs live inside the closed <details> "More tools"', () => {
+test('the ask box and the open-tabs list sit above the closed <details> "More tools"', () => {
   const m = html.match(/<details[^>]*id="moreTools"[^>]*>/);
   assert.ok(m, 'moreTools details tag exists');
   assert.ok(!/\bopen\b/.test(m[0]), 'More tools is collapsed by default');
   const start = html.indexOf('id="moreTools"');
-  const end = html.indexOf('</details>', html.indexOf('id="tabsPanel"'));
-  const inside = html.slice(start, end);
-  assert.ok(inside.includes('id="commandPanel"'), 'command box inside More tools');
-  assert.ok(inside.includes('id="tabsPanel"'), 'Open tabs inside More tools');
+  assert.ok(html.indexOf('id="commandForm"') < start, 'the ask box is outside More tools, above it');
+  assert.ok(html.indexOf('id="tabsPanel"') < start, 'the open-tabs list is outside More tools, above it');
 });
 
 // ---- 2 & 3. Pure summary / models lines -------------------------------------

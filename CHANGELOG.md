@@ -2,6 +2,14 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## 0.10.0 — 2026-10-28
+First public release, at https://github.com/Greenysmac/browser-sanity.
+- The side panel reads top to bottom: Open tabs, then "Tell me what you want to do", then Parked groups. The ⋯ button and its separate view are gone.
+- The open-tabs list (filter, select, close by hand) moved out of the ⋯ view to the bottom of the Open tabs part, closed until you click it. Close duplicates sits on its title line.
+- "Tell me what you want to do" replaces "Type a command" and is always in view. Type a request in your own words ("find every page where I'm logged in and group them"); a card shows what you asked, the AI's one-line reading of it, and the steps it will take. Go applies them, Review opens the full list to uncheck steps, Cancel drops them, and Restore before sort puts it all back. The AI sees titles and web addresses only, and says so when a request needs more. Requests typed as `org …` in the address bar land on the same card.
+- More tools (Update index, Agent suggestions, Muted & learned, Undo history, the version) is a closed fold between the ask box and Parked groups.
+- On the new-tab page, parked groups fill each column top to bottom, like a Kanban column, so dragging one moves it up or down. They used to fill left to right across rows.
+
 ## 0.9.1 — 2026-10-19
 - When the AI command fails, the panel says why. A Claude login that had expired showed only "Couldn't sort your tabs: CLI exited 1:"; it now reads "Claude isn't signed in on this computer. Open Terminal, run claude, and sign in, then try again", followed by Claude's own message. Other command-line failures that report their reason in normal output, not the error stream, now show that reason too.
 

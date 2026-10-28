@@ -97,6 +97,13 @@ test('command prompt embeds the instruction and wraps tab data', () => {
   assert.match(p, /1\tFlights\thttps:\/\/x\t1\tTrip/);
 });
 
+test('command prompt asks for a one-sentence summary and admits what it cannot see', () => {
+  const p = buildCommandPrompt('find every page where I am logged in', []);
+  assert.match(p, /"summary"/, 'the JSON shape carries a summary');
+  assert.match(p, /one plain sentence/i);
+  assert.match(p, /titles and web addresses/i, 'the model is told to say when it is going by titles and URLs');
+});
+
 test('group prompt includes rules when provided', () => {
   const p = buildGroupPrompt([{ tabId: 1, title: 't', url: 'https://a', idleDays: 1 }], 'Never group mail.google.com');
   assert.match(p, /Never group mail\.google\.com/);

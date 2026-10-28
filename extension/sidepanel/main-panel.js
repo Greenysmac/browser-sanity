@@ -6,7 +6,7 @@
 // (run / scope / sortSelected / approveAll) so current behavior is unchanged.
 import { $ } from './dom.js';
 import { getSettings } from '../lib/storage.js';
-import { planSummaryLine, modelsInUseLine, originLine, modelDisplayName } from './viewmodel.js';
+import { planSummaryLine, modelsInUseLine, originLine, modelDisplayName, commandStepLines } from './viewmodel.js';
 
 // Reflect the extension version in the header: version_name preferred (it reads
 // "0.2.2 Browser Sanity"), falling back to the bare version. Guarded so unit
@@ -202,17 +202,48 @@ function paintResultOrigin(card, origin) {
   else card.appendChild(p);
 }
 
+// A plan made from a typed request (the panel's "Tell me what you want to do" box
+// or "org …" in the address bar) carries origin.label 'Command'.
+function isCommandPlan(origin) {
+  return !!(origin && origin.label === 'Command');
+}
+
+// The command card under the ask box: what you asked, the AI's one-line reading
+// of it (or a plain fallback from an older helper), and one line per step. Go,
+// Review, and Cancel are wired in plan-view, which owns the plan. Hidden when the
+// plan is empty or came from a sort.
+function paintCommandCard(items, origin) {
+  const card = $('commandCard');
+  if (!card) return;
+  const show = items.length > 0 && isCommandPlan(origin);
+  card.hidden = !show;
+  const asked = $('commandAsked');
+  if (asked) asked.textContent = show && origin.instruction ? `You asked: ${origin.instruction}` : '';
+  const understood = $('commandUnderstood');
+  if (understood) understood.textContent = show ? (origin.summary || 'Here is what the AI will do.') : '';
+  const steps = $('commandSteps');
+  if (!steps) return;
+  steps.textContent = '';
+  for (const line of show ? commandStepLines(items) : []) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    steps.appendChild(li);
+  }
+}
+
 // Update the result card from the current plan: one plain summary line, a muted
 // "From <label>, <time>" origin line, plus the "N suggestions." count (shown
 // only here, not in the status line above). The card is shown whenever there's
-// a plan to apply. `origin` is the { label, at } the plan carries, or null.
+// a plan to apply, except a typed request's plan, which shows on the command
+// card instead. `origin` is the { label, at } the plan carries, or null.
 export function updateResultCard(plan, origin = null) {
   const card = $('resultCard');
   if (!card) return;
   const items = plan || [];
+  paintCommandCard(items, origin);
   const line = planSummaryLine(items);
   const hasResult = items.length > 0;
-  card.hidden = !hasResult;
+  card.hidden = !hasResult || isCommandPlan(origin);
   const summary = $('resultSummary');
   if (summary) summary.textContent = line;
   paintResultOrigin(card, hasResult ? origin : null);
@@ -224,7 +255,8 @@ export function updateResultCard(plan, origin = null) {
 }
 
 // Review toggles the detailed suggestion list (and its toolbar/actions), which
-// is hidden by default. Returns the new shown state.
+// is hidden by default. The command card's Review shows it too (showReview).
+export function showReview() { setReviewShown(true); }
 function setReviewShown(shown) {
   const btn = $('reviewToggle');
   if (btn) btn.setAttribute('aria-expanded', String(shown));
@@ -244,14 +276,6 @@ export function hideResults() {
 export function initMainPanel() {
   paintVersion();
   paintModelsInUse();
-
-  // The ⋯ opens the More view (board tools, sessions, muted) and "Done" returns,
-  // mirroring the Settings view: body[data-view="more"] swaps the main content.
-  const setView = (view) => { if (document.body) document.body.dataset.view = view; };
-  const openMore = $('openMore');
-  if (openMore) openMore.addEventListener('click', () => setView('more'));
-  const moreDone = $('moreDone');
-  if (moreDone) moreDone.addEventListener('click', () => setView('main'));
 
   const seg = $('scopeSegment');
   if (seg) {

@@ -43,12 +43,12 @@ function rule(selector) {
 
 // ---- 1. The header holds only the four parts, not the version ---------------
 
-test('the header holds only the mark+name, Restore button, ⋯, and gear', () => {
+test('the header holds only the mark+name, Restore button, and gear', () => {
   const header = headerSlice();
   assert.ok(header.includes('class="brandMark"'), 'the Browser Sanity mark');
   assert.ok(header.includes('data-i18n="panelTitle"'), 'the Browser Sanity name');
   assert.ok(header.includes('id="headerUndoBtn"'), 'the Restore before sort button');
-  assert.ok(header.includes('id="openMore"'), 'the ⋯ button');
+  assert.ok(!header.includes('id="openMore"'), 'no ⋯ button (More tools is in the panel now)');
   assert.ok(header.includes('id="openSettings"'), 'the gear');
   // The version no longer lives in the header.
   assert.ok(!header.includes('id="appVersion"'), 'the version is not in the header');
@@ -64,12 +64,12 @@ test('the Restore before sort button has the no-wrap rule and smaller text', () 
   assert.ok(Number(m[1]) <= 11, 'the text is small enough to fit beside the name');
 });
 
-// ---- 3. The More view shows the version from the manifest -------------------
+// ---- 3. More tools shows the version from the manifest ----------------------
 
-test('the version line sits at the top of the More view as "Browser Sanity <version>"', () => {
-  const moreStart = at('id="moreView"');
+test('the version line sits in More tools as "Browser Sanity <version>"', () => {
+  const moreStart = at('id="moreTools"');
   const versionIdx = at('id="appVersion"');
-  assert.ok(versionIdx > moreStart, 'the version lives inside the More view');
+  assert.ok(versionIdx > moreStart, 'the version lives inside More tools');
   // The static markup prefixes the manifest value with "Browser Sanity".
   const slice = html.slice(moreStart, versionIdx + 40);
   assert.ok(/Browser Sanity\s*<span id="appVersion"/.test(slice), 'reads "Browser Sanity <version>"');

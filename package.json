@@ -1,6 +1,6 @@
 {
   "name": "browser-sanity",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Browser Sanity: sort Chrome tabs into need-based groups with your own AI. A fork of Browser Organizer by Lusk Technologies.",
   "license": "MIT",
   "author": "Jeff Greenberg",

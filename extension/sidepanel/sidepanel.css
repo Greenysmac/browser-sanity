@@ -273,14 +273,12 @@ h1 { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
   color: var(--text-muted);
 }
 .secondaryBtn:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border-strong); }
-.moreTools { margin-bottom: 14px; }
 
 /* Review toggle hides/shows the detailed suggestion list and its toolbar. */
 .reviewHidden { display: none !important; }
 
-/* The gear opens Settings as its own view, and the ⋯ opens More as its own view:
-   body[data-view] hides the other surfaces and reveals only the active panel;
-   each view's "Done" head shows only in that view and returns to the main view. */
+/* The gear opens Settings as its own view: body[data-view] hides the other
+   surfaces and reveals only the settings; its "Done" head returns to the main view. */
 .settingsViewHead { display: none; margin-bottom: 10px; }
 body[data-view="settings"] .settingsViewHead { display: block; }
 /* The Settings panel never shows in the main view; the gear opens its view. */
@@ -293,7 +291,9 @@ body[data-view="settings"] #board,
 body[data-view="settings"] .boardActions,
 body[data-view="settings"] .parkedActions,
 body[data-view="settings"] #moreTools,
-body[data-view="settings"] #moreView,
+body[data-view="settings"] #tabsPanel,
+body[data-view="settings"] #askPart,
+body[data-view="settings"] #undoToast,
 body[data-view="settings"] #onboarding,
 body[data-view="settings"] #summary,
 body[data-view="settings"] #planTools,
@@ -308,25 +308,6 @@ body[data-view="settings"] #mutedPanel,
 body[data-view="settings"] .toolRow { display: none !important; }
 
 /* The More view: its head shows only in that view; everything else is hidden. */
-.moreViewHead { display: none; margin-bottom: 10px; }
-#moreView { display: none; }
-body[data-view="more"] #moreView { display: block; }
-body[data-view="more"] .moreViewHead { display: block; }
-body[data-view="more"] .heroControls,
-body[data-view="more"] #resultCard,
-body[data-view="more"] #parkedGroupsHeading,
-body[data-view="more"] #parkedGroupsHeading + .partLine,
-body[data-view="more"] .parkedActions,
-body[data-view="more"] #tidyCard,
-body[data-view="more"] #splitCard,
-body[data-view="more"] #board,
-body[data-view="more"] #onboarding,
-body[data-view="more"] #summary,
-body[data-view="more"] #planTools,
-body[data-view="more"] #planEmptyState,
-body[data-view="more"] #plan,
-body[data-view="more"] #planActions,
-body[data-view="more"] .tools { display: none !important; }
 
 /* ---------- Controls ---------- */
 button {
@@ -432,10 +413,6 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 #hostUpdate[hidden] { display: none; }
 
 /* ---------- Command box ---------- */
-.commandForm { display: grid; gap: 6px; margin-bottom: 14px; }
-.commandForm label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); }
-.commandForm input { width: 100%; }
-.commandForm button { justify-self: start; }
 
 /* ---------- Summary ---------- */
 #summary {
@@ -919,14 +896,14 @@ kbd { font-family: var(--mono); font-size: 10px; background: var(--surface-2); b
 #exportSessions { margin: 0 12px 12px; }
 
 /* ---------- Disclosure sections ---------- */
-#settings, #sessions, #tabsPanel, #mutedPanel {
+#settings, #sessions, #tabsPanel, #mutedPanel, #moreTools {
   margin-top: 14px;
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--surface);
   overflow: hidden;
 }
-#settings > summary, #sessions > summary, #tabsPanel > summary, #mutedPanel > summary {
+#settings > summary, #sessions > summary, #tabsPanel > summary, #mutedPanel > summary, #moreTools > summary {
   cursor: pointer;
   padding: 10px 12px;
   font-weight: 600;
@@ -935,8 +912,8 @@ kbd { font-family: var(--mono); font-size: 10px; background: var(--surface-2); b
   align-items: center;
   gap: 8px;
 }
-#settings > summary::-webkit-details-marker, #sessions > summary::-webkit-details-marker, #tabsPanel > summary::-webkit-details-marker, #mutedPanel > summary::-webkit-details-marker { display: none; }
-#settings > summary::before, #sessions > summary::before, #tabsPanel > summary::before, #mutedPanel > summary::before {
+#settings > summary::-webkit-details-marker, #sessions > summary::-webkit-details-marker, #tabsPanel > summary::-webkit-details-marker, #mutedPanel > summary::-webkit-details-marker, #moreTools > summary::-webkit-details-marker { display: none; }
+#settings > summary::before, #sessions > summary::before, #tabsPanel > summary::before, #mutedPanel > summary::before, #moreTools > summary::before {
   content: "";
   width: 6px; height: 6px; flex: none;
   border-right: 2px solid var(--text-faint);
@@ -944,7 +921,7 @@ kbd { font-family: var(--mono); font-size: 10px; background: var(--surface-2); b
   transform: rotate(-45deg);
   transition: transform var(--dur) ease;
 }
-#settings[open] > summary::before, #sessions[open] > summary::before, #tabsPanel[open] > summary::before, #mutedPanel[open] > summary::before { transform: rotate(45deg); }
+#settings[open] > summary::before, #sessions[open] > summary::before, #tabsPanel[open] > summary::before, #mutedPanel[open] > summary::before, #moreTools[open] > summary::before { transform: rotate(45deg); }
 
 /* minmax(0, 1fr): without an explicit track size, the implicit auto column
    grows to fit its widest child's max-content (e.g. long unbroken text/a
@@ -1122,20 +1099,26 @@ li.nonHttp span:not(.tabTag) { color: var(--text-muted); }
 .toolRow { display: flex; gap: 6px; margin-top: 10px; }
 .toolRow button { flex: 1 1 auto; font-size: 12px; color: var(--text-muted); }
 
-/* Command panel — same disclosure look as the other tools */
-#commandPanel { margin-top: 8px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); overflow: hidden; }
-#commandPanel > summary { cursor: pointer; padding: 10px 12px; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 8px; }
-#commandPanel > summary::-webkit-details-marker { display: none; }
-#commandPanel > summary::before {
-  content: ""; width: 6px; height: 6px; flex: none;
-  border-right: 2px solid var(--text-faint); border-bottom: 2px solid var(--text-faint);
-  transform: rotate(-45deg); transition: transform var(--dur) ease;
-}
-#commandPanel[open] > summary::before { transform: rotate(45deg); }
-.commandForm { display: grid; gap: 6px; padding: 2px 12px 8px; margin: 0; }
-.commandForm input { width: 100%; }
-.commandForm button { justify-self: start; }
-#commandPanel .hint { padding: 0 12px 12px; margin: 0; }
+/* ---------- Ask: "Tell me what you want to do" ---------- */
+.askPart { margin-top: 18px; }
+.commandForm { display: flex; gap: 6px; margin: 4px 0 4px; }
+.commandForm input { flex: 1 1 auto; min-width: 0; }
+.commandForm button { flex: none; }
+.askLine { margin-bottom: 8px; }
+.commandAsked { margin: 0 0 4px; font-size: 11px; color: var(--text-faint); overflow-wrap: anywhere; }
+.commandSteps { margin: 6px 0 10px; padding-left: 18px; font-size: 12px; color: var(--text-muted); display: grid; gap: 2px; }
+.commandSteps:empty { display: none; }
+
+/* More tools: a closed fold like the others, its tools padded inside. */
+#moreTools { margin-bottom: 18px; }
+.moreToolsBody { padding: 0 12px 12px; }
+.moreToolsBody .boardActions { margin-top: 0; }
+.moreToolsBody .hint { margin: 0 0 6px; }
+.moreToolsBody #mutedPanel { margin-top: 8px; }
+.moreToolsBody .appVersion { margin: 10px 0 0; }
+
+/* Close duplicates rides on the open-tabs list's title line, pushed right. */
+.summaryLinkBtn { margin-left: auto; font-weight: 400; }
 
 /* ---------- Plan item entrance (fresh results only; opacity/transform only) ---------- */
 @keyframes itemEnter {
