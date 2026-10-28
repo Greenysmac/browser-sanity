@@ -213,9 +213,21 @@ test('both top-level sections are open <details> so the user can fold them', asy
   const container = makeEl('div');
   const { send } = makeSend(FIXTURE);
   await renderBoard(container, { send });
-  const details = walk(container).filter((n) => n.tagName === 'DETAILS' && n.className === 'boardSection');
+  const details = walk(container).filter((n) => n.tagName === 'DETAILS' && String(n.className).split(/\s+/).includes('boardSection'));
   assert.equal(details.length, 2);
   assert.ok(details.every((d) => d.open === true), 'both sections start open');
+});
+
+test('only the Parked section carries boardSection--parked (it stacks top to bottom)', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  await renderBoard(container, { send });
+  const details = walk(container).filter((n) => n.tagName === 'DETAILS' && String(n.className).split(/\s+/).includes('boardSection'));
+  const summaryOf = (d) => String(((d.children || []).find((c) => c.tagName === 'SUMMARY') || {}).textContent || '');
+  const parked = details.filter((d) => String(d.className).split(/\s+/).includes('boardSection--parked'));
+  assert.equal(parked.length, 1, 'exactly one section is the parked one');
+  assert.equal(summaryOf(parked[0]).indexOf('Parked'), 0, 'and it is the Parked section');
 });
 
 // A fake chrome.storage.local-shaped store for the once-a-day describe memory.
@@ -1042,7 +1054,7 @@ test('an expanded parked card prefers parkedAt over lastSeen for the parked date
 
 // The parked-group names in the order they render, read from the parked section.
 function parkedNames(container) {
-  const section = walk(container).find((n) => n.tagName === 'DETAILS' && n.className === 'boardSection'
+  const section = walk(container).find((n) => n.tagName === 'DETAILS' && String(n.className).split(/\s+/).includes('boardSection')
     && (n.children || []).some((c) => c.tagName === 'SUMMARY' && String(c.textContent || '').indexOf('Parked') === 0));
   if (!section) return [];
   return (section.children || [])

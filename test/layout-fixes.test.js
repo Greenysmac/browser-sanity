@@ -68,6 +68,19 @@ test('the shared .boardSection rule is an auto-fill column grid, one-line names'
   assert.match(name, /white-space:\s*nowrap/, 'names stay on one line');
 });
 
+// Parked groups read like a Kanban column on the new-tab page: CSS columns fill
+// each column top to bottom before the next, so dragging a group moves it up or
+// down a stack instead of left to right across a grid row.
+test('the new-tab Parked section fills columns top to bottom, not grid rows', () => {
+  const parked = block(newtabCss, '.boardSection--parked::details-content');
+  assert.match(parked, /display:\s*block/, 'not a grid (a grid fills left to right)');
+  assert.match(parked, /columns:\s*300px/, 'columns about 300px wide, like the Open now grid');
+  const row = block(newtabCss, '.boardSection--parked .boardRow');
+  assert.match(row, /break-inside:\s*avoid/, 'a group card never splits across two columns');
+  const empty = block(newtabCss, '.boardSection--parked .boardEmpty');
+  assert.match(empty, /column-span:\s*all/, 'the empty line spans every column');
+});
+
 // Fake DOM shared by the new-tab behavioural check (same minimal surface the
 // other new-tab suites use).
 function makeEl(tag) {

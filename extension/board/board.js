@@ -930,7 +930,8 @@ export async function renderBoard(container, { send, setStatus = () => {}, stora
 
   const parkedSection = document.createElement('details');
   parkedSection.open = true;
-  parkedSection.className = 'boardSection';
+  // The modifier lets the new-tab page stack parked groups top to bottom.
+  parkedSection.className = 'boardSection boardSection--parked';
   const parkedSummary = document.createElement('summary');
   parkedSummary.textContent = `Parked · ${parked.length}`;
   parkedSection.appendChild(parkedSummary);

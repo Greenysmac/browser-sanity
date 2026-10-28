@@ -160,6 +160,16 @@ textarea, input {
   margin-bottom: 0;
   cursor: pointer;
 }
+/* Parked groups read like a Kanban column: CSS columns fill each column top to
+   bottom before starting the next, so dragging a group moves it up or down a
+   stack. A grid would fill left to right across each row. */
+.boardSection--parked::details-content {
+  display: block;
+  columns: 300px;
+  column-gap: 12px;
+}
+.boardSection--parked .boardRow { break-inside: avoid; margin-bottom: 6px; }
+.boardSection--parked .boardEmpty { column-span: all; }
 .boardRow:hover { border-color: var(--border-strong); }
 .boardDot {
   width: 10px;
