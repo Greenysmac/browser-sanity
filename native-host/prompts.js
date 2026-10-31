@@ -187,8 +187,9 @@ export function buildTidyParkedPrompt(groups) {
 // the board). `current` is the user's existing collections, each { name, groups }
 // (a bare name works too). The groups in them stay where they are and aren't in
 // the data; the model may file a new group into one of them by name or start a
-// new collection. They sit outside the data fence because the user typed or
-// approved them.
+// new collection. The collection names sit outside the data fence because the
+// user typed or approved them; the group names in them are data (they come from
+// tab titles or the model), so they go in a fence of their own.
 export function buildCollectionsPrompt(groups, current = []) {
   const list = (Array.isArray(current) ? current : [])
     .map((c) => (c && typeof c === 'object' ? c : { name: c, groups: [] }))
@@ -197,7 +198,10 @@ export function buildCollectionsPrompt(groups, current = []) {
   const sorting = list.length
     ? [
       'The user already has these collections. The groups in them stay where they are and are not in the data below.',
-      ...list.map((c) => `- ${c.name}${c.groups.length ? ` (holds: ${c.groups.join('; ')})` : ''}`),
+      ...list.map((c) => `- ${c.name}`),
+      ...(list.some((c) => c.groups.length)
+        ? [wrapWithFence(list.filter((c) => c.groups.length).map((c) => `COLLECTION ${c.name}\n${c.groups.map((g) => `  ${g}`).join('\n')}`).join('\n'), 'CURRENT')]
+        : []),
       'File each group in the data into one of these by using its exact name, or into a new collection.',
       'A new collection needs at least 2 groups. Keep the total to 8 collections or fewer.',
     ]

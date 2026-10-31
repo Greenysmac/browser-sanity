@@ -23,9 +23,12 @@ test('collections prompt lists each parked group inside the data fence and asks 
   assert.match(p, /GROUP Claude Code help \(1 tabs\)/);
   assert.match(p, /GROUP Premiere help \(4 tabs\)/);
   assert.match(p, /"collections"/);
-  assert.match(p, /- Claude \(holds: Claude agents\)/, 'each current collection and what it holds');
+  assert.match(p, /^- Claude$/m, 'each current collection by name');
   assert.match(p, /stay where they are/);
-  assert.ok(p.indexOf('- Claude') < p.indexOf('BEGIN DATA'), 'current collections sit outside the data fence');
+  assert.ok(p.indexOf('- Claude') < p.indexOf('BEGIN CURRENT'), 'the collection names sit outside the fences');
+  const fenced = p.slice(p.indexOf('BEGIN CURRENT'), p.indexOf('END CURRENT'));
+  assert.match(fenced, /COLLECTION Claude\n {2}Claude agents/, 'what each one holds is fenced as data');
+  assert.equal(p.indexOf('Claude agents'), p.indexOf('  Claude agents') + 2, 'the group name appears only inside the fence');
 });
 
 test('collections prompt still takes bare collection names', () => {
