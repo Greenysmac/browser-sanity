@@ -2,6 +2,9 @@
 
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
+## Unreleased
+- After an update, a button that needs the new version (Suggest collections…, Close side panel) said only "unknown command" when Chrome was still running the old background script. It now says to reload Browser Sanity on chrome://extensions.
+
 ## 0.11.0 — 2026-10-28
 - Collections: parked groups can sit in named boxes, like columns on a Kanban board. **Suggest collections…** asks the AI to sort them (Claude, Video editing, Health…); you see the result and click Go. Then drag groups between boxes, rename or remove a box from its ⋯ menu, or add a **New collection**. Each box has its own title and a heavy line at the bottom, folds on its own, and **Fold all** folds every one. On the new-tab page the boxes sit in rows and a narrower window moves a whole box to the next row, so groups never slide from one collection into another. Groups that aren't in a collection sit in a **Not in a collection** box.
 - Dragging in one window shows in the other: reordering, moving between collections or folding in the side panel repaints the new-tab page right away, and the other way round. Before, the other window caught up only on reload.

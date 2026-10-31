@@ -7,12 +7,13 @@
 // user types.
 import { renderBoard } from '../board/board.js';
 import { isHttpUrl } from '../lib/url-utils.js';
+import { explainStaleWorker } from '../lib/stale-worker.js';
 
 // One request/response round-trip to the service worker, same as the panel's
 // dom.js send: resolves with whatever the handler returned, or undefined if the
 // worker never replied (asleep/crashed).
 export function send(message) {
-  return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+  return new Promise((resolve) => chrome.runtime.sendMessage(message, (res) => resolve(explainStaleWorker(res))));
 }
 
 // Show the rows whose group name contains `query` (case-insensitive, trimmed),

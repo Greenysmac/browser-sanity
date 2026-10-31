@@ -3,6 +3,8 @@
 // here (instead of duplicated per view) is what lets the panel split into
 // feature modules without a tangle of cross-imports.
 
+import { explainStaleWorker } from '../lib/stale-worker.js';
+
 export const $ = (id) => document.getElementById(id);
 
 export const setStatus = (t) => {
@@ -65,7 +67,7 @@ export function confirmAction({ title = 'Apply changes?', message = 'Are you sur
 // One request/response round-trip to the service worker. Resolves with whatever
 // the handler returned, or undefined if the worker never replied (asleep/crashed).
 export function send(message) {
-  return new Promise((resolve) => chrome.runtime.sendMessage(message, resolve));
+  return new Promise((resolve) => chrome.runtime.sendMessage(message, (res) => resolve(explainStaleWorker(res))));
 }
 
 // All settings WRITES go through the service worker so they serialize under its
