@@ -290,7 +290,8 @@ textarea, input {
   padding: 0;
   font-size: 12px;
 }
-.boardTabList li { margin: 2px 0; }
+.boardTabList li { margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.boardTabList li > a { display: block; overflow: hidden; text-overflow: ellipsis; }
 .boardTabList a { color: var(--accent); text-decoration: none; }
 .boardTabList a:hover { text-decoration: underline; }
 /* Each tab line: the site name in bold, then the page title in normal weight. */
@@ -308,7 +309,7 @@ textarea, input {
    name, and an opened row's expanded area or editor sits on its own line. */
 .boardName { flex: 0 1 auto; }
 .boardCount { white-space: nowrap; flex: none; }
-.boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; }
+.boardRow > .boardExpanded, .boardRow > .boardDescEditor { flex: 1 1 100%; min-width: 0; }
 
 /* Real-browser fixes for 0.5.0: the name shrinks first so
    the count and the ⋯ button stay on the first line; only an opened card's
@@ -371,6 +372,7 @@ textarea, input {
 .boardToolBtn:hover, .boardToolBtn:focus-visible { text-decoration: underline; }
 .boardToolBtn:disabled { color: var(--text-faint); cursor: default; text-decoration: none; }
 .boardCollection {
+  min-width: 0; /* a long tab line is cut off, not a wider box */
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-bottom: 3px solid var(--border-strong);

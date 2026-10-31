@@ -3,6 +3,7 @@
 Browser Sanity is a fork of [Browser Organizer](https://github.com/LUSKTECH/browser-organizer) 0.1.8 by Lusk Technologies. Versions 0.2.0 and later are Browser Sanity; the entries from 0.1.8 down are the original project's, kept as they were.
 
 ## Unreleased
+- A card's tab lines stay on one line, cut off with … at the card's edge; hover for the whole title and address. A tab without a page title shows the part of its address after the site (/checkout/details?step=shipping) instead of the whole address, which ran past the card.
 - **Suggest collections** shows a moving bar and a clock while the AI works, and the button stays off until it answers. Before, the only sign was the button's own text, which a repaint could wipe.
 - **Suggest collections again** keeps what's already in your collections. Only the groups that aren't in one go to the AI, which files them into one of your collections or a new one; Go adds them and moves nothing. When every group is already in a collection, it says so without asking the AI.
 - After an update, a button that needs the new version (Suggest collections…, Close side panel) said only "unknown command" when Chrome was still running the old background script. It now says to reload Browser Sanity on chrome://extensions.

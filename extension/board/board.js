@@ -157,14 +157,29 @@ function descriptionEditor({ name, description, suggested, send, setStatus }) {
 // "+ <n> more" line instead of listing the rest.
 const MAX_TAB_LINES = 5;
 
+// What follows the site in a URL ("/checkout/details?step=shipping"), shown in
+// place of a missing page title since the site name is already on the line.
+// Empty for a bare home page.
+function urlRest(url) {
+  try {
+    const u = new URL(url);
+    const rest = `${u.pathname}${u.search}${u.hash}`;
+    return rest === '/' ? '' : rest;
+  } catch {
+    return String(url || '');
+  }
+}
+
 // Build one tab line (<li>): the site name (hostname without "www.") in bold,
-// then the page title in normal weight. For an open group `onOpenTab` makes the
+// then the page title (or, without one, the rest of the URL) in normal weight. For an open group `onOpenTab` makes the
 // whole line a link that focuses the tab; a parked group's line is plain text.
 // Built with createElement so names/titles can't inject markup.
 function tabLine(t, onOpenTab) {
   const li = document.createElement('li');
   const site = siteName(t && t.url);
-  const title = (t && t.title) || (t && t.url) || '';
+  const title = (t && t.title) || (site ? urlRest(t.url) : (t && t.url)) || '';
+  // The line is cut off with "…" at the card's edge; hovering shows it whole.
+  li.title = [t && t.title, t && t.url].filter(Boolean).join('\n');
   const makeContent = (host) => {
     if (site) {
       const siteEl = document.createElement('strong');

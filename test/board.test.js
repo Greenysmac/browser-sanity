@@ -914,6 +914,23 @@ test('each tab line shows the hostname (without www) in bold, then the title in 
   assert.equal(title.textContent, 'The spec', 'the title follows in normal weight');
 });
 
+test('a tab with no title shows the rest of its URL after the site, and hovering shows the whole URL', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  const { send } = makeSend(FIXTURE);
+  const url = 'https://www.jwpepper.com/checkout/details?step=shipping';
+  const { api } = makeFocusChrome({ 7: [{ id: 11, title: '', url, windowId: 1 }, { id: 12, title: '', url: 'https://example.com/', windowId: 1 }] });
+  await renderBoard(container, { send, chromeApi: api });
+  const row = rowFor(container, 'Work');
+  clickRow(row);
+  await flush();
+  const list = walk(expandedOf(row)).find((n) => n.className === 'boardTabList');
+  const [first, second] = list.children || [];
+  assert.equal(walk(first).find((n) => n.className === 'boardTabTitle').textContent, '/checkout/details?step=shipping');
+  assert.equal(first.title, url);
+  assert.ok(!walk(second).some((n) => n.className === 'boardTabTitle'), 'a bare home page shows just the site');
+});
+
 test('a card lists at most five tab lines and a "+ n more" line for the rest', async () => {
   installFakeDocument();
   const container = makeEl('div');
