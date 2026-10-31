@@ -184,18 +184,34 @@ export function buildTidyParkedPrompt(groups) {
 }
 
 // Sort the parked groups into a few named collections (Kanban-style columns on
-// the board). `current` is the user's existing collection names, offered so the
-// model keeps a name that still fits; they sit outside the data fence because
-// the user typed or approved them.
+// the board). `current` is the user's existing collections, each { name, groups }
+// (a bare name works too). The groups in them stay where they are and aren't in
+// the data; the model may file a new group into one of them by name or start a
+// new collection. They sit outside the data fence because the user typed or
+// approved them.
 export function buildCollectionsPrompt(groups, current = []) {
-  const names = (Array.isArray(current) ? current : []).map((n) => clip(n, 40)).filter(Boolean);
+  const list = (Array.isArray(current) ? current : [])
+    .map((c) => (c && typeof c === 'object' ? c : { name: c, groups: [] }))
+    .map((c) => ({ name: clip(c.name, 40), groups: (Array.isArray(c.groups) ? c.groups : []).map((g) => clip(g, 60)).filter(Boolean) }))
+    .filter((c) => c.name);
+  const sorting = list.length
+    ? [
+      'The user already has these collections. The groups in them stay where they are and are not in the data below.',
+      ...list.map((c) => `- ${c.name}${c.groups.length ? ` (holds: ${c.groups.join('; ')})` : ''}`),
+      'File each group in the data into one of these by using its exact name, or into a new collection.',
+      'A new collection needs at least 2 groups. Keep the total to 8 collections or fewer.',
+    ]
+    : [
+      'Make 3 to 8 collections, each with a short name of 1 to 3 words that says what the groups in it are for.',
+      'A collection needs at least 2 groups.',
+    ];
   return [
     'You sort a user\'s parked browser tab groups into a few collections, like columns on a Kanban board.',
     'Each GROUP line names a parked group and its tab count; the indented lines under it are sample tab titles.',
-    'Make 3 to 8 collections, each with a short name of 1 to 3 words that says what the groups in it are for.',
+    ...sorting,
+    'A new collection gets a short name of 1 to 3 words that says what the groups in it are for.',
     'Put each group in at most one collection. Leave a group out when it fits none; it stays on its own.',
-    'A collection needs at least 2 groups. Only reference group names present in the data below.',
-    ...(names.length ? [`Current collections (keep a name when it still fits): ${names.join('; ')}`] : []),
+    'Only reference group names present in the data below.',
     'Respond with ONLY this JSON, no prose:',
     '{"collections":[{"name":"Short name","groups":["group name","group name"]}]}',
     '',

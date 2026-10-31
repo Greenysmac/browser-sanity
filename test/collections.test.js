@@ -17,19 +17,25 @@ import { handle } from '../native-host/dispatch.js';
 test('collections prompt lists each parked group inside the data fence and asks for collections JSON', () => {
   const p = buildCollectionsPrompt(
     [{ name: 'Claude Code help', tabs: [{ title: 'Docs', url: 'https://x' }] }, { name: 'Premiere help', tabCount: 4 }],
-    ['Claude'],
+    [{ name: 'Claude', groups: ['Claude agents'] }],
   );
   assert.match(p, /BEGIN DATA/);
   assert.match(p, /GROUP Claude Code help \(1 tabs\)/);
   assert.match(p, /GROUP Premiere help \(4 tabs\)/);
   assert.match(p, /"collections"/);
-  assert.match(p, /Claude/, 'the current collection names are offered so they can be kept');
-  assert.ok(p.indexOf('Current collections') < p.indexOf('BEGIN DATA'), 'current names sit outside the data fence');
+  assert.match(p, /- Claude \(holds: Claude agents\)/, 'each current collection and what it holds');
+  assert.match(p, /stay where they are/);
+  assert.ok(p.indexOf('- Claude') < p.indexOf('BEGIN DATA'), 'current collections sit outside the data fence');
+});
+
+test('collections prompt still takes bare collection names', () => {
+  assert.match(buildCollectionsPrompt([{ name: 'A', tabCount: 1 }], ['Claude']), /^- Claude$/m);
 });
 
 test('collections prompt without current collections says nothing about them', () => {
   const p = buildCollectionsPrompt([{ name: 'A', tabCount: 1 }]);
-  assert.doesNotMatch(p, /Current collections/);
+  assert.doesNotMatch(p, /already has these collections/);
+  assert.match(p, /Make 3 to 8 collections/);
 });
 
 // ---- parser -----------------------------------------------------------------
@@ -88,7 +94,7 @@ test('health advertises the collections task', async () => {
 
 // ---- board ------------------------------------------------------------------
 
-import { renderBoard } from '../extension/board/board.js';
+import { renderBoard, mergeSuggested } from '../extension/board/board.js';
 import { filterCards } from '../extension/newtab/newtab.js';
 
 function makeEl(tag) {
@@ -286,16 +292,79 @@ test('Suggest collections shows the AI\'s collections; Go saves them as boxes', 
   assert.deepEqual(boxes(container).map((b) => b.name), ['Claude', 'Video', 'Not in a collection']);
 });
 
-test('Suggest collections again says Go replaces the current ones; Cancel keeps them', async () => {
+test('Suggest collections again sends what each collection holds; Go adds to them and keeps what is in them', async () => {
   const storage = makeStorage({ boardCollections: SAVED });
-  const { container, sent } = await render(storage, { ok: true, collections: [{ name: 'All', groups: ['Mac apps'] }] });
+  const { container, sent } = await render(storage, { ok: true, collections: [{ name: 'claude', groups: ['Mac apps', 'Premiere help'] }] });
   await buttonText(container, 'Suggest collections again…').click();
   await flush();
-  assert.deepEqual(sent.find((m) => m.cmd === 'suggestCollections').current, ['Claude', 'Video']);
-  assert.match(walk(container).find((n) => hasClass(n, 'boardProposalHead')).textContent, /replaces your current ones/);
+  assert.deepEqual(sent.find((m) => m.cmd === 'suggestCollections').current, [
+    { name: 'Claude', groups: ['Claude agents', 'Claude help'] },
+    { name: 'Video', groups: ['Premiere help', 'DaVinci help'] },
+  ]);
+  const head = walk(container).find((n) => hasClass(n, 'boardProposalHead')).textContent;
+  assert.match(head, /keep what's in them/);
+  assert.match(walk(container).find((n) => hasClass(n, 'boardProposalList')).children[0].children[1].textContent, /add to it/);
+  await buttonText(container, 'Go').click();
+  await flush();
+  assert.deepEqual(storage.peek().boardCollections, [
+    { id: 'c1', name: 'Claude', groups: ['claude agents', 'Claude help', 'Gone', 'Mac apps'] },
+    SAVED[1],
+  ], 'Mac apps joins Claude; Premiere help stays in Video');
+});
+
+test('Suggest collections again, Cancel keeps the collections as they were', async () => {
+  const storage = makeStorage({ boardCollections: SAVED });
+  const { container } = await render(storage, { ok: true, collections: [{ name: 'Apps', groups: ['Mac apps'] }] });
+  await buttonText(container, 'Suggest collections again…').click();
+  await flush();
   await buttonText(container, 'Cancel').click();
   await flush();
   assert.deepEqual(storage.peek().boardCollections, SAVED);
+});
+
+test('with every parked group in a collection, Suggest says so without asking the AI', async () => {
+  const all = [...SAVED, { id: 'c3', name: 'Apps', groups: ['Mac apps'] }];
+  const { container, sent } = await render(makeStorage({ boardCollections: all }));
+  await buttonText(container, 'Suggest collections again…').click();
+  await flush();
+  assert.ok(!sent.some((m) => m.cmd === 'suggestCollections'));
+  assert.match(walk(container).find((n) => hasClass(n, 'boardProposalHead')).textContent, /already in a collection/);
+});
+
+test('while the AI works the card shows a moving bar and a clock, and the button is off', async () => {
+  installFakeDocument();
+  const container = makeEl('div');
+  let answer;
+  const send = (msg) => {
+    if (msg.cmd === 'boardData') return Promise.resolve({ ok: true, ...DATA });
+    if (msg.cmd === 'suggestCollections') return new Promise((r) => { answer = r; });
+    return Promise.resolve({ ok: true });
+  };
+  await renderBoard(container, { send, storage: makeStorage(), chromeApi: {} });
+  buttonText(container, 'Suggest collections…').click();
+  await flush();
+  assert.match(walk(container).find((n) => hasClass(n, 'boardProposalHead')).textContent, /AI is sorting/);
+  assert.equal(walk(container).find((n) => hasClass(n, 'boardProposalClock')).textContent, '0:00');
+  assert.ok(walk(container).some((n) => hasClass(n, 'boardProposalBar')));
+  assert.equal(buttonText(container, 'Suggest collections…').disabled, true);
+  answer({ ok: true, collections: [{ name: 'Apps', groups: ['Mac apps', 'Claude help'] }] });
+  await flush();
+  assert.ok(!walk(container).some((n) => hasClass(n, 'boardProposalBar')), 'the bar goes when the answer comes');
+  assert.ok(buttonText(container, 'Go'));
+});
+
+test('mergeSuggested appends to a collection by name, adds new ones after, and never moves a placed group', () => {
+  const merged = mergeSuggested(SAVED, [
+    { name: 'VIDEO', groups: ['Mac apps', 'Claude help'] },
+    { name: 'New', groups: ['Fresh one'] },
+    { name: 'Empty', groups: ['Premiere help'] },
+  ]);
+  assert.deepEqual(merged.map((c) => [c.name, c.groups]), [
+    ['Claude', ['claude agents', 'Claude help', 'Gone']],
+    ['Video', ['Premiere help', 'DaVinci help', 'Mac apps']],
+    ['New', ['Fresh one']],
+  ]);
+  assert.deepEqual(SAVED[1].groups, ['Premiere help', 'DaVinci help'], 'the input is not changed');
 });
 
 test('a failed suggestion says why and can be dismissed', async () => {

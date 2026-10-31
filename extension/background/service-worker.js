@@ -1024,8 +1024,9 @@ async function handleTidyParked() {
 
 // "Suggest collections": read the parked groups from the index (with sample tab
 // titles, like tidy) and ask the model to sort them into a few named
-// collections for the board. `current` is the user's existing collection names.
-// Nothing is saved here; the board shows the result and saves it on Go. Quick
+// collections for the board. `current` is the user's existing collections, each
+// { name, groups } (a bare name is still taken); the groups in them stay put, so
+// only the other parked groups go to the model. Nothing is saved here; the board shows the result and saves it on Go. Quick
 // model slot. Returns { ok, collections: [{ name, groups }] }.
 async function handleSuggestCollections(m) {
   const settings = await getSettings();
@@ -1040,7 +1041,14 @@ async function handleSuggestCollections(m) {
   } finally {
     client.disconnect();
   }
-  const current = Array.isArray(m.current) ? m.current.map((n) => String(n || '')).filter(Boolean) : [];
+  const current = (Array.isArray(m.current) ? m.current : [])
+    .map((c) => (c && typeof c === 'object'
+      ? { name: String(c.name || ''), groups: Array.isArray(c.groups) ? c.groups.map((g) => String(g || '')).filter(Boolean) : [] }
+      : { name: String(c || ''), groups: [] }))
+    .filter((c) => c.name);
+  const held = new Set(current.flatMap((c) => c.groups.map((g) => g.trim().toLowerCase())));
+  parked = parked.filter((g) => !held.has(g.name.trim().toLowerCase()));
+  if (!parked.length) return { ok: true, collections: [] };
   const sorter = await makeClient(settings, 'quick');
   try {
     const res = await sorter.request({ type: 'organize', task: 'collections', adapter: settings.adapter, payload: { groups: parked, current } });

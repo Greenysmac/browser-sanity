@@ -1063,14 +1063,32 @@ function parkedPart({ container, parked, collections, folded, descriptions, newC
     parkedSection.appendChild(collectionTools({
       hasCollections,
       allFolded: hasCollections && boxIds.length > 0 && boxIds.every((id) => folded.has(id)),
-      onSuggest: async (btn) => {
-        btn.disabled = true;
-        btn.textContent = 'AI is sorting your groups into collections…';
-        const res = await send({ cmd: 'suggestCollections', current: collections.map((c) => c.name) });
+      pending: Boolean(proposals.get(container) && proposals.get(container).pending),
+      onSuggest: async () => {
+        // Groups already in a collection stay there; only the rest go to the AI.
+        if (hasCollections && !loose.length) {
+          proposals.set(container, { error: 'Every parked group is already in a collection.' });
+          await rerender();
+          return;
+        }
+        const started = Date.now();
+        proposals.set(container, { pending: started });
+        await rerender();
+        // Tick the elapsed time on the card while the AI works.
+        const tick = setInterval(() => {
+          const clock = container.querySelector && container.querySelector('.boardProposalClock');
+          if (clock) clock.textContent = elapsedLabel(Date.now() - started);
+        }, 1000);
+        let res;
+        try {
+          res = await send({ cmd: 'suggestCollections', current: boxes.map((b) => ({ name: b.name, groups: b.groups.map((g) => g.name) })) });
+        } finally {
+          clearInterval(tick);
+        }
         if (!res || !res.ok) {
           proposals.set(container, { error: `The AI couldn't suggest collections${res && res.error ? `: ${res.error}` : '. Check that the helper is running, then try again.'}` });
         } else if (!Array.isArray(res.collections) || !res.collections.length) {
-          proposals.set(container, { error: 'The AI found no collections for these groups.' });
+          proposals.set(container, { error: hasCollections ? 'The AI found no place for the groups that aren\'t in a collection.' : 'The AI found no collections for these groups.' });
         } else {
           proposals.set(container, { collections: res.collections });
         }
@@ -1093,11 +1111,9 @@ function parkedPart({ container, parked, collections, folded, descriptions, newC
   if (proposal) {
     parkedSection.appendChild(proposalCard({
       proposal,
-      replacing: hasCollections,
+      existing: collections.map((c) => c.name),
       onGo: async () => {
-        const fresh = proposal.collections.map((c, i) => ({ id: newCollectionId(i), name: c.name, groups: c.groups.slice() }));
-        await writeShared(storage, COLLECTIONS_KEY, fresh);
-        await writeShared(storage, FOLDED_KEY, []);
+        await writeShared(storage, COLLECTIONS_KEY, mergeSuggested(collections, proposal.collections));
         proposals.delete(container);
         await rerender();
       },
@@ -1180,14 +1196,15 @@ function swallowClicks(el) {
 // The row of collection tools under the Parked title: Suggest collections…
 // (…again once there are some), New collection, and Fold all / Unfold all.
 // While the AI works, the Suggest button says so and can't be clicked twice.
-function collectionTools({ hasCollections, allFolded, onSuggest, onNew, onFoldAll }) {
+function collectionTools({ hasCollections, allFolded, pending = false, onSuggest, onNew, onFoldAll }) {
   const row = document.createElement('div');
   row.className = 'boardCollectionTools';
   const suggest = document.createElement('button');
   suggest.type = 'button';
   suggest.className = 'boardToolBtn boardSuggestCollections';
   suggest.textContent = hasCollections ? 'Suggest collections again…' : 'Suggest collections…';
-  suggest.addEventListener('click', () => onSuggest(suggest));
+  suggest.disabled = pending;
+  suggest.addEventListener('click', () => onSuggest());
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'boardToolBtn boardNewCollection';
@@ -1205,14 +1222,27 @@ function collectionTools({ hasCollections, allFolded, onSuggest, onNew, onFoldAl
   return row;
 }
 
-// The AI's suggested collections, waiting for Go: each one's name and groups,
-// how they replace the current collections (when there are some), and Go /
-// Cancel. A failed suggestion shows its reason and a Dismiss button instead.
-function proposalCard({ proposal, replacing, onGo, onCancel }) {
+// The AI's suggested collections, waiting for Go: each one's name and the
+// groups it would get, with the ones that go into a collection you already
+// have marked as such, and Go / Cancel. While the AI works the card says so,
+// with a moving bar and the seconds so far. A failed suggestion shows its
+// reason and a Dismiss button instead.
+function proposalCard({ proposal, existing = [], onGo, onCancel }) {
   const card = document.createElement('div');
   card.className = 'boardCollectionProposal';
   const head = document.createElement('p');
   head.className = 'boardProposalHead';
+  if (proposal.pending) {
+    head.textContent = 'AI is sorting your groups into collections… ';
+    const clock = document.createElement('span');
+    clock.className = 'boardProposalClock';
+    clock.textContent = elapsedLabel(Date.now() - proposal.pending);
+    head.appendChild(clock);
+    const bar = document.createElement('div');
+    bar.className = 'boardProposalBar';
+    card.append(head, bar);
+    return card;
+  }
   const buttons = document.createElement('div');
   buttons.className = 'boardProposalActions';
   const cancel = document.createElement('button');
@@ -1226,8 +1256,11 @@ function proposalCard({ proposal, replacing, onGo, onCancel }) {
     card.append(head, buttons);
     return card;
   }
+  const have = new Set(existing.map(nameKey));
   const n = proposal.collections.length;
-  head.textContent = `The AI suggests ${n} collection${n === 1 ? '' : 's'}${replacing ? '. Go replaces your current ones.' : '.'}`;
+  head.textContent = have.size
+    ? 'The AI suggests where to put the groups that aren\'t in a collection. Your collections keep what\'s in them.'
+    : `The AI suggests ${n} collection${n === 1 ? '' : 's'}.`;
   const list = document.createElement('ul');
   list.className = 'boardProposalList';
   for (const c of proposal.collections) {
@@ -1235,7 +1268,7 @@ function proposalCard({ proposal, replacing, onGo, onCancel }) {
     const name = document.createElement('strong');
     name.textContent = c.name;
     const groups = document.createElement('span');
-    groups.textContent = ` ${c.groups.join(', ')}`;
+    groups.textContent = `${have.has(nameKey(c.name)) ? ' (add to it)' : have.size ? ' (new)' : ''} ${c.groups.join(', ')}`;
     li.append(name, groups);
     list.appendChild(li);
   }
@@ -1248,6 +1281,30 @@ function proposalCard({ proposal, replacing, onGo, onCancel }) {
   buttons.append(go, cancel);
   card.append(head, list, buttons);
   return card;
+}
+
+// "m:ss" elapsed, like the side panel's scan clock.
+function elapsedLabel(ms) {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+// Fold the AI's suggestion into the saved collections without moving anything
+// already in one: a suggested collection with the name of one you have adds its
+// groups to the end of it, any other is a new collection after yours. A group
+// that's already in a collection is skipped.
+export function mergeSuggested(collections, suggested) {
+  const out = collections.map((c) => ({ ...c, groups: c.groups.slice() }));
+  const placed = new Set(out.flatMap((c) => c.groups.map(nameKey)));
+  suggested.forEach((s, i) => {
+    const groups = s.groups.filter((g) => !placed.has(nameKey(g)));
+    groups.forEach((g) => placed.add(nameKey(g)));
+    if (!groups.length) return;
+    const same = out.find((c) => nameKey(c.name) === nameKey(s.name));
+    if (same) same.groups.push(...groups);
+    else out.push({ id: newCollectionId(i), name: s.name, groups });
+  });
+  return out;
 }
 
 // One collection box: a <details> whose title shows the name, how many groups

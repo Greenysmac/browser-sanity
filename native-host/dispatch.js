@@ -142,7 +142,7 @@ export async function handle(msg, deps = {}) {
     // Sort the parked groups into named collections for the board. Like
     // tidy-parked, the groups file isn't fed in; the parser keeps only names
     // that were sent, each in one collection. `current` is the user's existing
-    // collection names, which the model may keep.
+    // collections and what's in them, which stay put.
     if (task === 'collections') {
       const groups = Array.isArray(payload.groups) ? payload.groups : [];
       const names = groups.map((g) => String((g && g.name) || ''));

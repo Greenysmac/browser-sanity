@@ -289,7 +289,24 @@ test('suggestCollections sends the parked groups (not open ones) and the current
   const req = requests.find((r) => r.task === 'collections');
   assert.ok(req, 'one collections request');
   assert.deepEqual(req.payload.groups.map((g) => g.name), ['Claude help', 'Premiere help']);
-  assert.deepEqual(req.payload.current, ['Claude']);
+  assert.deepEqual(req.payload.current, [{ name: 'Claude', groups: [] }]);
+});
+
+test('suggestCollections leaves out groups already in a collection, and skips the AI when none are left', async () => {
+  const indexGroups = [
+    { name: 'Claude help', status: 'parked', tabs: [] },
+    { name: 'Premiere help', status: 'parked', tabs: [] },
+  ];
+  const one = installSwChrome({ indexGroups, collections: [] });
+  await one.dispatch({ cmd: 'suggestCollections', current: [{ name: 'Claude', groups: ['claude help'] }] });
+  const req = one.requests.find((r) => r.task === 'collections');
+  assert.deepEqual(req.payload.groups.map((g) => g.name), ['Premiere help']);
+  assert.deepEqual(req.payload.current, [{ name: 'Claude', groups: ['claude help'] }]);
+
+  const two = installSwChrome({ indexGroups, collections: [] });
+  const res = await two.dispatch({ cmd: 'suggestCollections', current: [{ name: 'All', groups: ['Claude help', 'Premiere help'] }] });
+  assert.deepEqual(res, { ok: true, collections: [] });
+  assert.ok(!two.requests.some((r) => r.task === 'collections'), 'no model call');
 });
 
 // --- Suggest new groups for the leftovers (TASK 2) -------------------------

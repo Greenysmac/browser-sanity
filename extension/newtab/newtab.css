@@ -423,6 +423,22 @@ textarea, input {
 .boardProposalActions { display: flex; gap: 8px; }
 .boardGoBtn { background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-radius: var(--r); padding: 4px 16px; font: inherit; font-weight: 600; cursor: pointer; }
 .boardProposalActions .boardToolBtn { padding: 4px 8px; }
+.boardProposalClock { font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+/* The moving bar while the AI suggests collections (same shimmer as the scan bar). */
+.boardProposalBar {
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 200% 100%;
+  animation: scanShimmer 1.5s infinite linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boardProposalBar { background: var(--accent); animation: none; }
+}
+@keyframes scanShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
 
 /* On the new-tab page the boxes sit in rows of ~300px columns (a grid fills left
    to right), so a narrower window drops a whole box to the next row. The tools,
